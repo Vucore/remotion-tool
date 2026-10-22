@@ -1,15 +1,18 @@
 {
-  "name": "Video-GPT",
-  "version": "1.0.0",
-  "description": "My Remotion video",
-  "repository": {},
+  "name": "khung-image-video-editor",
+  "version": "0.2.0",
+  "description": "Web editor tiếng Việt: ghép ảnh tĩnh thành video bằng Remotion",
+  "type": "module",
   "license": "UNLICENSED",
   "engines": {
     "node": "^20.19.0 || ^22.13.0 || >=24"
   },
   "private": true,
   "dependencies": {
-    "@remotion/cli": "4.0.537",
+    "@remotion/bundler": "4.0.537",
+    "@remotion/effects": "4.0.537",
+    "@remotion/player": "4.0.537",
+    "@remotion/renderer": "4.0.537",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "remotion": "4.0.537"
@@ -17,16 +20,20 @@
   "devDependencies": {
     "@remotion/eslint-config-flat": "4.0.537",
     "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
     "@types/web": "0.0.166",
+    "esbuild": "0.28.1",
     "eslint": "10.12.0",
-    "prettier": "3.8.1",
+    "prettier": "^3.8.1",
     "typescript": "5.9.3"
   },
   "scripts": {
-    "dev": "remotion studio",
-    "build": "remotion bundle",
-    "upgrade": "remotion upgrade",
-    "lint": "eslint src && tsc"
+    "dev": "node scripts/dev.mjs",
+    "build": "node scripts/build.mjs",
+    "start": "node scripts/server.mjs",
+    "lint": "eslint src && tsc --noEmit",
+    "test": "node scripts/build.mjs && node --test tests/*.test.mjs",
+    "sync:effects": "node scripts/sync-effects.mjs"
   },
   "allowScripts": {
     "esbuild": false

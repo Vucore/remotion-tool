@@ -1,0 +1,4837 @@
+{
+  "version": "4.0.537",
+  "effects": [
+    {
+      "kind": "barrelDistortion",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/barrel-distortion",
+      "defaults": {
+        "amount": 0.25
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.25,
+          "description": "Amount",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "bevelAlpha",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/bevel-alpha",
+      "defaults": {
+        "edgeThickness": 2,
+        "lightAngle": -60,
+        "lightColor": "white",
+        "lightIntensity": 0.4
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "edgeThickness": {
+          "type": "number",
+          "min": 0,
+          "max": 200,
+          "step": 0.1,
+          "default": 2,
+          "description": "Edge thickness",
+          "hiddenFromList": false
+        },
+        "lightAngle": {
+          "type": "rotation-degrees",
+          "step": 1,
+          "default": -60,
+          "description": "Light angle"
+        },
+        "lightColor": {
+          "type": "color",
+          "default": "white",
+          "description": "Light color"
+        },
+        "lightIntensity": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.4,
+          "description": "Light intensity",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "blur",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/blur",
+      "defaults": {
+        "radius": 8,
+        "horizontal": true,
+        "vertical": true
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "radius": {
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 40,
+          "description": "Radius",
+          "hiddenFromList": false
+        },
+        "horizontal": {
+          "type": "boolean",
+          "default": true,
+          "description": "Horizontal"
+        },
+        "vertical": {
+          "type": "boolean",
+          "default": true,
+          "description": "Vertical"
+        }
+      }
+    },
+    {
+      "kind": "burlap",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/burlap",
+      "defaults": {
+        "amount": 0.55,
+        "size": 5,
+        "roughness": 0.7,
+        "seed": 0,
+        "color": "#000000"
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.55,
+          "description": "Amount",
+          "hiddenFromList": false
+        },
+        "size": {
+          "type": "number",
+          "min": 0.1,
+          "max": 80,
+          "step": 0.1,
+          "default": 5,
+          "description": "Size",
+          "hiddenFromList": false
+        },
+        "roughness": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.7,
+          "description": "Roughness",
+          "hiddenFromList": false
+        },
+        "seed": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "Seed",
+          "hiddenFromList": false
+        },
+        "color": {
+          "type": "color",
+          "default": "#000000",
+          "description": "Color"
+        }
+      }
+    },
+    {
+      "kind": "fractalNoise",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/fractal-noise",
+      "defaults": {
+        "fractalType": "basic",
+        "noiseType": "soft-linear",
+        "scale": 100,
+        "complexity": 6,
+        "evolution": 0,
+        "contrast": 1,
+        "brightness": 0,
+        "offsetX": 0,
+        "offsetY": 0,
+        "subInfluence": 0.7,
+        "subScaling": 0.56,
+        "cycleEvolution": false,
+        "cycle": 1,
+        "seed": 0,
+        "invert": false,
+        "amount": 1
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "fractalType": {
+          "type": "enum",
+          "variants": {
+            "basic": {},
+            "turbulent-smooth": {},
+            "turbulent-basic": {},
+            "turbulent-sharp": {},
+            "dynamic": {},
+            "dynamic-twist": {},
+            "dynamic-progressive": {},
+            "max": {},
+            "strings": {}
+          },
+          "default": "basic",
+          "description": "Fractal type"
+        },
+        "noiseType": {
+          "type": "enum",
+          "variants": {
+            "block": {},
+            "linear": {},
+            "soft-linear": {},
+            "spline": {}
+          },
+          "default": "soft-linear",
+          "description": "Noise type"
+        },
+        "scale": {
+          "type": "number",
+          "min": 1,
+          "max": 1000,
+          "step": 1,
+          "default": 100,
+          "description": "Scale",
+          "hiddenFromList": false
+        },
+        "complexity": {
+          "type": "number",
+          "min": 1,
+          "max": 20,
+          "step": 0.1,
+          "default": 6,
+          "description": "Complexity",
+          "hiddenFromList": false
+        },
+        "evolution": {
+          "type": "rotation-degrees",
+          "step": 1,
+          "default": 0,
+          "description": "Evolution"
+        },
+        "contrast": {
+          "type": "number",
+          "min": 0,
+          "max": 10,
+          "step": 0.01,
+          "default": 1,
+          "description": "Contrast",
+          "hiddenFromList": false
+        },
+        "brightness": {
+          "type": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Brightness",
+          "hiddenFromList": false
+        },
+        "offsetX": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "Offset X",
+          "hiddenFromList": false
+        },
+        "offsetY": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "Offset Y",
+          "hiddenFromList": false
+        },
+        "subInfluence": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.7,
+          "description": "Sub influence",
+          "hiddenFromList": false
+        },
+        "subScaling": {
+          "type": "number",
+          "min": 0.1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.56,
+          "description": "Sub scaling",
+          "hiddenFromList": false
+        },
+        "cycleEvolution": {
+          "type": "boolean",
+          "default": false,
+          "description": "Cycle evolution"
+        },
+        "cycle": {
+          "type": "number",
+          "min": 1,
+          "max": 100,
+          "step": 1,
+          "integer": true,
+          "default": 1,
+          "description": "Cycle length",
+          "hiddenFromList": false
+        },
+        "seed": {
+          "type": "number",
+          "min": 0,
+          "max": 4294967295,
+          "step": 1,
+          "integer": true,
+          "default": 0,
+          "description": "Seed",
+          "hiddenFromList": false
+        },
+        "invert": {
+          "type": "boolean",
+          "default": false,
+          "description": "Invert"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "description": "Amount",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "flannel",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/flannel",
+      "defaults": {
+        "amount": 0.7,
+        "size": 96,
+        "softness": 0.18,
+        "baseColor": "#c92f3d",
+        "stripeColor": "#241015"
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.7,
+          "description": "Amount",
+          "hiddenFromList": false
+        },
+        "size": {
+          "type": "number",
+          "min": 1,
+          "max": 500,
+          "step": 1,
+          "default": 96,
+          "description": "Pattern size",
+          "hiddenFromList": false
+        },
+        "softness": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.18,
+          "description": "Softness",
+          "hiddenFromList": false
+        },
+        "baseColor": {
+          "type": "color",
+          "default": "#c92f3d",
+          "description": "Base color"
+        },
+        "stripeColor": {
+          "type": "color",
+          "default": "#241015",
+          "description": "Stripe color"
+        }
+      }
+    },
+    {
+      "kind": "checkerboard",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/checkerboard",
+      "defaults": {
+        "colors": ["#dff4ff", "#7cc6ff"],
+        "cellSize": 80,
+        "gap": 0,
+        "angle": 0,
+        "offsetX": 0,
+        "offsetY": 0,
+        "maskToSourceAlpha": false
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "colors": {
+          "type": "array",
+          "item": {
+            "type": "color"
+          },
+          "default": ["#dff4ff", "#7cc6ff"],
+          "minLength": 2,
+          "newItemDefault": "#ff0000",
+          "description": "Colors",
+          "keyframable": false
+        },
+        "cellSize": {
+          "type": "number",
+          "min": 0.1,
+          "max": 800,
+          "step": 0.1,
+          "default": 80,
+          "description": "Cell size",
+          "hiddenFromList": false
+        },
+        "gap": {
+          "type": "number",
+          "min": 0,
+          "max": 400,
+          "step": 0.1,
+          "default": 0,
+          "description": "Gap",
+          "hiddenFromList": false
+        },
+        "angle": {
+          "type": "rotation-degrees",
+          "step": 1,
+          "default": 0,
+          "description": "Angle"
+        },
+        "offsetX": {
+          "type": "number",
+          "step": 0.1,
+          "default": 0,
+          "description": "Offset X",
+          "hiddenFromList": false
+        },
+        "offsetY": {
+          "type": "number",
+          "step": 0.1,
+          "default": 0,
+          "description": "Offset Y",
+          "hiddenFromList": false
+        },
+        "maskToSourceAlpha": {
+          "type": "boolean",
+          "default": false,
+          "description": "Mask to source alpha"
+        }
+      }
+    },
+    {
+      "kind": "chromaticAberration",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/chromatic-aberration",
+      "defaults": {
+        "amount": 8,
+        "angle": 0
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 8,
+          "description": "Amount",
+          "hiddenFromList": false
+        },
+        "angle": {
+          "type": "rotation-degrees",
+          "step": 1,
+          "default": 0,
+          "description": "Angle"
+        }
+      }
+    },
+    {
+      "kind": "colorKey",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/color-key",
+      "defaults": {
+        "keyColor": "#00ff00",
+        "similarity": 0.18,
+        "smoothness": 0.08,
+        "spillSuppression": 0.25
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "keyColor": {
+          "type": "color",
+          "default": "#00ff00",
+          "description": "Key color"
+        },
+        "similarity": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.18,
+          "description": "Similarity",
+          "hiddenFromList": false
+        },
+        "smoothness": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.08,
+          "description": "Smoothness",
+          "hiddenFromList": false
+        },
+        "spillSuppression": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.25,
+          "description": "Spill suppression",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "colorCorrection",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/color-correction",
+      "defaults": {
+        "exposure": 0,
+        "contrast": 1,
+        "pivot": 0.5,
+        "shadows": 0,
+        "highlights": 0,
+        "whites": 0,
+        "blacks": 0,
+        "temperature": 0,
+        "tint": 0,
+        "saturation": 1,
+        "vibrance": 0
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "exposure": {
+          "type": "number",
+          "min": -5,
+          "max": 5,
+          "step": 0.1,
+          "default": 0,
+          "description": "Exposure",
+          "hiddenFromList": false
+        },
+        "contrast": {
+          "type": "number",
+          "min": 0,
+          "max": 3,
+          "step": 0.01,
+          "default": 1,
+          "description": "Contrast",
+          "hiddenFromList": false
+        },
+        "pivot": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.5,
+          "description": "Contrast pivot",
+          "hiddenFromList": false
+        },
+        "shadows": {
+          "type": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Shadows",
+          "hiddenFromList": false
+        },
+        "highlights": {
+          "type": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Highlights",
+          "hiddenFromList": false
+        },
+        "whites": {
+          "type": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Whites",
+          "hiddenFromList": false
+        },
+        "blacks": {
+          "type": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Blacks",
+          "hiddenFromList": false
+        },
+        "temperature": {
+          "type": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Temperature",
+          "hiddenFromList": false
+        },
+        "tint": {
+          "type": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Tint",
+          "hiddenFromList": false
+        },
+        "saturation": {
+          "type": "number",
+          "min": 0,
+          "max": 3,
+          "step": 0.01,
+          "default": 1,
+          "description": "Saturation",
+          "hiddenFromList": false
+        },
+        "vibrance": {
+          "type": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Vibrance",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "brightness",
+      "backend": "2d",
+      "documentationLink": "https://www.remotion.dev/docs/effects/brightness",
+      "defaults": {
+        "amount": 0
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "amount": {
+          "type": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Amount",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "contrast",
+      "backend": "2d",
+      "documentationLink": "https://www.remotion.dev/docs/effects/contrast",
+      "defaults": {
+        "amount": 1
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "step": 0.01,
+          "default": 1,
+          "description": "Amount",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "contourLines",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/contour-lines",
+      "defaults": {
+        "lineColor": "#ffffff",
+        "lineWidth": 1.5,
+        "spacing": 36,
+        "scale": 220,
+        "complexity": 0.65,
+        "smoothness": 0.55,
+        "seed": 0,
+        "offsetX": 0,
+        "offsetY": 0,
+        "opacity": 1,
+        "maskToSourceAlpha": false
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "lineColor": {
+          "type": "color",
+          "default": "#ffffff",
+          "description": "Line color"
+        },
+        "lineWidth": {
+          "type": "number",
+          "min": 0.1,
+          "max": 20,
+          "step": 0.1,
+          "default": 1.5,
+          "description": "Line width",
+          "hiddenFromList": false
+        },
+        "spacing": {
+          "type": "number",
+          "min": 1,
+          "max": 200,
+          "step": 1,
+          "default": 36,
+          "description": "Spacing",
+          "hiddenFromList": false
+        },
+        "scale": {
+          "type": "number",
+          "min": 20,
+          "max": 1000,
+          "step": 1,
+          "default": 220,
+          "description": "Scale",
+          "hiddenFromList": false
+        },
+        "complexity": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.65,
+          "description": "Complexity",
+          "hiddenFromList": false
+        },
+        "smoothness": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.55,
+          "description": "Smoothness",
+          "hiddenFromList": false
+        },
+        "seed": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "Seed",
+          "hiddenFromList": false
+        },
+        "offsetX": {
+          "type": "number",
+          "step": 0.1,
+          "default": 0,
+          "description": "Offset X",
+          "hiddenFromList": false
+        },
+        "offsetY": {
+          "type": "number",
+          "step": 0.1,
+          "default": 0,
+          "description": "Offset Y",
+          "hiddenFromList": false
+        },
+        "opacity": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "description": "Opacity",
+          "hiddenFromList": false
+        },
+        "maskToSourceAlpha": {
+          "type": "boolean",
+          "default": false,
+          "description": "Mask to source alpha"
+        }
+      }
+    },
+    {
+      "kind": "cylinder",
+      "backend": "webgpu",
+      "documentationLink": "https://www.remotion.dev/docs/effects/cylinder",
+      "defaults": {
+        "radius": 250,
+        "rotation": 0,
+        "rotationX": 0,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "position": [0.5, 0.5],
+        "render": "both",
+        "shading": 0.35
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "radius": {
+          "type": "number",
+          "min": 1,
+          "max": 1000,
+          "step": 1,
+          "default": 250,
+          "description": "Radius",
+          "hiddenFromList": false
+        },
+        "rotation": {
+          "type": "rotation-degrees",
+          "default": 0,
+          "description": "Texture rotation"
+        },
+        "rotationX": {
+          "type": "rotation-degrees",
+          "default": 0,
+          "description": "X rotation"
+        },
+        "rotationY": {
+          "type": "rotation-degrees",
+          "default": 0,
+          "description": "Y rotation"
+        },
+        "rotationZ": {
+          "type": "rotation-degrees",
+          "default": 0,
+          "description": "Z rotation"
+        },
+        "position": {
+          "type": "uv-coordinate",
+          "default": [0.5, 0.5],
+          "description": "Position"
+        },
+        "render": {
+          "type": "enum",
+          "variants": {
+            "both": {},
+            "front": {},
+            "back": {}
+          },
+          "default": "both",
+          "description": "Faces"
+        },
+        "shading": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.35,
+          "description": "Shading",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "dropShadow",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/drop-shadow",
+      "defaults": {
+        "radius": 12,
+        "offsetX": 8,
+        "offsetY": 8,
+        "opacity": 0.5,
+        "color": "#000000"
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "radius": {
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 12,
+          "description": "Radius",
+          "hiddenFromList": false
+        },
+        "offsetX": {
+          "type": "number",
+          "step": 1,
+          "default": 8,
+          "description": "Offset X",
+          "hiddenFromList": false
+        },
+        "offsetY": {
+          "type": "number",
+          "step": 1,
+          "default": 8,
+          "description": "Offset Y",
+          "hiddenFromList": false
+        },
+        "opacity": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.5,
+          "description": "Opacity",
+          "hiddenFromList": false
+        },
+        "color": {
+          "type": "color",
+          "default": "#000000",
+          "description": "Color"
+        }
+      }
+    },
+    {
+      "kind": "duotone",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/duotone",
+      "defaults": {
+        "darkColor": "#000000",
+        "lightColor": "#ffffff",
+        "threshold": 0.5
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "darkColor": {
+          "type": "color",
+          "default": "#000000",
+          "description": "Dark color"
+        },
+        "lightColor": {
+          "type": "color",
+          "default": "#ffffff",
+          "description": "Light color"
+        },
+        "threshold": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.5,
+          "description": "Luminance threshold",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "emboss",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/emboss",
+      "defaults": {
+        "amount": 0.7,
+        "size": 26,
+        "lineWidth": 7,
+        "depth": 0.75,
+        "angle": 0,
+        "lightAngle": 135,
+        "offset": 0
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.7,
+          "description": "Amount",
+          "hiddenFromList": false
+        },
+        "size": {
+          "type": "number",
+          "min": 1,
+          "max": 200,
+          "step": 1,
+          "default": 26,
+          "description": "Size",
+          "hiddenFromList": false
+        },
+        "lineWidth": {
+          "type": "number",
+          "min": 0.1,
+          "max": 100,
+          "step": 0.1,
+          "default": 7,
+          "description": "Line width",
+          "hiddenFromList": false
+        },
+        "depth": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.75,
+          "description": "Depth",
+          "hiddenFromList": false
+        },
+        "angle": {
+          "type": "rotation-degrees",
+          "step": 1,
+          "default": 0,
+          "description": "Angle"
+        },
+        "lightAngle": {
+          "type": "rotation-degrees",
+          "step": 1,
+          "default": 135,
+          "description": "Light angle"
+        },
+        "offset": {
+          "type": "number",
+          "step": 0.1,
+          "default": 0,
+          "description": "Offset",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "evolve",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/evolve",
+      "defaults": {
+        "progress": 0.5,
+        "direction": "left",
+        "feather": 0.1
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "progress": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.5,
+          "description": "Progress",
+          "hiddenFromList": false
+        },
+        "direction": {
+          "type": "enum",
+          "variants": {
+            "left": {},
+            "right": {},
+            "top": {},
+            "bottom": {}
+          },
+          "default": "left",
+          "description": "Direction"
+        },
+        "feather": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.1,
+          "description": "Feather",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "exposure",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/exposure",
+      "defaults": {
+        "stops": 0
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "stops": {
+          "type": "number",
+          "min": -5,
+          "max": 5,
+          "step": 0.1,
+          "default": 0,
+          "description": "Stops",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "fisheye",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/fisheye",
+      "defaults": {
+        "fieldOfView": 2.5,
+        "center": [0.5, 0.5],
+        "radius": 1,
+        "zoom": 1
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "fieldOfView": {
+          "type": "number",
+          "min": 0,
+          "max": 3.141592653589793,
+          "step": 0.01,
+          "default": 2.5,
+          "description": "Field of view",
+          "hiddenFromList": false
+        },
+        "center": {
+          "type": "uv-coordinate",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": [0.5, 0.5],
+          "description": "Center"
+        },
+        "radius": {
+          "type": "number",
+          "min": 0.01,
+          "max": 3,
+          "step": 0.01,
+          "default": 1,
+          "description": "Radius",
+          "hiddenFromList": false
+        },
+        "zoom": {
+          "type": "number",
+          "min": 0.1,
+          "max": 5,
+          "step": 0.01,
+          "default": 1,
+          "description": "Zoom",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "cornerPin",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/corner-pin",
+      "defaults": {
+        "topLeft": [0, 0],
+        "topRight": [1, 0],
+        "bottomRight": [1, 1],
+        "bottomLeft": [0, 1]
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "topLeft": {
+          "type": "uv-coordinate",
+          "min": -1,
+          "max": 2,
+          "step": 0.01,
+          "default": [0, 0],
+          "description": "Top left"
+        },
+        "topRight": {
+          "type": "uv-coordinate",
+          "min": -1,
+          "max": 2,
+          "step": 0.01,
+          "default": [1, 0],
+          "description": "Top right"
+        },
+        "bottomRight": {
+          "type": "uv-coordinate",
+          "min": -1,
+          "max": 2,
+          "step": 0.01,
+          "default": [1, 1],
+          "description": "Bottom right"
+        },
+        "bottomLeft": {
+          "type": "uv-coordinate",
+          "min": -1,
+          "max": 2,
+          "step": 0.01,
+          "default": [0, 1],
+          "description": "Bottom left"
+        }
+      }
+    },
+    {
+      "kind": "glow",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/glow",
+      "defaults": {
+        "radius": 20,
+        "intensity": 1,
+        "threshold": 0,
+        "color": "#ffffff"
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "radius": {
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 20,
+          "description": "Radius",
+          "hiddenFromList": false
+        },
+        "intensity": {
+          "type": "number",
+          "min": 0,
+          "max": 5,
+          "step": 0.1,
+          "default": 1,
+          "description": "Intensity",
+          "hiddenFromList": false
+        },
+        "threshold": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Threshold",
+          "hiddenFromList": false
+        },
+        "color": {
+          "type": "color",
+          "default": "#ffffff",
+          "description": "Color"
+        }
+      }
+    },
+    {
+      "kind": "gridlines",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/gridlines",
+      "defaults": {
+        "gridSize": 64,
+        "lineWidth": 2,
+        "lineColor": "#ffffff",
+        "backgroundColor": "transparent",
+        "rotation": 0,
+        "rotationX": 0,
+        "rotationY": 0,
+        "perspective": 0,
+        "offsetX": 0,
+        "offsetY": 0,
+        "maskToSourceAlpha": false
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "gridSize": {
+          "type": "number",
+          "min": 1,
+          "max": 400,
+          "step": 1,
+          "default": 64,
+          "description": "Grid size",
+          "hiddenFromList": false
+        },
+        "lineWidth": {
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.1,
+          "default": 2,
+          "description": "Line width",
+          "hiddenFromList": false
+        },
+        "lineColor": {
+          "type": "color",
+          "default": "#ffffff",
+          "description": "Line color"
+        },
+        "backgroundColor": {
+          "type": "color",
+          "default": "transparent",
+          "description": "Background color"
+        },
+        "rotation": {
+          "type": "rotation-degrees",
+          "min": -180,
+          "max": 180,
+          "step": 1,
+          "default": 0,
+          "description": "Rotation"
+        },
+        "rotationX": {
+          "type": "rotation-degrees",
+          "min": -180,
+          "max": 180,
+          "step": 0.1,
+          "default": 0,
+          "description": "Rotation X"
+        },
+        "rotationY": {
+          "type": "rotation-degrees",
+          "min": -180,
+          "max": 180,
+          "step": 0.1,
+          "default": 0,
+          "description": "Rotation Y"
+        },
+        "perspective": {
+          "type": "number",
+          "min": 0,
+          "max": 4000,
+          "step": 1,
+          "default": 0,
+          "description": "Perspective",
+          "hiddenFromList": false
+        },
+        "offsetX": {
+          "type": "number",
+          "min": -400,
+          "max": 400,
+          "step": 0.1,
+          "default": 0,
+          "description": "Offset X",
+          "hiddenFromList": false
+        },
+        "offsetY": {
+          "type": "number",
+          "min": -400,
+          "max": 400,
+          "step": 0.1,
+          "default": 0,
+          "description": "Offset Y",
+          "hiddenFromList": false
+        },
+        "maskToSourceAlpha": {
+          "type": "boolean",
+          "default": false,
+          "description": "Mask to source alpha"
+        }
+      }
+    },
+    {
+      "kind": "halftone",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/halftone",
+      "defaults": {
+        "dotSize": 20,
+        "dotSpacing": 20,
+        "rotation": 0,
+        "offsetX": 0,
+        "offsetY": 0,
+        "shape": "circle",
+        "invert": false,
+        "colorMode": "solid",
+        "dotColor": "red"
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "dotSize": {
+          "type": "number",
+          "min": 1,
+          "max": 200,
+          "step": 1,
+          "default": 20,
+          "description": "Dot size",
+          "hiddenFromList": false
+        },
+        "dotSpacing": {
+          "type": "number",
+          "min": 1,
+          "max": 200,
+          "step": 1,
+          "default": 20,
+          "description": "Dot spacing",
+          "hiddenFromList": false
+        },
+        "rotation": {
+          "type": "rotation-degrees",
+          "step": 1,
+          "default": 0,
+          "description": "Rotation"
+        },
+        "offsetX": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "Offset X",
+          "hiddenFromList": false
+        },
+        "offsetY": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "Offset Y",
+          "hiddenFromList": false
+        },
+        "shape": {
+          "type": "enum",
+          "variants": {
+            "circle": {},
+            "square": {},
+            "line": {}
+          },
+          "default": "circle",
+          "description": "Shape"
+        },
+        "invert": {
+          "type": "boolean",
+          "default": false,
+          "description": "Invert"
+        },
+        "colorMode": {
+          "type": "enum",
+          "default": "solid",
+          "description": "Color mode",
+          "variants": {
+            "solid": {
+              "dotColor": {
+                "type": "color",
+                "default": "red",
+                "description": "Dot color"
+              }
+            },
+            "source": {}
+          }
+        }
+      }
+    },
+    {
+      "kind": "halftoneLinearGradient",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/halftone-linear-gradient",
+      "defaults": {
+        "firstStopDotSize": 0,
+        "secondStopDotSize": 40,
+        "firstStopPosition": [0, 0.5],
+        "secondStopPosition": [1, 0.5],
+        "gridSize": 24,
+        "colorMode": "solid",
+        "dotColor": "black",
+        "maskToSourceAlpha": false
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "firstStopDotSize": {
+          "type": "number",
+          "min": 0,
+          "max": 400,
+          "step": 1,
+          "default": 0,
+          "description": "First stop dot size",
+          "hiddenFromList": false
+        },
+        "secondStopDotSize": {
+          "type": "number",
+          "min": 0,
+          "max": 400,
+          "step": 1,
+          "default": 40,
+          "description": "Second stop dot size",
+          "hiddenFromList": false
+        },
+        "firstStopPosition": {
+          "type": "uv-coordinate",
+          "min": -1,
+          "max": 2,
+          "step": 0.01,
+          "default": [0, 0.5],
+          "description": "First stop position",
+          "visual": {
+            "type": "line",
+            "to": "secondStopPosition"
+          }
+        },
+        "secondStopPosition": {
+          "type": "uv-coordinate",
+          "min": -1,
+          "max": 2,
+          "step": 0.01,
+          "default": [1, 0.5],
+          "description": "Second stop position"
+        },
+        "gridSize": {
+          "type": "number",
+          "min": 1,
+          "max": 400,
+          "step": 1,
+          "default": 24,
+          "description": "Grid size",
+          "hiddenFromList": false
+        },
+        "colorMode": {
+          "type": "enum",
+          "default": "solid",
+          "description": "Color mode",
+          "variants": {
+            "solid": {
+              "dotColor": {
+                "type": "color",
+                "default": "black",
+                "description": "Dot color"
+              }
+            },
+            "source": {}
+          }
+        },
+        "maskToSourceAlpha": {
+          "type": "boolean",
+          "default": false,
+          "description": "Mask to source alpha"
+        }
+      }
+    },
+    {
+      "kind": "pixelDissolve",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/pixel-dissolve",
+      "defaults": {
+        "progress": 0.5,
+        "columns": 10,
+        "rows": 10,
+        "seed": 0,
+        "feather": 0.15
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "progress": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.5,
+          "description": "Progress",
+          "hiddenFromList": false
+        },
+        "columns": {
+          "type": "number",
+          "min": 1,
+          "max": 400,
+          "step": 1,
+          "integer": true,
+          "default": 10,
+          "description": "Columns",
+          "hiddenFromList": false
+        },
+        "rows": {
+          "type": "number",
+          "min": 1,
+          "max": 400,
+          "step": 1,
+          "integer": true,
+          "default": 10,
+          "description": "Rows",
+          "hiddenFromList": false
+        },
+        "seed": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "Seed",
+          "hiddenFromList": false
+        },
+        "feather": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.15,
+          "description": "Feather",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "pixelate",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/pixelate",
+      "defaults": {
+        "blockSize": 20
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "blockSize": {
+          "type": "number",
+          "min": 1,
+          "max": 200,
+          "step": 1,
+          "default": 20,
+          "description": "Block size",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "grayscale",
+      "backend": "2d",
+      "documentationLink": "https://www.remotion.dev/docs/effects/grayscale",
+      "defaults": {
+        "amount": 1
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "description": "Amount",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "hue",
+      "backend": "2d",
+      "documentationLink": "https://www.remotion.dev/docs/effects/hue",
+      "defaults": {
+        "degrees": 0
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "degrees": {
+          "type": "rotation-degrees",
+          "step": 1,
+          "default": 0,
+          "description": "Degrees"
+        }
+      }
+    },
+    {
+      "kind": "invert",
+      "backend": "2d",
+      "documentationLink": "https://www.remotion.dev/docs/effects/invert",
+      "defaults": {
+        "amount": 1
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "description": "Amount",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "lines",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/lines",
+      "defaults": {
+        "colors": ["#dff4ff", "#7cc6ff"],
+        "direction": "horizontal",
+        "thickness": 40,
+        "gap": 0,
+        "angle": 0,
+        "offset": 0,
+        "maskToSourceAlpha": false
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "colors": {
+          "type": "array",
+          "item": {
+            "type": "color"
+          },
+          "default": ["#dff4ff", "#7cc6ff"],
+          "minLength": 2,
+          "newItemDefault": "#ff0000",
+          "description": "Colors",
+          "keyframable": false
+        },
+        "direction": {
+          "type": "enum",
+          "variants": {
+            "horizontal": {},
+            "vertical": {}
+          },
+          "default": "horizontal",
+          "description": "Direction"
+        },
+        "thickness": {
+          "type": "number",
+          "min": 0.1,
+          "max": 400,
+          "step": 0.1,
+          "default": 40,
+          "description": "Thickness",
+          "hiddenFromList": false
+        },
+        "gap": {
+          "type": "number",
+          "min": 0,
+          "max": 400,
+          "step": 0.1,
+          "default": 0,
+          "description": "Gap",
+          "hiddenFromList": false
+        },
+        "angle": {
+          "type": "rotation-degrees",
+          "step": 1,
+          "default": 0,
+          "description": "Angle"
+        },
+        "offset": {
+          "type": "number",
+          "step": 0.1,
+          "default": 0,
+          "description": "Offset",
+          "hiddenFromList": false
+        },
+        "maskToSourceAlpha": {
+          "type": "boolean",
+          "default": false,
+          "description": "Mask to source alpha"
+        }
+      }
+    },
+    {
+      "kind": "linearGradient",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/linear-gradient",
+      "defaults": {
+        "start": [0, 0.5],
+        "end": [1, 0.5],
+        "startColor": "#000000",
+        "endColor": "#ffffff"
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "start": {
+          "type": "uv-coordinate",
+          "min": -1,
+          "max": 2,
+          "step": 0.01,
+          "default": [0, 0.5],
+          "description": "Start",
+          "visual": {
+            "type": "line",
+            "to": "end"
+          }
+        },
+        "end": {
+          "type": "uv-coordinate",
+          "min": -1,
+          "max": 2,
+          "step": 0.01,
+          "default": [1, 0.5],
+          "description": "End"
+        },
+        "startColor": {
+          "type": "color",
+          "default": "#000000",
+          "description": "Start color"
+        },
+        "endColor": {
+          "type": "color",
+          "default": "#ffffff",
+          "description": "End color"
+        }
+      }
+    },
+    {
+      "kind": "linearGradientTint",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/linear-gradient-tint",
+      "defaults": {
+        "start": [0, 0.5],
+        "end": [1, 0.5],
+        "startColor": "#000000",
+        "endColor": "#ffffff",
+        "amount": 0.5
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "start": {
+          "type": "uv-coordinate",
+          "min": -1,
+          "max": 2,
+          "step": 0.01,
+          "default": [0, 0.5],
+          "description": "Start",
+          "visual": {
+            "type": "line",
+            "to": "end"
+          }
+        },
+        "end": {
+          "type": "uv-coordinate",
+          "min": -1,
+          "max": 2,
+          "step": 0.01,
+          "default": [1, 0.5],
+          "description": "End"
+        },
+        "startColor": {
+          "type": "color",
+          "default": "#000000",
+          "description": "Start color"
+        },
+        "endColor": {
+          "type": "color",
+          "default": "#ffffff",
+          "description": "End color"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.5,
+          "description": "Amount",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "liquidContours",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/liquid-contours",
+      "defaults": {
+        "firstColor": "#ff1a0a",
+        "secondColor": "#050505",
+        "spacing": 62,
+        "scale": 300,
+        "complexity": 0,
+        "smoothness": 1,
+        "seed": 4,
+        "offsetX": 13.4,
+        "offsetY": 0,
+        "phase": 3.23
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "firstColor": {
+          "type": "color",
+          "default": "#ff1a0a",
+          "description": "First color"
+        },
+        "secondColor": {
+          "type": "color",
+          "default": "#050505",
+          "description": "Second color"
+        },
+        "spacing": {
+          "type": "number",
+          "min": 2,
+          "max": 300,
+          "step": 1,
+          "default": 62,
+          "description": "Spacing",
+          "hiddenFromList": false
+        },
+        "scale": {
+          "type": "number",
+          "min": 20,
+          "max": 1000,
+          "step": 1,
+          "default": 300,
+          "description": "Scale",
+          "hiddenFromList": false
+        },
+        "complexity": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Complexity",
+          "hiddenFromList": false
+        },
+        "smoothness": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "description": "Edge smoothness",
+          "hiddenFromList": false
+        },
+        "seed": {
+          "type": "number",
+          "step": 1,
+          "default": 4,
+          "description": "Seed",
+          "hiddenFromList": false
+        },
+        "offsetX": {
+          "type": "number",
+          "step": 0.1,
+          "default": 13.4,
+          "description": "Offset X",
+          "hiddenFromList": false
+        },
+        "offsetY": {
+          "type": "number",
+          "step": 0.1,
+          "default": 0,
+          "description": "Offset Y",
+          "hiddenFromList": false
+        },
+        "phase": {
+          "type": "number",
+          "step": 0.01,
+          "default": 3.23,
+          "description": "Phase",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "linearProgressiveBlur",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/linear-progressive-blur",
+      "defaults": {
+        "start": [0, 0.5],
+        "end": [1, 0.5],
+        "startBlur": 0,
+        "endBlur": 50
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "start": {
+          "type": "uv-coordinate",
+          "min": -1,
+          "max": 2,
+          "step": 0.01,
+          "default": [0, 0.5],
+          "description": "Start",
+          "visual": {
+            "type": "line",
+            "to": "end"
+          }
+        },
+        "end": {
+          "type": "uv-coordinate",
+          "min": -1,
+          "max": 2,
+          "step": 0.01,
+          "default": [1, 0.5],
+          "description": "End"
+        },
+        "startBlur": {
+          "type": "number",
+          "min": 0,
+          "max": 200,
+          "step": 1,
+          "default": 0,
+          "description": "Start blur",
+          "hiddenFromList": false
+        },
+        "endBlur": {
+          "type": "number",
+          "min": 0,
+          "max": 200,
+          "step": 1,
+          "default": 50,
+          "description": "End blur",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "linearProgressivePixelate",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/linear-progressive-pixelate",
+      "defaults": {
+        "start": [0, 0.5],
+        "end": [1, 0.5],
+        "startBlockSize": 1,
+        "endBlockSize": 40
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "start": {
+          "type": "uv-coordinate",
+          "min": -1,
+          "max": 2,
+          "step": 0.01,
+          "default": [0, 0.5],
+          "description": "Start",
+          "visual": {
+            "type": "line",
+            "to": "end"
+          }
+        },
+        "end": {
+          "type": "uv-coordinate",
+          "min": -1,
+          "max": 2,
+          "step": 0.01,
+          "default": [1, 0.5],
+          "description": "End"
+        },
+        "startBlockSize": {
+          "type": "number",
+          "min": 1,
+          "max": 200,
+          "step": 1,
+          "default": 1,
+          "description": "Start block size",
+          "hiddenFromList": false
+        },
+        "endBlockSize": {
+          "type": "number",
+          "min": 1,
+          "max": 200,
+          "step": 1,
+          "default": 40,
+          "description": "End block size",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "lensBlur",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/lens-blur",
+      "defaults": {
+        "radius": 10,
+        "irisShape": "hexagon",
+        "irisRoundness": 0,
+        "irisRotation": 0,
+        "irisAspectRatio": 1,
+        "highlightGain": 0,
+        "highlightThreshold": 1,
+        "highlightSaturation": 1,
+        "repeatEdgePixels": false,
+        "samples": 256,
+        "linearLight": false
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "radius": {
+          "type": "number",
+          "default": 10,
+          "description": "Blur radius in pixels",
+          "min": 0,
+          "max": 200,
+          "step": 1,
+          "hiddenFromList": false
+        },
+        "irisShape": {
+          "type": "enum",
+          "default": "hexagon",
+          "description": "Iris shape",
+          "variants": {
+            "triangle": {},
+            "square": {},
+            "pentagon": {},
+            "hexagon": {},
+            "heptagon": {},
+            "octagon": {},
+            "nonagon": {},
+            "decagon": {},
+            "circle": {}
+          }
+        },
+        "irisRoundness": {
+          "type": "number",
+          "default": 0,
+          "description": "Roundness of the iris, from 0 (polygon) to 1 (circle)",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "hiddenFromList": false
+        },
+        "irisRotation": {
+          "type": "rotation-degrees",
+          "default": 0,
+          "description": "Clockwise iris rotation in degrees",
+          "step": 1
+        },
+        "irisAspectRatio": {
+          "type": "number",
+          "default": 1,
+          "description": "Horizontal stretch of the iris",
+          "min": 0.01,
+          "max": 4,
+          "step": 0.01,
+          "hiddenFromList": false
+        },
+        "highlightGain": {
+          "type": "number",
+          "default": 0,
+          "description": "Additional brightness of highlights, from 0 to 1",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "hiddenFromList": false
+        },
+        "highlightThreshold": {
+          "type": "number",
+          "default": 1,
+          "description": "Minimum luminance for highlight gain, from 0 to 1",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "hiddenFromList": false
+        },
+        "highlightSaturation": {
+          "type": "number",
+          "default": 1,
+          "description": "Saturation of added highlight brightness, from 0 to 1",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "hiddenFromList": false
+        },
+        "repeatEdgePixels": {
+          "type": "boolean",
+          "default": false,
+          "description": "Repeat edge pixels outside the source instead of sampling transparency"
+        },
+        "samples": {
+          "type": "number",
+          "default": 256,
+          "description": "Number of aperture samples, from 16 to 2048",
+          "min": 16,
+          "max": 2048,
+          "step": 1,
+          "hiddenFromList": false,
+          "integer": true
+        },
+        "linearLight": {
+          "type": "boolean",
+          "default": false,
+          "description": "Average colors in linear light"
+        }
+      }
+    },
+    {
+      "kind": "levels",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/levels",
+      "defaults": {
+        "blackPoint": 0,
+        "whitePoint": 1,
+        "gamma": 1
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "blackPoint": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Black point",
+          "hiddenFromList": false
+        },
+        "whitePoint": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "description": "White point",
+          "hiddenFromList": false
+        },
+        "gamma": {
+          "type": "number",
+          "min": 0.01,
+          "max": 10,
+          "step": 0.01,
+          "default": 1,
+          "description": "Gamma",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "lut",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/lut",
+      "defaults": {
+        "content": "TITLE \"Identity\"\nLUT_3D_SIZE 2\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n1 1 1"
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "content": {
+          "type": "string",
+          "default": "TITLE \"Identity\"\nLUT_3D_SIZE 2\n\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n1 1 1",
+          "description": "Cube LUT content",
+          "keyframable": false
+        }
+      }
+    },
+    {
+      "kind": "lightLeak",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/light-leak",
+      "defaults": {
+        "seed": 0,
+        "hueShift": 0,
+        "progress": 0.5
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "seed": {
+          "type": "number",
+          "default": 0,
+          "description": "Seed",
+          "hiddenFromList": false
+        },
+        "hueShift": {
+          "type": "number",
+          "min": 0,
+          "max": 360,
+          "default": 0,
+          "description": "Hue Shift",
+          "hiddenFromList": false
+        },
+        "progress": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.5,
+          "description": "Progress",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "lightTrail",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/light-trail",
+      "defaults": {
+        "direction": 180,
+        "distance": 80,
+        "intensity": 1,
+        "decay": 0.9,
+        "threshold": 0,
+        "samples": 32,
+        "color": "#ffffff"
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "direction": {
+          "type": "rotation-degrees",
+          "step": 1,
+          "default": 180,
+          "description": "Direction"
+        },
+        "distance": {
+          "type": "number",
+          "min": 0,
+          "max": 300,
+          "step": 1,
+          "default": 80,
+          "description": "Distance",
+          "hiddenFromList": false
+        },
+        "intensity": {
+          "type": "number",
+          "min": 0,
+          "max": 5,
+          "step": 0.1,
+          "default": 1,
+          "description": "Intensity",
+          "hiddenFromList": false
+        },
+        "decay": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.9,
+          "description": "Decay",
+          "hiddenFromList": false
+        },
+        "threshold": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Threshold",
+          "hiddenFromList": false
+        },
+        "samples": {
+          "type": "number",
+          "min": 1,
+          "max": 64,
+          "step": 1,
+          "integer": true,
+          "default": 32,
+          "description": "Samples",
+          "hiddenFromList": false
+        },
+        "color": {
+          "type": "color",
+          "default": "#ffffff",
+          "description": "Color"
+        }
+      }
+    },
+    {
+      "kind": "dotGrid",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/dot-grid",
+      "defaults": {
+        "dotSize": 16,
+        "gridSize": 20,
+        "invert": false
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "dotSize": {
+          "type": "number",
+          "min": 0,
+          "max": 400,
+          "step": 1,
+          "default": 16,
+          "description": "Dot size",
+          "hiddenFromList": false
+        },
+        "gridSize": {
+          "type": "number",
+          "min": 1,
+          "max": 400,
+          "step": 1,
+          "default": 20,
+          "description": "Grid size",
+          "hiddenFromList": false
+        },
+        "invert": {
+          "type": "boolean",
+          "default": false,
+          "description": "Invert"
+        }
+      }
+    },
+    {
+      "kind": "mirror",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/mirror",
+      "defaults": {
+        "direction": "horizontal",
+        "position": 0.5,
+        "invert": false
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "direction": {
+          "type": "enum",
+          "variants": {
+            "horizontal": {},
+            "vertical": {}
+          },
+          "default": "horizontal",
+          "description": "Direction"
+        },
+        "position": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.5,
+          "description": "Position",
+          "hiddenFromList": false
+        },
+        "invert": {
+          "type": "boolean",
+          "default": false,
+          "description": "Invert"
+        }
+      }
+    },
+    {
+      "kind": "noise",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/noise",
+      "defaults": {
+        "amount": 0.15,
+        "seed": 0,
+        "premultiply": false
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.15,
+          "description": "Amount",
+          "hiddenFromList": false
+        },
+        "seed": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "Seed",
+          "hiddenFromList": false
+        },
+        "premultiply": {
+          "type": "boolean",
+          "default": false,
+          "description": "Premultiply"
+        }
+      }
+    },
+    {
+      "kind": "noiseDisplacement",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/noise-displacement",
+      "defaults": {
+        "strength": 36,
+        "seed": 0,
+        "grainSize": 8,
+        "passes": 6,
+        "blur": 0,
+        "feather": 0.25,
+        "biasDirection": 0,
+        "biasAmount": 0,
+        "center": [0.5, 0.5],
+        "radius": 0.4
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "center": {
+          "type": "uv-coordinate",
+          "step": 0.01,
+          "description": "Center"
+        },
+        "radius": {
+          "type": "number",
+          "min": 0.001,
+          "max": 1,
+          "step": 0.01,
+          "description": "Radius",
+          "hiddenFromList": false
+        },
+        "strength": {
+          "type": "number",
+          "min": 0,
+          "max": 200,
+          "step": 0.1,
+          "default": 36,
+          "description": "Strength",
+          "hiddenFromList": false
+        },
+        "seed": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "Seed",
+          "hiddenFromList": false
+        },
+        "grainSize": {
+          "type": "number",
+          "min": 0.1,
+          "max": 100,
+          "step": 0.1,
+          "default": 8,
+          "description": "Grain size",
+          "hiddenFromList": false
+        },
+        "passes": {
+          "type": "number",
+          "min": 1,
+          "max": 12,
+          "step": 1,
+          "integer": true,
+          "default": 6,
+          "description": "Passes",
+          "hiddenFromList": false
+        },
+        "blur": {
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.1,
+          "default": 0,
+          "description": "Blur",
+          "hiddenFromList": false
+        },
+        "feather": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.25,
+          "description": "Feather",
+          "hiddenFromList": false
+        },
+        "biasDirection": {
+          "type": "rotation-degrees",
+          "step": 1,
+          "default": 0,
+          "description": "Bias direction"
+        },
+        "biasAmount": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Bias amount",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "outline",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/outline",
+      "defaults": {
+        "width": 8,
+        "edgeSimplification": 0,
+        "color": "#ffffff",
+        "opacity": 1,
+        "outlineOnly": false
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "width": {
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 8,
+          "description": "Width",
+          "hiddenFromList": false
+        },
+        "edgeSimplification": {
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 0,
+          "description": "Edge simplification",
+          "hiddenFromList": false
+        },
+        "color": {
+          "type": "color",
+          "default": "#ffffff",
+          "description": "Color"
+        },
+        "opacity": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "description": "Opacity",
+          "hiddenFromList": false
+        },
+        "outlineOnly": {
+          "type": "boolean",
+          "default": false,
+          "description": "Outline only"
+        }
+      }
+    },
+    {
+      "kind": "pageTurn",
+      "backend": "webgpu",
+      "documentationLink": "https://www.remotion.dev/docs/effects/page-turn",
+      "defaults": {
+        "foldPosition": [0.7, 0.7],
+        "foldDirection": 315,
+        "foldRadius": 60,
+        "lightDirection": -45,
+        "render": "both",
+        "backPageOpacity": 0.25,
+        "paperColor": "#ffffff"
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "foldPosition": {
+          "type": "uv-coordinate",
+          "default": [0.7, 0.7],
+          "description": "Fold position"
+        },
+        "foldDirection": {
+          "type": "rotation-degrees",
+          "default": 315,
+          "description": "Fold direction"
+        },
+        "foldRadius": {
+          "type": "number",
+          "min": 1,
+          "max": 500,
+          "step": 1,
+          "default": 60,
+          "description": "Fold radius",
+          "hiddenFromList": false
+        },
+        "lightDirection": {
+          "type": "rotation-degrees",
+          "default": -45,
+          "description": "Light direction"
+        },
+        "render": {
+          "type": "enum",
+          "variants": {
+            "both": {},
+            "front": {},
+            "back": {}
+          },
+          "default": "both",
+          "description": "Faces"
+        },
+        "backPageOpacity": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.25,
+          "description": "Back image opacity",
+          "hiddenFromList": false
+        },
+        "paperColor": {
+          "type": "color",
+          "default": "#ffffff",
+          "description": "Paper color"
+        }
+      }
+    },
+    {
+      "kind": "paper",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/paper",
+      "defaults": {
+        "amount": 1,
+        "colorFront": "#9fadbc",
+        "colorBack": "#ffffff",
+        "contrast": 0.3,
+        "roughness": 0.4,
+        "fiber": 0.3,
+        "fiberSize": 0.2,
+        "crumples": 0.3,
+        "crumpleSize": 0.35,
+        "folds": 0.65,
+        "foldCount": 5,
+        "drops": 0.2,
+        "fade": 0,
+        "seed": 6,
+        "scale": 0.6
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "description": "Amount",
+          "hiddenFromList": false
+        },
+        "colorFront": {
+          "type": "color",
+          "default": "#9fadbc",
+          "description": "Front color"
+        },
+        "colorBack": {
+          "type": "color",
+          "default": "#ffffff",
+          "description": "Back color"
+        },
+        "contrast": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.3,
+          "description": "Contrast",
+          "hiddenFromList": false
+        },
+        "roughness": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.4,
+          "description": "Roughness",
+          "hiddenFromList": false
+        },
+        "fiber": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.3,
+          "description": "Fiber",
+          "hiddenFromList": false
+        },
+        "fiberSize": {
+          "type": "number",
+          "min": 0.01,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.2,
+          "description": "Fiber size",
+          "hiddenFromList": false
+        },
+        "crumples": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.3,
+          "description": "Crumples",
+          "hiddenFromList": false
+        },
+        "crumpleSize": {
+          "type": "number",
+          "min": 0.01,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.35,
+          "description": "Crumple size",
+          "hiddenFromList": false
+        },
+        "folds": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.65,
+          "description": "Folds",
+          "hiddenFromList": false
+        },
+        "foldCount": {
+          "type": "number",
+          "min": 0,
+          "max": 15,
+          "step": 1,
+          "default": 5,
+          "description": "Fold count",
+          "hiddenFromList": false
+        },
+        "drops": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.2,
+          "description": "Drops",
+          "hiddenFromList": false
+        },
+        "fade": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Fade",
+          "hiddenFromList": false
+        },
+        "seed": {
+          "type": "number",
+          "min": 0,
+          "max": 1000,
+          "step": 0.01,
+          "default": 6,
+          "description": "Seed",
+          "hiddenFromList": false
+        },
+        "scale": {
+          "type": "number",
+          "min": 0.01,
+          "max": 4,
+          "step": 0.01,
+          "default": 0.6,
+          "description": "Scale",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "roughenEdges",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/roughen-edges",
+      "defaults": {
+        "amount": 1,
+        "border": 26.5,
+        "scale": 0.07,
+        "seed": 231.2
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "description": "Amount",
+          "hiddenFromList": false
+        },
+        "border": {
+          "type": "number",
+          "min": 0,
+          "max": 200,
+          "step": 0.1,
+          "default": 26.5,
+          "description": "Border",
+          "hiddenFromList": false
+        },
+        "scale": {
+          "type": "number",
+          "min": 0.01,
+          "max": 4,
+          "step": 0.01,
+          "default": 0.07,
+          "description": "Scale",
+          "hiddenFromList": false
+        },
+        "seed": {
+          "type": "number",
+          "min": 0,
+          "max": 1000,
+          "step": 0.01,
+          "default": 231.2,
+          "description": "Seed",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "pattern",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/pattern",
+      "defaults": {
+        "scale": 0.1,
+        "cropLeft": 0,
+        "cropTop": 0,
+        "cropRight": 0,
+        "cropBottom": 0,
+        "gapX": 0,
+        "gapY": 0,
+        "offsetU": 0,
+        "offsetV": 0,
+        "rowOffset": 0,
+        "rowOffsetEvery": 0,
+        "columnOffset": 0,
+        "columnOffsetEvery": 0,
+        "origin": [0, 0],
+        "wrap": true
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "scale": {
+          "type": "number",
+          "min": 0.001,
+          "max": 2,
+          "step": 0.01,
+          "default": 0.1,
+          "description": "Scale",
+          "hiddenFromList": false
+        },
+        "cropLeft": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "Crop left",
+          "hiddenFromList": false
+        },
+        "cropTop": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "Crop top",
+          "hiddenFromList": false
+        },
+        "cropRight": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "Crop right",
+          "hiddenFromList": false
+        },
+        "cropBottom": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "Crop bottom",
+          "hiddenFromList": false
+        },
+        "gapX": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "Gap X",
+          "hiddenFromList": false
+        },
+        "gapY": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "Gap Y",
+          "hiddenFromList": false
+        },
+        "offsetU": {
+          "type": "number",
+          "step": 0.01,
+          "default": 0,
+          "description": "Offset U",
+          "hiddenFromList": false
+        },
+        "offsetV": {
+          "type": "number",
+          "step": 0.01,
+          "default": 0,
+          "description": "Offset V",
+          "hiddenFromList": false
+        },
+        "rowOffset": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "Row offset",
+          "hiddenFromList": false
+        },
+        "rowOffsetEvery": {
+          "type": "number",
+          "min": 0,
+          "step": 1,
+          "integer": true,
+          "default": 0,
+          "description": "Row offset every",
+          "hiddenFromList": false
+        },
+        "columnOffset": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "Column offset",
+          "hiddenFromList": false
+        },
+        "columnOffsetEvery": {
+          "type": "number",
+          "min": 0,
+          "step": 1,
+          "integer": true,
+          "default": 0,
+          "description": "Column offset every",
+          "hiddenFromList": false
+        },
+        "origin": {
+          "type": "uv-coordinate",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": [0, 0],
+          "description": "Origin"
+        },
+        "wrap": {
+          "type": "boolean",
+          "default": true,
+          "description": "Wrap"
+        }
+      }
+    },
+    {
+      "kind": "radialProgressiveBlur",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/radial-progressive-blur",
+      "defaults": {
+        "center": [0.5, 0.5],
+        "width": 1,
+        "height": 1,
+        "rotation": 0,
+        "start": 0,
+        "startBlur": 0,
+        "endBlur": 50
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "center": {
+          "type": "uv-coordinate",
+          "min": -1,
+          "max": 2,
+          "step": 0.01,
+          "default": [0.5, 0.5],
+          "description": "Center",
+          "visual": {
+            "type": "ellipse",
+            "width": "width",
+            "height": "height",
+            "rotation": "rotation",
+            "innerScale": "start"
+          }
+        },
+        "width": {
+          "type": "number",
+          "min": 0,
+          "step": 0.01,
+          "default": 1,
+          "description": "Width",
+          "hiddenFromList": false
+        },
+        "height": {
+          "type": "number",
+          "min": 0,
+          "step": 0.01,
+          "default": 1,
+          "description": "Height",
+          "hiddenFromList": false
+        },
+        "rotation": {
+          "type": "rotation-degrees",
+          "step": 1,
+          "default": 0,
+          "description": "Rotation"
+        },
+        "start": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Start",
+          "hiddenFromList": false
+        },
+        "startBlur": {
+          "type": "number",
+          "min": 0,
+          "max": 200,
+          "step": 1,
+          "default": 0,
+          "description": "Start blur",
+          "hiddenFromList": false
+        },
+        "endBlur": {
+          "type": "number",
+          "min": 0,
+          "max": 200,
+          "step": 1,
+          "default": 50,
+          "description": "End blur",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "radialProgressivePixelate",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/radial-progressive-pixelate",
+      "defaults": {
+        "center": [0.5, 0.5],
+        "width": 1,
+        "height": 1,
+        "rotation": 0,
+        "start": 0,
+        "startBlockSize": 1,
+        "endBlockSize": 40
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "center": {
+          "type": "uv-coordinate",
+          "min": -1,
+          "max": 2,
+          "step": 0.01,
+          "default": [0.5, 0.5],
+          "description": "Center",
+          "visual": {
+            "type": "ellipse",
+            "width": "width",
+            "height": "height",
+            "rotation": "rotation",
+            "innerScale": "start"
+          }
+        },
+        "width": {
+          "type": "number",
+          "min": 0,
+          "step": 0.01,
+          "default": 1,
+          "description": "Width",
+          "hiddenFromList": false
+        },
+        "height": {
+          "type": "number",
+          "min": 0,
+          "step": 0.01,
+          "default": 1,
+          "description": "Height",
+          "hiddenFromList": false
+        },
+        "rotation": {
+          "type": "rotation-degrees",
+          "step": 1,
+          "default": 0,
+          "description": "Rotation"
+        },
+        "start": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Start",
+          "hiddenFromList": false
+        },
+        "startBlockSize": {
+          "type": "number",
+          "min": 1,
+          "max": 200,
+          "step": 1,
+          "default": 1,
+          "description": "Start block size",
+          "hiddenFromList": false
+        },
+        "endBlockSize": {
+          "type": "number",
+          "min": 1,
+          "max": 200,
+          "step": 1,
+          "default": 40,
+          "description": "End block size",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "regionBlur",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/region-blur",
+      "defaults": {
+        "blurRadius": 40,
+        "feather": 0,
+        "roundness": 0,
+        "topLeft": [0.2, 0.2],
+        "bottomRight": [0.8, 0.8]
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "topLeft": {
+          "type": "uv-coordinate",
+          "min": -1,
+          "max": 2,
+          "step": 0.01,
+          "description": "Top left"
+        },
+        "bottomRight": {
+          "type": "uv-coordinate",
+          "min": -1,
+          "max": 2,
+          "step": 0.01,
+          "description": "Bottom right"
+        },
+        "blurRadius": {
+          "type": "number",
+          "min": 0,
+          "max": 200,
+          "step": 1,
+          "default": 40,
+          "description": "Blur radius",
+          "hiddenFromList": false
+        },
+        "feather": {
+          "type": "number",
+          "min": 0,
+          "max": 200,
+          "step": 1,
+          "default": 0,
+          "description": "Feather",
+          "hiddenFromList": false
+        },
+        "roundness": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Roundness",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "rings",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/rings",
+      "defaults": {
+        "colors": ["#dff4ff", "#7cc6ff"],
+        "center": [0.5, 0.5],
+        "thickness": 40,
+        "gap": 0,
+        "offset": 0,
+        "maskToSourceAlpha": false
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "colors": {
+          "type": "array",
+          "item": {
+            "type": "color"
+          },
+          "default": ["#dff4ff", "#7cc6ff"],
+          "minLength": 2,
+          "newItemDefault": "#ff0000",
+          "description": "Colors",
+          "keyframable": false
+        },
+        "center": {
+          "type": "uv-coordinate",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": [0.5, 0.5],
+          "description": "Center"
+        },
+        "thickness": {
+          "type": "number",
+          "min": 0.1,
+          "max": 400,
+          "step": 0.1,
+          "default": 40,
+          "description": "Thickness",
+          "hiddenFromList": false
+        },
+        "gap": {
+          "type": "number",
+          "min": 0,
+          "max": 400,
+          "step": 0.1,
+          "default": 0,
+          "description": "Gap",
+          "hiddenFromList": false
+        },
+        "offset": {
+          "type": "number",
+          "step": 0.1,
+          "default": 0,
+          "description": "Offset",
+          "hiddenFromList": false
+        },
+        "maskToSourceAlpha": {
+          "type": "boolean",
+          "default": false,
+          "description": "Mask to source alpha"
+        }
+      }
+    },
+    {
+      "kind": "saturation",
+      "backend": "2d",
+      "documentationLink": "https://www.remotion.dev/docs/effects/saturation",
+      "defaults": {
+        "amount": 1
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "step": 0.01,
+          "default": 1,
+          "description": "Amount",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "scanlines",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/scanlines",
+      "defaults": {
+        "amount": 0.15,
+        "spacing": 4,
+        "thickness": 1,
+        "offset": 0,
+        "premultiply": false
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.15,
+          "description": "Amount",
+          "hiddenFromList": false
+        },
+        "spacing": {
+          "type": "number",
+          "min": 0.1,
+          "max": 100,
+          "step": 0.1,
+          "default": 4,
+          "description": "Spacing",
+          "hiddenFromList": false
+        },
+        "thickness": {
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.1,
+          "default": 1,
+          "description": "Thickness",
+          "hiddenFromList": false
+        },
+        "offset": {
+          "type": "number",
+          "step": 0.1,
+          "default": 0,
+          "description": "Offset",
+          "hiddenFromList": false
+        },
+        "premultiply": {
+          "type": "boolean",
+          "default": false,
+          "description": "Premultiply"
+        }
+      }
+    },
+    {
+      "kind": "scale",
+      "backend": "2d",
+      "documentationLink": "https://www.remotion.dev/docs/effects/scale",
+      "defaults": {
+        "scale": 1,
+        "horizontal": true,
+        "vertical": true
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "scale": {
+          "type": "number",
+          "min": 0.1,
+          "max": 10,
+          "step": 0.1,
+          "default": 1,
+          "description": "Factor",
+          "hiddenFromList": false,
+          "defaultKeyframeOutput": "perceptual-scale"
+        },
+        "horizontal": {
+          "type": "boolean",
+          "default": true,
+          "description": "Horizontal"
+        },
+        "vertical": {
+          "type": "boolean",
+          "default": true,
+          "description": "Vertical"
+        }
+      }
+    },
+    {
+      "kind": "shadowsHighlights",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/shadows-highlights",
+      "defaults": {
+        "shadows": 0,
+        "highlights": 0
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "shadows": {
+          "type": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Shadows",
+          "hiddenFromList": false
+        },
+        "highlights": {
+          "type": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Highlights",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "shine",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/shine",
+      "defaults": {
+        "progress": 0.5,
+        "angle": 30,
+        "haloSigma": 200,
+        "coreSigma": 65,
+        "haloIntensity": 0.3,
+        "coreIntensity": 0.4
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "progress": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.5,
+          "description": "Progress",
+          "hiddenFromList": false
+        },
+        "angle": {
+          "type": "rotation-degrees",
+          "step": 1,
+          "default": 30,
+          "description": "Angle"
+        },
+        "haloSigma": {
+          "type": "number",
+          "min": 1,
+          "max": 500,
+          "step": 1,
+          "default": 200,
+          "description": "Halo sigma",
+          "hiddenFromList": false
+        },
+        "coreSigma": {
+          "type": "number",
+          "min": 1,
+          "max": 500,
+          "step": 1,
+          "default": 65,
+          "description": "Core sigma",
+          "hiddenFromList": false
+        },
+        "haloIntensity": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.3,
+          "description": "Halo intensity",
+          "hiddenFromList": false
+        },
+        "coreIntensity": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.4,
+          "description": "Core intensity",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "shrinkwrap",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/shrinkwrap",
+      "defaults": {
+        "amount": 1,
+        "displacement": 5,
+        "highlightIntensity": 0.75,
+        "wrinkleDensity": 0.42,
+        "edgeTension": 0.45,
+        "phase": 0,
+        "seed": 0
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "description": "Amount",
+          "hiddenFromList": false
+        },
+        "displacement": {
+          "type": "number",
+          "min": 0,
+          "max": 30,
+          "step": 0.1,
+          "default": 5,
+          "description": "Displacement",
+          "hiddenFromList": false
+        },
+        "highlightIntensity": {
+          "type": "number",
+          "min": 0,
+          "max": 2,
+          "step": 0.01,
+          "default": 0.75,
+          "description": "Highlight intensity",
+          "hiddenFromList": false
+        },
+        "wrinkleDensity": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.42,
+          "description": "Wrinkle density",
+          "hiddenFromList": false
+        },
+        "edgeTension": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.45,
+          "description": "Edge tension",
+          "hiddenFromList": false
+        },
+        "phase": {
+          "type": "number",
+          "step": 0.01,
+          "default": 0,
+          "description": "Phase",
+          "hiddenFromList": false
+        },
+        "seed": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "Seed",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "skew",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/skew",
+      "defaults": {
+        "x": 20,
+        "y": 0,
+        "origin": [0.5, 0.5]
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "x": {
+          "type": "rotation-degrees",
+          "min": -80,
+          "max": 80,
+          "step": 1,
+          "default": 20,
+          "description": "X angle"
+        },
+        "y": {
+          "type": "rotation-degrees",
+          "min": -80,
+          "max": 80,
+          "step": 1,
+          "default": 0,
+          "description": "Y angle"
+        },
+        "origin": {
+          "type": "uv-coordinate",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": [0.5, 0.5],
+          "description": "Origin"
+        }
+      }
+    },
+    {
+      "kind": "speckle",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/speckle",
+      "defaults": {
+        "density": 0.08,
+        "size": 4,
+        "randomness": 1
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "density": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.08,
+          "description": "Density",
+          "hiddenFromList": false
+        },
+        "size": {
+          "type": "number",
+          "min": 0,
+          "max": 50,
+          "step": 0.1,
+          "default": 4,
+          "description": "Size",
+          "hiddenFromList": false
+        },
+        "randomness": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "description": "Randomness",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "sphere",
+      "backend": "webgpu",
+      "documentationLink": "https://www.remotion.dev/docs/effects/sphere",
+      "defaults": {
+        "radius": 250,
+        "rotationX": 0,
+        "rotationY": 0,
+        "rotationZ": 0,
+        "position": [0.5, 0.5],
+        "render": "both",
+        "shading": 0.35
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "radius": {
+          "type": "number",
+          "min": 1,
+          "max": 1000,
+          "step": 1,
+          "default": 250,
+          "description": "Radius",
+          "hiddenFromList": false
+        },
+        "rotationX": {
+          "type": "rotation-degrees",
+          "default": 0,
+          "description": "X rotation"
+        },
+        "rotationY": {
+          "type": "rotation-degrees",
+          "default": 0,
+          "description": "Y rotation"
+        },
+        "rotationZ": {
+          "type": "rotation-degrees",
+          "default": 0,
+          "description": "Z rotation"
+        },
+        "position": {
+          "type": "uv-coordinate",
+          "default": [0.5, 0.5],
+          "description": "Position"
+        },
+        "render": {
+          "type": "enum",
+          "variants": {
+            "both": {},
+            "front": {},
+            "back": {}
+          },
+          "default": "both",
+          "description": "Faces"
+        },
+        "shading": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.35,
+          "description": "Shading",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "starburst",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/starburst",
+      "defaults": {
+        "rotation": 0,
+        "smoothness": 0,
+        "origin": [0.5, 0.5],
+        "rays": 12,
+        "colors": ["#153d35", "#f5db9a"]
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "rays": {
+          "type": "number",
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "description": "Number of Rays",
+          "hiddenFromList": false
+        },
+        "colors": {
+          "type": "array",
+          "item": {
+            "type": "color"
+          },
+          "minLength": 2,
+          "newItemDefault": "#ff0000",
+          "description": "Colors",
+          "keyframable": false
+        },
+        "rotation": {
+          "type": "number",
+          "min": 0,
+          "max": 360,
+          "step": 1,
+          "default": 0,
+          "description": "Rotation",
+          "hiddenFromList": false
+        },
+        "smoothness": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Edge Smoothness",
+          "hiddenFromList": false
+        },
+        "origin": {
+          "type": "uv-coordinate",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": [0.5, 0.5],
+          "description": "Origin"
+        }
+      }
+    },
+    {
+      "kind": "tear",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/tear",
+      "defaults": {
+        "progress": 0.5,
+        "angle": 0,
+        "rotation": 20,
+        "jaggedness": 20
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "progress": {
+          "type": "number",
+          "min": 0,
+          "step": 0.01,
+          "default": 0.5,
+          "description": "Progress",
+          "hiddenFromList": false
+        },
+        "angle": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "Angle",
+          "hiddenFromList": false
+        },
+        "rotation": {
+          "type": "number",
+          "min": 0,
+          "max": 90,
+          "step": 1,
+          "default": 20,
+          "description": "Rotation",
+          "hiddenFromList": false
+        },
+        "jaggedness": {
+          "type": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 20,
+          "description": "Jaggedness",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "thermalVision",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/thermal-vision",
+      "defaults": {
+        "amount": 1,
+        "palette": [
+          "#020617",
+          "#1238ff",
+          "#00a6ff",
+          "#00c853",
+          "#d6f542",
+          "#ffb000",
+          "#ff2f00",
+          "#ffffff"
+        ]
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "description": "Amount",
+          "hiddenFromList": false
+        },
+        "palette": {
+          "type": "array",
+          "item": {
+            "type": "color"
+          },
+          "default": [
+            "#020617",
+            "#1238ff",
+            "#00a6ff",
+            "#00c853",
+            "#d6f542",
+            "#ffb000",
+            "#ff2f00",
+            "#ffffff"
+          ],
+          "minLength": 2,
+          "newItemDefault": "#00c853",
+          "description": "Palette",
+          "keyframable": false
+        }
+      }
+    },
+    {
+      "kind": "tile",
+      "backend": "2d",
+      "documentationLink": "https://www.remotion.dev/docs/effects/tile",
+      "defaults": {
+        "horizontal": true,
+        "vertical": true
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "horizontal": {
+          "type": "boolean",
+          "default": true,
+          "description": "Horizontal"
+        },
+        "vertical": {
+          "type": "boolean",
+          "default": true,
+          "description": "Vertical"
+        }
+      }
+    },
+    {
+      "kind": "tint",
+      "backend": "2d",
+      "documentationLink": "https://www.remotion.dev/docs/effects/tint",
+      "defaults": {
+        "amount": 0.5,
+        "color": "#ffb56b"
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "color": {
+          "type": "color",
+          "description": "Color"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.5,
+          "description": "Amount",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "uvTranslate",
+      "backend": "2d",
+      "documentationLink": "https://www.remotion.dev/docs/effects/uv-translate",
+      "defaults": {
+        "u": 0,
+        "v": 0
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "u": {
+          "type": "number",
+          "step": 0.01,
+          "default": 0,
+          "description": "U",
+          "hiddenFromList": false
+        },
+        "v": {
+          "type": "number",
+          "step": 0.01,
+          "default": 0,
+          "description": "V",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "xyTranslate",
+      "backend": "2d",
+      "documentationLink": "https://www.remotion.dev/docs/effects/xy-translate",
+      "defaults": {
+        "x": 0,
+        "y": 0
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "x": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "X",
+          "hiddenFromList": false
+        },
+        "y": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "Y",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "turbulentDisplace",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/turbulent-displace",
+      "defaults": {
+        "displacement": "turbulent",
+        "amount": 50,
+        "size": 100,
+        "offset": [0.5, 0.5],
+        "complexity": 1,
+        "evolution": 0,
+        "cycleEvolution": false,
+        "cycle": 1,
+        "seed": 0,
+        "pinning": "all"
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "displacement": {
+          "type": "enum",
+          "variants": {
+            "turbulent": {},
+            "bulge": {},
+            "twist": {},
+            "turbulent-smoother": {},
+            "bulge-smoother": {},
+            "twist-smoother": {},
+            "vertical": {},
+            "horizontal": {},
+            "cross": {}
+          },
+          "default": "turbulent",
+          "description": "Displacement"
+        },
+        "amount": {
+          "type": "number",
+          "min": -200,
+          "max": 200,
+          "step": 1,
+          "default": 50,
+          "description": "Amount",
+          "hiddenFromList": false
+        },
+        "size": {
+          "type": "number",
+          "min": 1,
+          "max": 1000,
+          "step": 1,
+          "default": 100,
+          "description": "Size",
+          "hiddenFromList": false
+        },
+        "offset": {
+          "type": "uv-coordinate",
+          "step": 0.01,
+          "default": [0.5, 0.5],
+          "description": "Offset"
+        },
+        "complexity": {
+          "type": "number",
+          "min": 1,
+          "max": 10,
+          "step": 0.1,
+          "default": 1,
+          "description": "Complexity",
+          "hiddenFromList": false
+        },
+        "evolution": {
+          "type": "rotation-degrees",
+          "step": 1,
+          "default": 0,
+          "description": "Evolution"
+        },
+        "cycleEvolution": {
+          "type": "boolean",
+          "default": false,
+          "description": "Cycle evolution"
+        },
+        "cycle": {
+          "type": "number",
+          "min": 1,
+          "max": 100,
+          "step": 1,
+          "integer": true,
+          "default": 1,
+          "description": "Cycle length",
+          "hiddenFromList": false
+        },
+        "seed": {
+          "type": "number",
+          "min": 0,
+          "max": 4294967295,
+          "step": 1,
+          "integer": true,
+          "default": 0,
+          "description": "Seed",
+          "hiddenFromList": false
+        },
+        "pinning": {
+          "type": "enum",
+          "variants": {
+            "none": {},
+            "all": {},
+            "horizontal": {},
+            "vertical": {},
+            "left": {},
+            "top": {},
+            "right": {},
+            "bottom": {},
+            "all-locked": {},
+            "horizontal-locked": {},
+            "vertical-locked": {},
+            "left-locked": {},
+            "top-locked": {},
+            "right-locked": {},
+            "bottom-locked": {}
+          },
+          "default": "all",
+          "description": "Pinning"
+        }
+      }
+    },
+    {
+      "kind": "tvSignalOff",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/tv-signal-off",
+      "defaults": {
+        "amount": 1
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "description": "Amount",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "venetianBlinds",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/venetian-blinds",
+      "defaults": {
+        "progress": 0.5,
+        "direction": "vertical",
+        "slats": 12
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "progress": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.5,
+          "description": "Progress",
+          "hiddenFromList": false
+        },
+        "direction": {
+          "type": "enum",
+          "variants": {
+            "vertical": {},
+            "horizontal": {}
+          },
+          "default": "vertical",
+          "description": "Direction"
+        },
+        "slats": {
+          "type": "number",
+          "min": 1,
+          "max": 100,
+          "step": 1,
+          "integer": true,
+          "default": 12,
+          "description": "Slats",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "vibrance",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/vibrance",
+      "defaults": {
+        "amount": 0
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "amount": {
+          "type": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Amount",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "vignette",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/vignette",
+      "defaults": {
+        "amount": 0.5,
+        "radius": 0.65,
+        "feather": 0.35,
+        "roundness": 1,
+        "color": "#000000",
+        "mode": "color",
+        "center": [0.5, 0.5]
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.5,
+          "description": "Amount",
+          "hiddenFromList": false
+        },
+        "radius": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.65,
+          "description": "Radius",
+          "hiddenFromList": false
+        },
+        "feather": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.35,
+          "description": "Feather",
+          "hiddenFromList": false
+        },
+        "roundness": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "description": "Roundness",
+          "hiddenFromList": false
+        },
+        "color": {
+          "type": "color",
+          "default": "#000000",
+          "description": "Color"
+        },
+        "mode": {
+          "type": "enum",
+          "default": "color",
+          "description": "Mode",
+          "variants": {
+            "color": {},
+            "alpha": {}
+          }
+        },
+        "center": {
+          "type": "uv-coordinate",
+          "step": 0.01,
+          "default": [0.5, 0.5],
+          "description": "Center"
+        }
+      }
+    },
+    {
+      "kind": "wave",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/wave",
+      "defaults": {
+        "phase": 0,
+        "direction": "horizontal",
+        "amplitude": 60,
+        "wavelength": 240
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "phase": {
+          "type": "number",
+          "default": 0,
+          "description": "Phase",
+          "hiddenFromList": false
+        },
+        "direction": {
+          "type": "enum",
+          "variants": {
+            "horizontal": {},
+            "vertical": {}
+          },
+          "default": "horizontal",
+          "description": "Direction"
+        },
+        "amplitude": {
+          "type": "number",
+          "min": 0,
+          "max": 500,
+          "step": 1,
+          "default": 60,
+          "description": "Amplitude",
+          "hiddenFromList": false
+        },
+        "wavelength": {
+          "type": "number",
+          "min": 1,
+          "max": 2000,
+          "step": 1,
+          "default": 240,
+          "description": "Wavelength",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "waves",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/waves",
+      "defaults": {
+        "colors": ["#dff4ff", "#7cc6ff"],
+        "direction": "horizontal",
+        "thickness": 40,
+        "gap": 0,
+        "angle": 0,
+        "offset": 0,
+        "amplitude": 24,
+        "wavelength": 160,
+        "phase": 0,
+        "maskToSourceAlpha": false
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "colors": {
+          "type": "array",
+          "item": {
+            "type": "color"
+          },
+          "default": ["#dff4ff", "#7cc6ff"],
+          "minLength": 2,
+          "newItemDefault": "#ff0000",
+          "description": "Colors",
+          "keyframable": false
+        },
+        "direction": {
+          "type": "enum",
+          "variants": {
+            "horizontal": {},
+            "vertical": {}
+          },
+          "default": "horizontal",
+          "description": "Direction"
+        },
+        "thickness": {
+          "type": "number",
+          "min": 0.1,
+          "max": 400,
+          "step": 0.1,
+          "default": 40,
+          "description": "Thickness",
+          "hiddenFromList": false
+        },
+        "gap": {
+          "type": "number",
+          "min": 0,
+          "max": 400,
+          "step": 0.1,
+          "default": 0,
+          "description": "Gap",
+          "hiddenFromList": false
+        },
+        "angle": {
+          "type": "rotation-degrees",
+          "step": 1,
+          "default": 0,
+          "description": "Angle"
+        },
+        "offset": {
+          "type": "number",
+          "step": 0.1,
+          "default": 0,
+          "description": "Offset",
+          "hiddenFromList": false
+        },
+        "amplitude": {
+          "type": "number",
+          "min": 0,
+          "max": 500,
+          "step": 0.1,
+          "default": 24,
+          "description": "Amplitude",
+          "hiddenFromList": false
+        },
+        "wavelength": {
+          "type": "number",
+          "min": 1,
+          "max": 2000,
+          "step": 1,
+          "default": 160,
+          "description": "Wavelength",
+          "hiddenFromList": false
+        },
+        "phase": {
+          "type": "number",
+          "min": -360,
+          "max": 360,
+          "step": 1,
+          "default": 0,
+          "description": "Phase",
+          "hiddenFromList": false
+        },
+        "maskToSourceAlpha": {
+          "type": "boolean",
+          "default": false,
+          "description": "Mask to source alpha"
+        }
+      }
+    },
+    {
+      "kind": "whiteBalance",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/white-balance",
+      "defaults": {
+        "temperature": 0,
+        "tint": 0
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "temperature": {
+          "type": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Temperature",
+          "hiddenFromList": false
+        },
+        "tint": {
+          "type": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "description": "Tint",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "whiteNoise",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/white-noise",
+      "defaults": {
+        "amount": 1,
+        "seed": 0
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "description": "Amount",
+          "hiddenFromList": false
+        },
+        "seed": {
+          "type": "number",
+          "step": 1,
+          "default": 0,
+          "description": "Seed",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "zoomBlur",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/zoom-blur",
+      "defaults": {
+        "amount": 40,
+        "center": [0.5, 0.5],
+        "samples": 24
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "amount": {
+          "type": "number",
+          "min": 0,
+          "max": 200,
+          "step": 1,
+          "default": 40,
+          "description": "Amount",
+          "hiddenFromList": false
+        },
+        "center": {
+          "type": "uv-coordinate",
+          "step": 0.01,
+          "default": [0.5, 0.5],
+          "description": "Center"
+        },
+        "samples": {
+          "type": "number",
+          "min": 1,
+          "max": 64,
+          "step": 1,
+          "integer": true,
+          "default": 24,
+          "description": "Samples",
+          "hiddenFromList": false
+        }
+      }
+    },
+    {
+      "kind": "zigzag",
+      "backend": "webgl2",
+      "documentationLink": "https://www.remotion.dev/docs/effects/zigzag",
+      "defaults": {
+        "colors": ["#dff4ff", "#7cc6ff"],
+        "direction": "horizontal",
+        "thickness": 40,
+        "gap": 0,
+        "angle": 0,
+        "offset": 0,
+        "amplitude": 40,
+        "wavelength": 160,
+        "maskToSourceAlpha": false
+      },
+      "schema": {
+        "disabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disabled"
+        },
+        "colors": {
+          "type": "array",
+          "item": {
+            "type": "color"
+          },
+          "default": ["#dff4ff", "#7cc6ff"],
+          "minLength": 2,
+          "newItemDefault": "#ff0000",
+          "description": "Colors",
+          "keyframable": false
+        },
+        "direction": {
+          "type": "enum",
+          "variants": {
+            "horizontal": {},
+            "vertical": {}
+          },
+          "default": "horizontal",
+          "description": "Direction"
+        },
+        "thickness": {
+          "type": "number",
+          "min": 0.1,
+          "max": 400,
+          "step": 0.1,
+          "default": 40,
+          "description": "Thickness",
+          "hiddenFromList": false
+        },
+        "gap": {
+          "type": "number",
+          "min": 0,
+          "max": 400,
+          "step": 0.1,
+          "default": 0,
+          "description": "Gap",
+          "hiddenFromList": false
+        },
+        "angle": {
+          "type": "rotation-degrees",
+          "step": 1,
+          "default": 0,
+          "description": "Angle"
+        },
+        "offset": {
+          "type": "number",
+          "step": 0.1,
+          "default": 0,
+          "description": "Offset",
+          "hiddenFromList": false
+        },
+        "amplitude": {
+          "type": "number",
+          "min": 0,
+          "max": 500,
+          "step": 0.1,
+          "default": 40,
+          "description": "Amplitude",
+          "hiddenFromList": false
+        },
+        "wavelength": {
+          "type": "number",
+          "min": 1,
+          "max": 2000,
+          "step": 1,
+          "default": 160,
+          "description": "Wavelength",
+          "hiddenFromList": false
+        },
+        "maskToSourceAlpha": {
+          "type": "boolean",
+          "default": false,
+          "description": "Mask to source alpha"
+        }
+      }
+    }
+  ]
+}
