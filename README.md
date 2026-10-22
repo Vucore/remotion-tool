@@ -1,54 +1,27 @@
-# Remotion video
+# Khung — Ghép ảnh thành video
 
-<p align="center">
-  <a href="https://github.com/remotion-dev/logo">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://github.com/remotion-dev/logo/raw/main/animated-logo-banner-dark.apng">
-      <img alt="Animated Remotion Logo" src="https://github.com/remotion-dev/logo/raw/main/animated-logo-banner-light.gif">
-    </picture>
-  </a>
-</p>
+Web editor tiếng Việt chạy cục bộ, dùng React và Remotion. Thư viện ảnh, dải cảnh kéo thả, thêm chữ, chỉnh bố cục/màu, chuyển động nhẹ, chuyển cảnh và xuất MP4.
 
-Welcome to your Remotion project!
+v0.2 bổ sung đủ 81 factory trong `@remotion/effects` 4.0.537, stack và automation, chữ nâng cao/font riêng, lớp phủ, mặt nạ và keyframe ảnh. Xem [danh mục đã tích hợp](docs/DANH-MUC-CHU-HIEU-UNG.md) và [giới hạn GPU](docs/KIEM-TRA.md).
 
-## Commands
+Chỉ hai tỷ lệ: **9:16 dọc** và **16:9 ngang**.
 
-**Install Dependencies**
-
-```console
-npm i --loglevel=error
-```
-
-**Start Preview**
-
-```console
+```sh
+npm install
 npm run dev
 ```
 
-**Render video**
+Mở **http://127.0.0.1:3210**. Dừng bằng `Ctrl+C`.
 
-```console
-npx remotion render
+Xem [hướng dẫn sử dụng](docs/HUONG-DAN.md), [kế hoạch thực hiện](docs/KE-HOACH.md) và [toàn bộ tài liệu](docs/README.md).
+
+```sh
+npm run lint   # ESLint và TypeScript
+npm test       # Kiểm tra model, thời gian và dữ liệu
+npm run build  # Build giao diện
+npm start      # Chạy bản build
 ```
 
-**Upgrade Remotion**
+Khi server đang chạy, `node scripts/smoke.mjs` kiểm tra API, nhập ảnh, xuất video thực tế và huỷ tác vụ. Script này tạo file kiểm tra trong `data/` và `test-results/` (không đưa vào Git).
 
-```console
-npx remotion upgrade
-```
-
-## Docs
-
-Get started with Remotion by reading the [fundamentals page](https://www.remotion.dev/docs/the-fundamentals).
-
-## Help
-
-We provide help on our [Discord server](https://discord.gg/6VzzNDwUwV).
-
-## Issues
-
-Found an issue with Remotion? [File an issue here](https://github.com/remotion-dev/remotion/issues/new).
-
-## License
-
-Note that for some entities a company license is needed. [Read the terms here](https://github.com/remotion-dev/remotion/blob/main/LICENSE.md).
+Ảnh nhập và video xuất lưu trong `data/`. Bản đầu dành cho **ảnh tĩnh thành video**, chưa có âm thanh, video nguồn hay GPT. Toàn bộ mã và sản phẩm video thử nghiệm trước đây đã được thay thế.
