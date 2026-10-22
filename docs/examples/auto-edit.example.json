@@ -1,0 +1,40 @@
+{
+  "autoEditVersion": 1,
+  "template": "story-clean@1",
+  "seed": 42,
+  "input": {
+    "directory": "./images",
+    "order": "natural",
+    "extensions": ["jpg", "jpeg", "png", "webp"]
+  },
+  "output": {
+    "file": "./output/video.mp4",
+    "ratio": "9:16",
+    "fps": 30,
+    "quality": "high"
+  },
+  "timing": {
+    "mode": "per-image",
+    "seconds": 4
+  },
+  "framing": {
+    "fit": "cover",
+    "focus": { "x": 0.5, "y": 0.5 }
+  },
+  "motion": {
+    "policy": "alternate",
+    "presets": ["zoom-in", "pan-left", "zoom-out"],
+    "amount": 8
+  },
+  "transition": {
+    "preset": "fade",
+    "seconds": 0.5
+  },
+  "text": {
+    "source": "none",
+    "preset": "subtitle"
+  },
+  "look": {
+    "preset": "natural"
+  }
+}

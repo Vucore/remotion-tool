@@ -2,6 +2,18 @@ import { CSSProperties } from "react";
 const paths: Record<string, React.ReactNode> = {
   plus: <path d="M12 5v14M5 12h14" />,
   close: <path d="m6 6 12 12M18 6 6 18" />,
+  lock: (
+    <>
+      <rect x="5" y="10" width="14" height="11" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2" />
+    </>
+  ),
+  transition: (
+    <>
+      <rect x="3" y="4" width="11" height="16" rx="2" />
+      <path d="M10 4h9a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-9M8 9l3 3-3 3m3-3h6" />
+    </>
+  ),
   upload: (
     <>
       <path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5" />

@@ -1,0 +1,6 @@
+{
+  "jobs": [
+    { "config": "./auto-edit.example.json", "images": "./bo-a", "out": "./output/a.mp4" },
+    { "config": "./auto-edit.example.json", "images": "./bo-b", "out": "./output/b.mp4" }
+  ]
+}

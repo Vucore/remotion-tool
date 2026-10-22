@@ -5,6 +5,7 @@ import {
   Motion,
   Project,
   Scene,
+  TextLayer,
   emptyProject,
   id,
   makeScene,
@@ -20,6 +21,12 @@ import { Video } from "./Video";
 import { Icon } from "./icons";
 import { TextPanel } from "./panels/TextPanel";
 import { EffectsPanel } from "./panels/EffectsPanel";
+import { AutoPanel, saveJson } from "./editor/AutoPanel";
+import { QuickPanel, type QuickKind } from "./editor/QuickPanel";
+import { PreviewEditor } from "./editor/PreviewEditor";
+import { compileAuto, type AutoReport } from "./auto/compile";
+import { configFromScene, type AutoConfig } from "./auto/config";
+import { MOTIONS, TRANSITIONS } from "./catalog";
 
 const STORAGE = "khung-editor-project-v1";
 const clock = (frames: number, fps: number) =>
@@ -138,18 +145,36 @@ export function App() {
     past: Project[];
     present: Project;
     future: Project[];
-  }>({ past: [], present: initial(), future: [] });
+  }>(() => ({ past: [], present: initial(), future: [] }));
   const project = history.present;
   const [selected, setSelected] = useState<string | null>(
     () => project.scenes[0]?.id ?? null,
   );
   const [panel, setPanel] = useState<"image" | "text" | "effects">("image");
+  const [mode, setMode] = useState<"auto" | "edit">(() =>
+    project.scenes.length ? "edit" : "auto",
+  );
+  const [advanced, setAdvanced] = useState(false);
+  const [quick, setQuick] = useState<QuickKind | null>(null);
+  const [activeText, setActiveText] = useState<string | null>(null);
+  const [report, setReport] = useState<AutoReport | null>(null);
+  const [resizeDraft, setResizeDraft] = useState<{
+    id: string;
+    value: number;
+  } | null>(null);
+  const resizeGesture = useRef<{
+    id: string;
+    x: number;
+    duration: number;
+    value: number;
+  } | null>(null);
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
   const [saved, setSaved] = useState(true);
   const [dragging, setDragging] = useState<string | null>(null);
+  const [timelineScale, setTimelineScale] = useState(36);
   const [dragOver, setDragOver] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [job, setJob] = useState<Job | null>(null);
@@ -172,11 +197,32 @@ export function App() {
   const busy =
     startingExport || (job && ["preparing", "rendering"].includes(job.status));
   const commit = useCallback((change: Project | ((p: Project) => Project)) => {
-    setHistory((h) => ({
-      past: [...h.past.slice(-79), h.present],
-      present: typeof change === "function" ? change(h.present) : change,
-      future: [],
-    }));
+    setHistory((h) => {
+      let next = typeof change === "function" ? change(h.present) : change;
+      if (next === h.present) return h;
+      if (h.present.automation && next.automation === h.present.automation) {
+        const changed = next.scenes
+          .filter((scene) => {
+            const old = h.present.scenes.find((s) => s.id === scene.id);
+            return !old || JSON.stringify(scene) !== JSON.stringify(old);
+          })
+          .map((s) => s.id);
+        next = {
+          ...next,
+          automation: {
+            ...h.present.automation,
+            locks: [
+              ...new Set([...h.present.automation.locks, ...changed]),
+            ].filter((id) => next.scenes.some((s) => s.id === id)),
+          },
+        };
+      }
+      return {
+        past: [...h.past.slice(-79), h.present],
+        present: next,
+        future: [],
+      };
+    });
   }, []);
   const undo = useCallback(
     () =>
@@ -219,6 +265,7 @@ export function App() {
   );
   const choose = (sceneId: string) => {
     setSelected(sceneId);
+    setActiveText(null);
     const item = items.find((t) => t.scene.id === sceneId);
     if (item) seek(item.from + item.overlap);
   };
@@ -354,6 +401,7 @@ export function App() {
         e.preventDefault();
         save();
       } else if (e.code === "Space") {
+        if (node.closest("button, a, summary")) return;
         e.preventDefault();
         player.current?.toggle();
       } else if (e.key === "ArrowRight") {
@@ -371,12 +419,16 @@ export function App() {
     return () => window.removeEventListener("keydown", keys);
   }, [exportOpen, frame, redo, remove, save, seek, undo]);
 
-  async function importImages(files: FileList | File[]) {
-    if (!files.length || uploading) return;
+  async function importImages(
+    files: FileList | File[],
+    strict = false,
+    replace = false,
+  ): Promise<Asset[]> {
+    if (!files.length || uploading) return [];
     setUploading(true);
     const imported: Asset[] = [];
     const errors: string[] = [];
-    const available = Math.max(0, 300 - project.assets.length);
+    const available = replace ? 300 : Math.max(0, 300 - project.assets.length);
     if (files.length > available)
       errors.push(`Thư viện tối đa 300 ảnh; chỉ nhập thêm ${available} ảnh.`);
     for (const file of Array.from(files).slice(0, available)) {
@@ -411,18 +463,33 @@ export function App() {
         });
       } catch (error) {
         errors.push(
-          error instanceof Error ? error.message : "Không nhập được ảnh.",
+          error instanceof Error
+            ? `${file.name}: ${error.message}`
+            : `${file.name}: Không nhập được ảnh.`,
         );
       }
     }
-    if (imported.length)
-      commit((p) => ({ ...p, assets: [...p.assets, ...imported] }));
+    if (imported.length && (!strict || !errors.length))
+      commit((p) =>
+        replace
+          ? {
+              ...p,
+              assets: imported,
+              scenes: [],
+              automation: p.automation
+                ? { ...p.automation, locks: [] }
+                : undefined,
+            }
+          : { ...p, assets: [...p.assets, ...imported] },
+      );
     setUploading(false);
+    if (strict && errors.length) throw new Error(errors.join(" "));
     setMessage(
       errors.length
         ? errors.join(" ")
         : `Đã nhập ${imported.length} ảnh. Nhấn vào ảnh để thêm cảnh.`,
     );
+    return imported;
   }
   function addAsset(asset: Asset) {
     if (project.scenes.length >= 300) {
@@ -527,7 +594,7 @@ export function App() {
       );
     }
   }
-  async function render() {
+  async function render(renderProject = project, renderQuality = quality) {
     pollingFailures.current = 0;
     setStartingExport(true);
     setJob(null);
@@ -536,7 +603,14 @@ export function App() {
       const response = await fetch("/api/exports", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project, quality }),
+        body: JSON.stringify({
+          project: renderProject,
+          quality: renderQuality,
+          filename:
+            renderProject.automation?.config.output.file
+              .split(/[\\/]/)
+              .at(-1) ?? `${renderProject.name}.mp4`,
+        }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
@@ -556,8 +630,70 @@ export function App() {
     }
   }
 
+  async function autoBuild(
+    config: AutoConfig,
+    exportNow: boolean,
+    keep: boolean,
+  ) {
+    const result = compileAuto(config, project.assets, project, keep);
+    player.current?.pause();
+    commit(result.project);
+    requestAnimationFrame(() => player.current?.seekTo(0));
+    setSelected(result.project.scenes[0]?.id ?? null);
+    setFrame(0);
+    setReport(result.report);
+    setQuick(null);
+    setAdvanced(false);
+    setQuality(config.output.quality);
+    setMessage(
+      `Đã tự dựng ${result.report.sceneCount} cảnh · ${result.report.seconds.toLocaleString("vi-VN")}s.`,
+    );
+    if (exportNow) {
+      setExportOpen(true);
+      await render(result.project, config.output.quality);
+    }
+  }
+  const showAdvanced = (next: "image" | "text" | "effects") => {
+    setPanel(next);
+    setAdvanced(true);
+  };
+  const previewText = (text: TextLayer) => {
+    const item = items.find((t) => t.scene.id === selected);
+    if (!item) return;
+    player.current?.pause();
+    const end = text.end ?? item.scene.duration;
+    seek(
+      Math.min(
+        item.end - 1,
+        item.from +
+          Math.round(
+            (text.start +
+              Math.min(
+                text.inDuration + 0.1,
+                Math.max(0, (end - text.start) / 2),
+              )) *
+              project.fps,
+          ),
+      ),
+    );
+  };
+  const resizeEnd = (cancelled = false) => {
+    const gesture = resizeGesture.current;
+    resizeGesture.current = null;
+    setResizeDraft(null);
+    if (gesture && !cancelled && gesture.value !== gesture.duration)
+      commit((p) => ({
+        ...p,
+        scenes: p.scenes.map((s) =>
+          s.id === gesture.id ? { ...s, duration: gesture.value } : s,
+        ),
+      }));
+  };
+
   return (
-    <div className="editor-shell">
+    <div
+      className={`editor-shell mode-${mode} ${advanced && mode === "edit" ? "advanced-open" : ""}`}
+    >
       <header className="topbar">
         <a href="/" className="brand" title="Khung — ghép ảnh thành video">
           <span className="brand-mark">
@@ -568,6 +704,23 @@ export function App() {
           </strong>
         </a>
         <span className="top-divider" />
+        <nav className="mode-switch" aria-label="Chế độ làm việc">
+          <button
+            type="button"
+            aria-pressed={mode === "auto"}
+            onClick={() => setMode("auto")}
+          >
+            <Icon name="effect" size={16} />
+            Dựng tự động
+          </button>
+          <button
+            type="button"
+            aria-pressed={mode === "edit"}
+            onClick={() => setMode("edit")}
+          >
+            Tinh chỉnh
+          </button>
+        </nav>
         <div className="project-title">
           <input
             aria-label="Tên dự án"
@@ -638,93 +791,105 @@ export function App() {
       />
 
       <div className="workspace">
-        <aside className="media-panel">
-          <div className="panel-title">
-            <h2>Ảnh của bạn</h2>
-            <span className="count">{project.assets.length}</span>
-          </div>
-          <p className="muted panel-intro">
-            Thêm ảnh, rồi chọn ảnh để tạo cảnh.
-          </p>
-          <button
-            className={`upload-zone ${dragOver ? "drag-over" : ""}`}
-            disabled={uploading}
-            onClick={() => imagesInput.current?.click()}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragOver(true);
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragOver(false);
-              void importImages(e.dataTransfer.files);
-            }}
-          >
-            <span className="upload-symbol">
-              <Icon name="upload" size={22} />
-            </span>
-            <strong>{uploading ? "Đang nhập ảnh…" : "Nhập ảnh"}</strong>
-            <span>Kéo thả vào đây hoặc chọn từ máy</span>
-            <small>JPG, PNG, WebP · tối đa 25 MB/ảnh</small>
-          </button>
-          {project.assets.length > 0 ? (
-            <div className="asset-grid">
-              {project.assets.map((a) => (
-                <div className="asset" key={a.id}>
-                  <button
-                    title={`Thêm cảnh: ${a.name}`}
-                    onClick={() => addAsset(a)}
-                  >
-                    <img
-                      src={a.src}
-                      alt={a.name}
-                      onError={(e) => {
-                        e.currentTarget.style.opacity = ".2";
-                      }}
-                    />
-                    <span className="asset-add">
-                      <Icon name="plus" size={16} />
-                    </span>
-                  </button>
-                  <span title={a.name}>{a.name}</span>
-                </div>
-              ))}
+        {mode === "auto" && (
+          <AutoPanel
+            project={project}
+            uploading={uploading}
+            busy={Boolean(busy)}
+            onImport={(files) => importImages(files, true, true)}
+            onBuild={autoBuild}
+            onExample={example}
+          />
+        )}
+        {mode === "edit" && (
+          <aside className="media-panel">
+            <div className="panel-title">
+              <h2>Ảnh của bạn</h2>
+              <span className="count">{project.assets.length}</span>
             </div>
-          ) : (
-            <div className="library-empty">
-              <Icon name="image" size={32} />
-              <p>
-                Góc nhỏ cho
-                <br />
-                những bức ảnh của bạn.
-              </p>
-            </div>
-          )}
-          <div className="media-bottom">
-            <Button icon="play" className="subtle" onClick={example}>
-              Thử với ảnh mẫu
-            </Button>
-            <Button
-              icon="plus"
-              className="subtle"
-              onClick={() => {
-                if (
-                  !project.scenes.length ||
-                  confirm(
-                    "Tạo dự án mới? Lưu file dự án nếu bạn muốn giữ bản hiện tại.",
-                  )
-                ) {
-                  commit(emptyProject());
-                  setSelected(null);
-                  setFrame(0);
-                }
+            <p className="muted panel-intro">
+              Thêm ảnh, rồi chọn ảnh để tạo cảnh.
+            </p>
+            <button
+              className={`upload-zone ${dragOver ? "drag-over" : ""}`}
+              disabled={uploading}
+              onClick={() => imagesInput.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                void importImages(e.dataTransfer.files);
               }}
             >
-              Dự án mới
-            </Button>
-          </div>
-        </aside>
+              <span className="upload-symbol">
+                <Icon name="upload" size={22} />
+              </span>
+              <strong>{uploading ? "Đang nhập ảnh…" : "Nhập ảnh"}</strong>
+              <span>Kéo thả vào đây hoặc chọn từ máy</span>
+              <small>JPG, PNG, WebP · tối đa 25 MB/ảnh</small>
+            </button>
+            {project.assets.length > 0 ? (
+              <div className="asset-grid">
+                {project.assets.map((a) => (
+                  <div className="asset" key={a.id}>
+                    <button
+                      title={`Thêm cảnh: ${a.name}`}
+                      onClick={() => addAsset(a)}
+                    >
+                      <img
+                        src={a.src}
+                        alt={a.name}
+                        onError={(e) => {
+                          e.currentTarget.style.opacity = ".2";
+                        }}
+                      />
+                      <span className="asset-add">
+                        <Icon name="plus" size={16} />
+                      </span>
+                    </button>
+                    <span title={a.name}>{a.name}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="library-empty">
+                <Icon name="image" size={32} />
+                <p>
+                  Góc nhỏ cho
+                  <br />
+                  những bức ảnh của bạn.
+                </p>
+              </div>
+            )}
+            <div className="media-bottom">
+              <Button icon="play" className="subtle" onClick={example}>
+                Thử với ảnh mẫu
+              </Button>
+              <Button
+                icon="plus"
+                className="subtle"
+                onClick={() => {
+                  if (
+                    !project.scenes.length ||
+                    confirm(
+                      "Tạo dự án mới? Lưu file dự án nếu bạn muốn giữ bản hiện tại.",
+                    )
+                  ) {
+                    commit(emptyProject());
+                    setSelected(null);
+                    setFrame(0);
+                  }
+                }}
+              >
+                Dự án mới
+              </Button>
+            </div>
+          </aside>
+        )}
 
         <main className="preview-panel">
           <div className="preview-toolbar">
@@ -733,25 +898,38 @@ export function App() {
               Xem trước
             </span>
             <div className="format-controls">
-              <select
-                aria-label="Tỷ lệ khung hình"
-                value={
-                  project.width < project.height ? "1080x1920" : "1920x1080"
-                }
-                onChange={(e) => {
-                  const [width, height] = e.target.value.split("x").map(Number);
-                  commit((p) => ({ ...p, width, height }));
-                }}
-              >
-                <option value="1080x1920">9:16 · Dọc</option>
-                <option value="1920x1080">16:9 · Ngang</option>
-              </select>
+              {mode === "edit" && (
+                <select
+                  aria-label="Tỷ lệ khung hình"
+                  value={
+                    project.width < project.height ? "1080x1920" : "1920x1080"
+                  }
+                  onChange={(e) => {
+                    const [width, height] = e.target.value
+                      .split("x")
+                      .map(Number);
+                    commit((p) => ({ ...p, width, height }));
+                  }}
+                >
+                  <option value="1080x1920">9:16 · Dọc</option>
+                  <option value="1920x1080">16:9 · Ngang</option>
+                </select>
+              )}
               <Button
                 icon="expand"
                 title="Xem toàn màn hình"
                 disabled={!project.scenes.length}
                 onClick={() => player.current?.requestFullscreen()}
               />
+              {mode === "edit" && (
+                <Button
+                  icon="settings"
+                  title="Mở hoặc đóng thuộc tính nâng cao"
+                  onClick={() => setAdvanced(!advanced)}
+                >
+                  Nâng cao
+                </Button>
+              )}
             </div>
           </div>
           <div
@@ -797,11 +975,15 @@ export function App() {
                   <span />
                   <Icon name="image" size={40} />
                 </div>
-                <h1>Bắt đầu từ một bức ảnh.</h1>
+                <h1>
+                  {mode === "auto"
+                    ? "Bộ ảnh + config → video."
+                    : "Bắt đầu từ một bức ảnh."}
+                </h1>
                 <p>
-                  Biến những khoảnh khắc tĩnh
-                  <br />
-                  thành một câu chuyện chuyển động.
+                  {mode === "auto"
+                    ? "Nhập bộ ảnh và config ở bên trái, rồi chọn Tạo và xuất MP4."
+                    : "Nhập ảnh, thêm cảnh và chỉnh nhanh ở dải phía dưới."}
                 </p>
                 <Button
                   icon="plus"
@@ -815,6 +997,24 @@ export function App() {
                 </button>
               </div>
             )}
+            {mode === "edit" &&
+              selectedScene &&
+              !playing &&
+              sceneAt(project, frame) === selected && (
+                <PreviewEditor
+                  key={selectedScene.id}
+                  project={project}
+                  scene={selectedScene}
+                  textId={activeText}
+                  enabled
+                  onSelectImage={() => setQuick("image")}
+                  onSelectText={(textId) => {
+                    setActiveText(textId);
+                    setQuick("text");
+                  }}
+                  onMove={update}
+                />
+              )}
           </div>
           <div className="playback">
             <div className="playback-start">
@@ -843,430 +1043,708 @@ export function App() {
           </div>
         </main>
 
-        <aside className="inspector">
-          <div className="panel-title">
-            <h2>
-              {selectedScene
-                ? `Cảnh ${project.scenes.findIndex((s) => s.id === selected) + 1}`
-                : "Thiết lập video"}
-            </h2>
-            {selectedScene && (
-              <span className="count">
-                <Icon name="settings" size={14} />
-              </span>
-            )}
-          </div>
-          {selectedScene ? (
-            <>
-              <div
-                className="inspector-tabs"
-                role="tablist"
-                aria-label="Thuộc tính cảnh"
-              >
-                {(["image", "text", "effects"] as const).map((key, i) => (
-                  <button
-                    role="tab"
-                    aria-selected={panel === key}
-                    key={key}
-                    onClick={() => setPanel(key)}
-                  >
-                    <Icon name={["image", "text", "effect"][i]} size={16} />
-                    {["Ảnh", "Chữ", "Hiệu ứng"][i]}
-                  </button>
-                ))}
-              </div>
-              <div className="inspector-content">
-                {panel === "image" && (
-                  <>
-                    <section className="control-section">
-                      <h3>Thời lượng</h3>
-                      <Field label="Hiển thị cảnh (giây)">
-                        <input
-                          aria-label="Thời lượng cảnh"
-                          type="number"
-                          min="0.5"
-                          max="300"
-                          step="0.5"
-                          value={selectedScene.duration}
-                          onChange={(e) => {
-                            const n = Number(e.target.value);
-                            if (n >= 0.5 && n <= 300) update({ duration: n });
-                          }}
-                        />
-                      </Field>
-                      <p className="field-hint">
-                        Phần nối cảnh được chồng lấn vào nhau.
-                      </p>
-                    </section>
-                    <section className="control-section">
-                      <h3>Khung ảnh</h3>
-                      <div className="segmented">
-                        <button
-                          aria-pressed={selectedScene.fit === "cover"}
-                          onClick={() => update({ fit: "cover" })}
-                        >
-                          Lấp đầy
-                        </button>
-                        <button
-                          aria-pressed={selectedScene.fit === "contain"}
-                          onClick={() => update({ fit: "contain" })}
-                        >
-                          Giữ toàn ảnh
-                        </button>
-                      </div>
-                      <Range
-                        label="Phóng to"
-                        value={selectedScene.scale * 100}
-                        min={10}
-                        max={300}
-                        suffix="%"
-                        onChange={(n) => update({ scale: n / 100 })}
-                      />
-                      <Range
-                        label="Vị trí ngang"
-                        value={selectedScene.x}
-                        min={-100}
-                        max={100}
-                        suffix="%"
-                        onChange={(x) => update({ x })}
-                      />
-                      <Range
-                        label="Vị trí dọc"
-                        value={selectedScene.y}
-                        min={-100}
-                        max={100}
-                        suffix="%"
-                        onChange={(y) => update({ y })}
-                      />
-                      <Range
-                        label="Góc xoay"
-                        value={selectedScene.rotate}
-                        min={-180}
-                        max={180}
-                        suffix="°"
-                        onChange={(rotate) => update({ rotate })}
-                      />
-                      <div className="row-buttons">
-                        <Button
-                          icon="flip"
-                          onClick={() => update({ flip: !selectedScene.flip })}
-                        >
-                          {selectedScene.flip ? "Bỏ lật" : "Lật ngang"}
-                        </Button>
-                        <button
-                          className="text-button"
-                          onClick={() =>
-                            update({
-                              fit: "cover",
-                              x: 0,
-                              y: 0,
-                              scale: 1,
-                              rotate: 0,
-                              flip: false,
-                            })
-                          }
-                        >
-                          Đặt lại
-                        </button>
-                      </div>
-                    </section>
-                    <section className="control-section">
-                      <h3>Thay ảnh</h3>
-                      <select
-                        aria-label="Ảnh của cảnh"
-                        value={selectedScene.assetId}
-                        onChange={(e) => update({ assetId: e.target.value })}
-                      >
-                        {project.assets.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="field-hint truncate">
-                        {selectedAsset?.width} × {selectedAsset?.height} ·{" "}
-                        {selectedAsset?.name}
-                      </p>
-                    </section>
-                  </>
-                )}
-                {panel === "text" && (
-                  <TextPanel
-                    key={selectedScene.id}
-                    scene={selectedScene}
-                    project={project}
-                    onChange={update}
-                    onFonts={(fonts) => commit((p) => ({ ...p, fonts }))}
-                    onMessage={setMessage}
-                    onPreview={(time) => {
-                      const item = items.find((t) => t.scene.id === selected);
-                      if (item) {
-                        seek(item.from + Math.round(time * project.fps));
-                        player.current?.play();
-                      }
-                    }}
-                  />
-                )}
-                {panel === "effects" && (
-                  <EffectsPanel
-                    key={selectedScene.id}
-                    scene={selectedScene}
-                    onChange={update}
-                    localTime={
-                      (frame -
-                        (items.find((t) => t.scene.id === selected)?.from ??
-                          0)) /
-                      project.fps
-                    }
-                  />
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="inspector-content">
-              <div className="inspector-empty">
-                <Icon name="settings" size={30} />
-                <p>
-                  Chọn một cảnh để chỉnh ảnh,
-                  <br />
-                  thêm chữ và hiệu ứng.
-                </p>
-              </div>
-              <section className="control-section">
-                <h3>Video của bạn</h3>
-                <Field label="Tốc độ khung hình">
-                  <select
-                    value={project.fps}
-                    onChange={(e) =>
-                      commit((p) => ({ ...p, fps: Number(e.target.value) }))
-                    }
-                  >
-                    {[24, 25, 30, 60].map((fps) => (
-                      <option key={fps} value={fps}>
-                        {fps} fps
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Màu nền">
-                  <input
-                    type="color"
-                    value={project.background}
-                    onChange={(e) =>
-                      commit((p) => ({ ...p, background: e.target.value }))
-                    }
-                  />
-                </Field>
-              </section>
-            </div>
-          )}
-          <div className="inspector-footer">
-            <label>
-              Nền video
-              <input
-                aria-label="Màu nền video"
-                type="color"
-                value={project.background}
-                onChange={(e) =>
-                  commit((p) => ({ ...p, background: e.target.value }))
-                }
+        {mode === "edit" && advanced && (
+          <aside className="inspector" aria-label="Thuộc tính nâng cao">
+            <div className="panel-title">
+              <h2>
+                {selectedScene
+                  ? `Cảnh ${project.scenes.findIndex((s) => s.id === selected) + 1}`
+                  : "Thiết lập video"}
+              </h2>
+              <Button
+                icon="close"
+                title="Đóng thuộc tính nâng cao"
+                onClick={() => setAdvanced(false)}
               />
-            </label>
-            <select
-              aria-label="FPS video"
-              value={project.fps}
-              onChange={(e) =>
-                commit((p) => ({ ...p, fps: Number(e.target.value) }))
-              }
-            >
-              {[24, 25, 30, 60].map((f) => (
-                <option key={f} value={f}>
-                  {f} fps
-                </option>
-              ))}
-            </select>
-          </div>
-        </aside>
+            </div>
+            {selectedScene ? (
+              <>
+                <div
+                  className="inspector-tabs"
+                  role="tablist"
+                  aria-label="Thuộc tính cảnh"
+                >
+                  {(["image", "text", "effects"] as const).map((key, i) => (
+                    <button
+                      role="tab"
+                      aria-selected={panel === key}
+                      key={key}
+                      onClick={() => setPanel(key)}
+                    >
+                      <Icon name={["image", "text", "effect"][i]} size={16} />
+                      {["Ảnh", "Chữ", "Hiệu ứng"][i]}
+                    </button>
+                  ))}
+                </div>
+                <div className="inspector-content">
+                  {panel === "image" && (
+                    <>
+                      <section className="control-section">
+                        <h3>Thời lượng</h3>
+                        <Field label="Hiển thị cảnh (giây)">
+                          <input
+                            aria-label="Thời lượng cảnh"
+                            type="number"
+                            min="0.5"
+                            max="300"
+                            step="0.5"
+                            value={selectedScene.duration}
+                            onChange={(e) => {
+                              const n = Number(e.target.value);
+                              if (n >= 0.5 && n <= 300) update({ duration: n });
+                            }}
+                          />
+                        </Field>
+                        <p className="field-hint">
+                          Phần nối cảnh được chồng lấn vào nhau.
+                        </p>
+                      </section>
+                      <section className="control-section">
+                        <h3>Khung ảnh</h3>
+                        <div className="segmented">
+                          <button
+                            aria-pressed={selectedScene.fit === "cover"}
+                            onClick={() => update({ fit: "cover" })}
+                          >
+                            Lấp đầy
+                          </button>
+                          <button
+                            aria-pressed={selectedScene.fit === "contain"}
+                            onClick={() => update({ fit: "contain" })}
+                          >
+                            Giữ toàn ảnh
+                          </button>
+                        </div>
+                        <Range
+                          label="Phóng to"
+                          value={selectedScene.scale * 100}
+                          min={10}
+                          max={300}
+                          suffix="%"
+                          onChange={(n) => update({ scale: n / 100 })}
+                        />
+                        <Range
+                          label="Vị trí ngang"
+                          value={selectedScene.x}
+                          min={-100}
+                          max={100}
+                          suffix="%"
+                          onChange={(x) => update({ x })}
+                        />
+                        <Range
+                          label="Vị trí dọc"
+                          value={selectedScene.y}
+                          min={-100}
+                          max={100}
+                          suffix="%"
+                          onChange={(y) => update({ y })}
+                        />
+                        <Range
+                          label="Góc xoay"
+                          value={selectedScene.rotate}
+                          min={-180}
+                          max={180}
+                          suffix="°"
+                          onChange={(rotate) => update({ rotate })}
+                        />
+                        <div className="row-buttons">
+                          <Button
+                            icon="flip"
+                            onClick={() =>
+                              update({ flip: !selectedScene.flip })
+                            }
+                          >
+                            {selectedScene.flip ? "Bỏ lật" : "Lật ngang"}
+                          </Button>
+                          <button
+                            className="text-button"
+                            onClick={() =>
+                              update({
+                                fit: "cover",
+                                x: 0,
+                                y: 0,
+                                scale: 1,
+                                rotate: 0,
+                                flip: false,
+                              })
+                            }
+                          >
+                            Đặt lại
+                          </button>
+                        </div>
+                      </section>
+                      <section className="control-section">
+                        <h3>Thay ảnh</h3>
+                        <select
+                          aria-label="Ảnh của cảnh"
+                          value={selectedScene.assetId}
+                          onChange={(e) => update({ assetId: e.target.value })}
+                        >
+                          {project.assets.map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.name}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="field-hint truncate">
+                          {selectedAsset?.width} × {selectedAsset?.height} ·{" "}
+                          {selectedAsset?.name}
+                        </p>
+                      </section>
+                    </>
+                  )}
+                  {panel === "text" && (
+                    <TextPanel
+                      key={selectedScene.id}
+                      scene={selectedScene}
+                      project={project}
+                      activeId={activeText ?? undefined}
+                      onChange={update}
+                      onFonts={(fonts) => commit((p) => ({ ...p, fonts }))}
+                      onMessage={setMessage}
+                      onPreview={(time) => {
+                        const item = items.find((t) => t.scene.id === selected);
+                        if (item) {
+                          seek(item.from + Math.round(time * project.fps));
+                          player.current?.play();
+                        }
+                      }}
+                    />
+                  )}
+                  {panel === "effects" && (
+                    <EffectsPanel
+                      key={selectedScene.id}
+                      scene={selectedScene}
+                      onChange={update}
+                      localTime={
+                        (frame -
+                          (items.find((t) => t.scene.id === selected)?.from ??
+                            0)) /
+                        project.fps
+                      }
+                    />
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="inspector-content">
+                <div className="inspector-empty">
+                  <Icon name="settings" size={30} />
+                  <p>
+                    Chọn một cảnh để chỉnh ảnh,
+                    <br />
+                    thêm chữ và hiệu ứng.
+                  </p>
+                </div>
+                <section className="control-section">
+                  <h3>Video của bạn</h3>
+                  <Field label="Tốc độ khung hình">
+                    <select
+                      value={project.fps}
+                      onChange={(e) =>
+                        commit((p) => ({ ...p, fps: Number(e.target.value) }))
+                      }
+                    >
+                      {[24, 25, 30, 60].map((fps) => (
+                        <option key={fps} value={fps}>
+                          {fps} fps
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Màu nền">
+                    <input
+                      type="color"
+                      value={project.background}
+                      onChange={(e) =>
+                        commit((p) => ({ ...p, background: e.target.value }))
+                      }
+                    />
+                  </Field>
+                </section>
+              </div>
+            )}
+            <div className="inspector-footer">
+              <label>
+                Nền video
+                <input
+                  aria-label="Màu nền video"
+                  type="color"
+                  value={project.background}
+                  onChange={(e) =>
+                    commit((p) => ({ ...p, background: e.target.value }))
+                  }
+                />
+              </label>
+              <select
+                aria-label="FPS video"
+                value={project.fps}
+                onChange={(e) =>
+                  commit((p) => ({ ...p, fps: Number(e.target.value) }))
+                }
+              >
+                {[24, 25, 30, 60].map((f) => (
+                  <option key={f} value={f}>
+                    {f} fps
+                  </option>
+                ))}
+              </select>
+            </div>
+          </aside>
+        )}
       </div>
 
-      <section className="timeline-panel" aria-label="Dải cảnh video">
-        <div className="timeline-toolbar">
-          <div className="timeline-heading">
-            <h2>Câu chuyện của bạn</h2>
-            <span>
-              {project.scenes.length} cảnh{" "}
-              <span className="divider-dot">·</span>{" "}
-              {project.scenes.length ? seconds(duration, project.fps) : "0s"}
-            </span>
+      {mode === "auto" && (
+        <section className="auto-result" aria-label="Kết quả dựng tự động">
+          <div>
+            <h2>
+              {hasScenes
+                ? `${project.scenes.length} cảnh · ${seconds(duration, project.fps)}`
+                : "Sẵn sàng nhận bộ ảnh"}
+            </h2>
+            <p className="muted">
+              {hasScenes
+                ? "Bản dựng đã sẵn sàng để xem trước hoặc xuất. Bạn có thể tinh chỉnh nếu cần."
+                : "Dùng lại một config cho nhiều bộ ảnh, không cần tạo từng cảnh."}
+            </p>
           </div>
-          <div className="timeline-actions">
-            <Button
-              icon="back"
-              title="Đưa cảnh sang trái"
-              disabled={!selectedScene || project.scenes[0]?.id === selected}
-              onClick={() => reorder(-1)}
-            />
-            <Button
-              icon="next"
-              title="Đưa cảnh sang phải"
-              disabled={
-                !selectedScene || project.scenes.at(-1)?.id === selected
-              }
-              onClick={() => reorder(1)}
-            />
-            <span className="top-divider" />
-            <Button
-              icon="scissors"
-              title="Chia cảnh tại vạch phát"
-              disabled={!selectedScene}
-              onClick={split}
-            />
-            <Button
-              icon="copy"
-              title="Nhân bản cảnh"
-              disabled={!selectedScene || project.scenes.length >= 300}
-              onClick={duplicate}
-            />
-            <Button
-              icon="trash"
-              title="Xoá cảnh (Delete)"
-              disabled={!selectedScene}
-              onClick={remove}
-            />
-          </div>
-        </div>
-        <div className="timeline-scroll">
-          {project.scenes.length ? (
-            <div className="timeline-track">
-              <div className="scene-row">
-                {items.map((item, index) => {
-                  const asset = project.assets.find(
-                    (a) => a.id === item.scene.assetId,
-                  );
-                  return (
-                    <div
-                      key={item.scene.id}
-                      className={`scene-card ${selected === item.scene.id ? "selected" : ""} ${dragging === item.scene.id ? "dragging" : ""}`}
-                      style={{
-                        width: Math.max(
-                          125,
-                          (item.duration / project.fps) * 32,
-                        ),
-                      }}
-                      draggable
-                      onDragStart={(e) => {
-                        setDragging(item.scene.id);
-                        e.dataTransfer.setData("text/plain", item.scene.id);
-                        e.dataTransfer.effectAllowed = "move";
-                      }}
-                      onDragEnd={() => setDragging(null)}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = "move";
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        const source = e.dataTransfer.getData("text/plain");
-                        if (source !== item.scene.id)
-                          commit((p) => moveScene(p, source, item.scene.id));
-                        setDragging(null);
-                      }}
-                    >
-                      <button
-                        className="scene-select"
-                        aria-label={`Chọn cảnh ${index + 1}: ${asset?.name}`}
-                        aria-pressed={selected === item.scene.id}
-                        onClick={() => choose(item.scene.id)}
-                      >
-                        <div className="scene-thumb">
-                          <img src={asset?.src} alt="" />
-                          <span className="scene-index">{index + 1}</span>
-                          {item.scene.motion !== "none" && (
-                            <span className="scene-motion">
-                              <Icon name="motion" size={14} />
-                            </span>
-                          )}
-                          {item.scene.texts.length > 0 && (
-                            <span className="scene-text-badge">
-                              <Icon name="text" size={12} />
-                            </span>
-                          )}
-                        </div>
-                        <div className="scene-caption">
-                          <span>{asset?.name}</span>
-                          <b>
-                            {item.scene.duration.toLocaleString("vi-VN", {
-                              maximumFractionDigits: 2,
-                            })}
-                            s
-                          </b>
-                        </div>
-                      </button>
-                      {index < items.length - 1 && (
-                        <span
-                          className="transition-chip"
-                          title={`Chuyển cảnh: ${item.scene.transition}`}
-                        >
-                          <Icon
-                            name={
-                              item.scene.transition === "none"
-                                ? "next"
-                                : "motion"
-                            }
-                            size={12}
-                          />
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-                <button
-                  className="add-scene"
-                  onClick={() => imagesInput.current?.click()}
+          {hasScenes && (
+            <div className="auto-input-actions">
+              <Button icon="settings" onClick={() => setMode("edit")}>
+                Tinh chỉnh kết quả
+              </Button>
+              <Button icon="save" onClick={save}>
+                Lưu dự án
+              </Button>
+              {report && (
+                <Button
+                  onClick={() => saveJson("auto-edit.report.json", report)}
                 >
-                  <Icon name="plus" size={24} />
-                  <span>Thêm ảnh</span>
-                </button>
-              </div>
-              <div className="scrub-row">
-                <span>{clock(frame, project.fps)}</span>
-                <input
-                  aria-label="Vạch phát video"
-                  type="range"
-                  min={0}
-                  max={duration - 1}
-                  value={frame}
-                  onChange={(e) => {
-                    const f = Number(e.target.value);
-                    seek(f);
-                    const current = sceneAt(project, f);
-                    if (current) setSelected(current);
-                  }}
-                />
-                <span>{clock(duration - 1, project.fps)}</span>
-              </div>
-            </div>
-          ) : (
-            <div className="timeline-empty">
-              <Icon name="film" size={23} />
-              <p>
-                Các cảnh sẽ xuất hiện ở đây.
-                <span>Nhập ảnh rồi nhấn vào ảnh để bắt đầu.</span>
-              </p>
+                  Tải báo cáo
+                </Button>
+              )}
             </div>
           )}
-        </div>
-        <footer className="statusbar">
-          <span>
-            <span className="status-dot" />
-            Làm việc cục bộ · ảnh được lưu trên máy
-          </span>
-          <button onClick={() => setHelp(!help)}>
-            <Icon name="help" size={14} />
-            Hướng dẫn & phím tắt
-          </button>
-        </footer>
-      </section>
+          {report?.warnings.map((warning, i) => (
+            <p className="auto-warning" key={i}>
+              {warning}
+            </p>
+          ))}
+        </section>
+      )}
+      {mode === "edit" && (
+        <section className="timeline-panel" aria-label="Dải cảnh video">
+          {selectedScene && (
+            <QuickPanel
+              key={selectedScene.id}
+              scene={selectedScene}
+              project={project}
+              kind={quick}
+              textId={activeText}
+              onTextId={setActiveText}
+              onKind={setQuick}
+              onChange={update}
+              onAll={(patch) =>
+                commit((p) => ({
+                  ...p,
+                  scenes: p.scenes.map((s) => ({
+                    ...s,
+                    ...structuredClone(patch),
+                  })),
+                }))
+              }
+              onAdvanced={showAdvanced}
+              onPreviewText={previewText}
+              onSaveConfig={() =>
+                saveJson(
+                  "auto-edit.config.json",
+                  configFromScene(project, selectedScene),
+                )
+              }
+            />
+          )}
+          <div className="timeline-toolbar">
+            <div className="timeline-heading">
+              <h2>Câu chuyện của bạn</h2>
+              <span>
+                {project.scenes.length} cảnh{" "}
+                <span className="divider-dot">·</span>{" "}
+                {project.scenes.length ? seconds(duration, project.fps) : "0s"}
+              </span>
+            </div>
+            <div className="timeline-actions">
+              <label className="timeline-zoom">
+                Thu/phóng{" "}
+                <input
+                  aria-label="Thu phóng dải cảnh"
+                  type="range"
+                  min={24}
+                  max={90}
+                  value={timelineScale}
+                  onChange={(e) => setTimelineScale(Number(e.target.value))}
+                />
+              </label>
+              <Button
+                icon="back"
+                title="Đưa cảnh sang trái"
+                disabled={!selectedScene || project.scenes[0]?.id === selected}
+                onClick={() => reorder(-1)}
+              />
+              <Button
+                icon="next"
+                title="Đưa cảnh sang phải"
+                disabled={
+                  !selectedScene || project.scenes.at(-1)?.id === selected
+                }
+                onClick={() => reorder(1)}
+              />
+              <span className="top-divider" />
+              <Button
+                icon="scissors"
+                title="Chia cảnh tại vạch phát"
+                disabled={!selectedScene}
+                onClick={split}
+              />
+              <Button
+                icon="copy"
+                title="Nhân bản cảnh"
+                disabled={!selectedScene || project.scenes.length >= 300}
+                onClick={duplicate}
+              />
+              <Button
+                icon="trash"
+                title="Xoá cảnh (Delete)"
+                disabled={!selectedScene}
+                onClick={remove}
+              />
+            </div>
+          </div>
+          <div className="timeline-scroll">
+            {project.scenes.length ? (
+              <div className="timeline-track">
+                <div className="scene-row">
+                  {items.map((item, index) => {
+                    const asset = project.assets.find(
+                      (a) => a.id === item.scene.assetId,
+                    );
+                    return (
+                      <div
+                        key={item.scene.id}
+                        className={`scene-card ${selected === item.scene.id ? "selected" : ""} ${dragging === item.scene.id ? "dragging" : ""}`}
+                        style={{
+                          width: Math.max(
+                            160,
+                            (resizeDraft?.id === item.scene.id
+                              ? resizeDraft.value
+                              : item.scene.duration) * timelineScale,
+                          ),
+                          flexGrow: Math.max(1, item.scene.duration),
+                        }}
+                        draggable
+                        onDragStart={(e) => {
+                          setDragging(item.scene.id);
+                          e.dataTransfer.setData("text/plain", item.scene.id);
+                          e.dataTransfer.effectAllowed = "move";
+                        }}
+                        onDragEnd={() => setDragging(null)}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect =
+                            e.dataTransfer.types.includes(
+                              "application/x-khung-preset",
+                            )
+                              ? "copy"
+                              : "move";
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const preset = e.dataTransfer.getData(
+                            "application/x-khung-preset",
+                          );
+                          if (preset) {
+                            try {
+                              const patch = JSON.parse(preset);
+                              const next = {
+                                ...project,
+                                scenes: project.scenes.map((s) =>
+                                  s.id === item.scene.id
+                                    ? { ...s, ...patch }
+                                    : s,
+                                ),
+                              };
+                              parseProject(next);
+                              commit(next);
+                              choose(item.scene.id);
+                            } catch (error) {
+                              setMessage(
+                                error instanceof Error
+                                  ? error.message
+                                  : "Không áp dụng được mẫu.",
+                              );
+                            }
+                            return;
+                          }
+                          const source = e.dataTransfer.getData("text/plain");
+                          if (source !== item.scene.id)
+                            commit((p) => moveScene(p, source, item.scene.id));
+                          setDragging(null);
+                        }}
+                      >
+                        <button
+                          className="scene-select"
+                          aria-label={`Chọn cảnh ${index + 1}: ${asset?.name}`}
+                          aria-pressed={selected === item.scene.id}
+                          onClick={() => {
+                            choose(item.scene.id);
+                            setQuick(null);
+                          }}
+                        >
+                          <div className="scene-thumb">
+                            <img src={asset?.src} alt="" />
+                            <span className="scene-index">{index + 1}</span>
+                            {item.scene.motion !== "none" && (
+                              <span className="scene-motion">
+                                <Icon name="motion" size={14} />
+                              </span>
+                            )}
+                            {item.scene.texts.length > 0 && (
+                              <span className="scene-text-badge">
+                                <Icon name="text" size={12} />
+                              </span>
+                            )}
+                          </div>
+                          <div className="scene-caption">
+                            <span>{asset?.name}</span>
+                            <b>
+                              {(resizeDraft?.id === item.scene.id
+                                ? resizeDraft.value
+                                : item.scene.duration
+                              ).toLocaleString("vi-VN", {
+                                maximumFractionDigits: 2,
+                              })}
+                              s
+                            </b>
+                          </div>
+                        </button>
+                        <div className="scene-quick-badges">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              choose(item.scene.id);
+                              setQuick("motion");
+                            }}
+                          >
+                            <Icon name="motion" size={13} />
+                            {MOTIONS[item.scene.motion]}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              choose(item.scene.id);
+                              setQuick("effect");
+                            }}
+                          >
+                            <Icon name="effect" size={13} />
+                            {item.scene.effects.length +
+                            item.scene.overlays.length
+                              ? `${item.scene.effects.length + item.scene.overlays.length} lớp`
+                              : item.scene.filter === "none"
+                                ? "Hiệu ứng"
+                                : {
+                                    warm: "Ấm",
+                                    cool: "Lạnh",
+                                    mono: "Đen trắng",
+                                    vintage: "Cổ điển",
+                                  }[item.scene.filter]}
+                          </button>
+                          {project.automation && (
+                            <button
+                              type="button"
+                              aria-pressed={project.automation.locks.includes(
+                                item.scene.id,
+                              )}
+                              aria-label={`Giữ chỉnh sửa cảnh ${index + 1} khi dựng lại`}
+                              onClick={() =>
+                                commit((p) => ({
+                                  ...p,
+                                  automation: p.automation
+                                    ? {
+                                        ...p.automation,
+                                        locks: p.automation.locks.includes(
+                                          item.scene.id,
+                                        )
+                                          ? p.automation.locks.filter(
+                                              (id) => id !== item.scene.id,
+                                            )
+                                          : [
+                                              ...p.automation.locks,
+                                              item.scene.id,
+                                            ],
+                                      }
+                                    : undefined,
+                                }))
+                              }
+                            >
+                              <Icon name="lock" size={13} />
+                              {project.automation.locks.includes(item.scene.id)
+                                ? "Đang giữ"
+                                : "Giữ"}
+                            </button>
+                          )}
+                        </div>
+                        {item.scene.texts.length > 0 && (
+                          <div className="scene-text-rows">
+                            {item.scene.texts.map((text) => (
+                              <button
+                                type="button"
+                                key={text.id}
+                                aria-pressed={
+                                  selected === item.scene.id &&
+                                  activeText === text.id
+                                }
+                                onClick={() => {
+                                  choose(item.scene.id);
+                                  setActiveText(text.id);
+                                  setQuick("text");
+                                  const local =
+                                    text.start +
+                                    Math.min(
+                                      text.inDuration + 0.1,
+                                      Math.max(
+                                        0,
+                                        ((text.end ?? item.scene.duration) -
+                                          text.start) /
+                                          2,
+                                      ),
+                                    );
+                                  seek(
+                                    Math.min(
+                                      item.end - 1,
+                                      item.from +
+                                        Math.round(local * project.fps),
+                                    ),
+                                  );
+                                }}
+                              >
+                                <Icon name="text" size={12} />
+                                <span>{text.text || "Chữ trống"}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          draggable={false}
+                          className="scene-duration-handle"
+                          aria-label={`Kéo đổi thời lượng cảnh ${index + 1}; hoặc bấm để nhập số giây`}
+                          onClick={() => {
+                            choose(item.scene.id);
+                            setQuick("duration");
+                          }}
+                          onPointerDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            player.current?.pause();
+                            e.currentTarget.setPointerCapture(e.pointerId);
+                            resizeGesture.current = {
+                              id: item.scene.id,
+                              x: e.clientX,
+                              duration: item.scene.duration,
+                              value: item.scene.duration,
+                            };
+                          }}
+                          onPointerMove={(e) => {
+                            const gesture = resizeGesture.current;
+                            if (!gesture || gesture.id !== item.scene.id)
+                              return;
+                            gesture.value = Math.max(
+                              0.5,
+                              Math.min(
+                                300,
+                                Math.round(
+                                  (gesture.duration +
+                                    (e.clientX - gesture.x) / timelineScale) *
+                                    10,
+                                ) / 10,
+                              ),
+                            );
+                            setResizeDraft({
+                              id: gesture.id,
+                              value: gesture.value,
+                            });
+                          }}
+                          onPointerUp={() => resizeEnd()}
+                          onPointerCancel={() => resizeEnd(true)}
+                        >
+                          <span />
+                        </button>
+                        {index < items.length - 1 && (
+                          <button
+                            type="button"
+                            className="transition-chip"
+                            title={`Chỉnh chuyển cảnh: ${TRANSITIONS[item.scene.transition]}`}
+                            aria-label={`Chuyển cảnh ${index + 1} sang ${index + 2}: ${TRANSITIONS[item.scene.transition]}`}
+                            onClick={() => {
+                              player.current?.pause();
+                              choose(item.scene.id);
+                              setQuick("transition");
+                            }}
+                          >
+                            <Icon name="transition" size={15} />
+                            <span>{TRANSITIONS[item.scene.transition]}</span>
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <button
+                    className="add-scene"
+                    onClick={() => imagesInput.current?.click()}
+                  >
+                    <Icon name="plus" size={24} />
+                    <span>Thêm ảnh</span>
+                  </button>
+                </div>
+                <div className="scrub-row">
+                  <span>{clock(frame, project.fps)}</span>
+                  <input
+                    aria-label="Vạch phát video"
+                    type="range"
+                    min={0}
+                    max={duration - 1}
+                    value={frame}
+                    onChange={(e) => {
+                      const f = Number(e.target.value);
+                      seek(f);
+                      const current = sceneAt(project, f);
+                      if (current) setSelected(current);
+                    }}
+                  />
+                  <span>{clock(duration - 1, project.fps)}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="timeline-empty">
+                <Icon name="film" size={23} />
+                <p>
+                  Các cảnh sẽ xuất hiện ở đây.
+                  <span>Nhập ảnh rồi nhấn vào ảnh để bắt đầu.</span>
+                </p>
+              </div>
+            )}
+          </div>
+          <footer className="statusbar">
+            <span>
+              <span className="status-dot" />
+              Làm việc cục bộ · ảnh được lưu trên máy
+            </span>
+            <button onClick={() => setHelp(!help)}>
+              <Icon name="help" size={14} />
+              Hướng dẫn & phím tắt
+            </button>
+          </footer>
+        </section>
+      )}
       {message && (
         <div className="toast" role="status">
           <span>{message}</span>
@@ -1288,7 +1766,13 @@ export function App() {
           <ol>
             <li>Nhập ảnh, nhấn vào ảnh để thêm cảnh.</li>
             <li>Chọn cảnh bên dưới; kéo để đổi thứ tự.</li>
-            <li>Chỉnh ảnh, thêm chữ và chọn hiệu ứng bên phải.</li>
+            <li>
+              Chỉnh nhanh ảnh/chữ/hiệu ứng ở dải dưới; bấm nút nối giữa hai cảnh
+              để đổi chuyển cảnh.
+            </li>
+            <li>
+              Dựng tự động: nhập bộ ảnh + config rồi chọn Tạo và xuất MP4.
+            </li>
             <li>Phát xem trước, rồi nhấn Xuất video.</li>
           </ol>
           <p>

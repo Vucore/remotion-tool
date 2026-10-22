@@ -3,12 +3,8 @@ import { createReadStream } from "node:fs";
 import { access, mkdir, stat, writeFile } from "node:fs/promises";
 import { resolve, extname, join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { bundle } from "@remotion/bundler";
-import {
-  renderMedia,
-  selectComposition,
-  makeCancelSignal,
-} from "@remotion/renderer";
+import { makeCancelSignal } from "@remotion/renderer";
+import { renderProject } from "./render-project.mjs";
 import { parseProject } from "../dist/model.mjs";
 
 const root = resolve(import.meta.dirname, "..");
@@ -24,7 +20,6 @@ await Promise.all([
   mkdir(join(root, ".cache"), { recursive: true }),
 ]);
 const jobs = new Map();
-let bundlePromise;
 const json = (res, code, body) => {
   res.writeHead(code, {
     "Content-Type": "application/json; charset=utf-8",
@@ -38,6 +33,7 @@ const publicJob = (job) => ({
   progress: job.progress,
   error: job.error,
   url: job.url,
+  filename: job.filename,
 });
 async function body(req, limit = 16 * 1024 * 1024) {
   const chunks = [];
@@ -96,8 +92,12 @@ async function serveFile(req, res, path, attachment = false) {
     headers["Access-Control-Allow-Origin"] = req.headers.origin;
     headers["Vary"] = "Origin";
   }
-  if (attachment)
-    headers["Content-Disposition"] = 'attachment; filename="khung-video.mp4"';
+  if (attachment) {
+    const name =
+      typeof attachment === "string" ? attachment : "khung-video.mp4";
+    headers["Content-Disposition"] =
+      `attachment; filename="khung-video.mp4"; filename*=UTF-8''${encodeURIComponent(name).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`;
+  }
   const range = req.headers.range?.match(/^bytes=(\d+)-(\d*)$/);
   if (range) {
     const start = Number(range[1]),
@@ -122,51 +122,18 @@ async function serveFile(req, res, path, attachment = false) {
 }
 async function render(job, project, quality) {
   try {
-    if (!bundlePromise)
-      bundlePromise = bundle({
-        entryPoint: join(root, "src/remotion.tsx"),
-        publicDir: join(root, "public"),
-        outDir: join(root, ".cache/remotion"),
-        onProgress: (value) => {
-          if (job.status === "preparing") job.progress = (value / 100) * 0.12;
-        },
-      }).catch((error) => {
-        bundlePromise = undefined;
-        throw error;
-      });
-    const serveUrl = await bundlePromise;
-    if (job.status === "cancelled") return;
-    const inputProps = {
-      project: {
-        ...project,
-        assets: project.assets.map((a) => ({ ...a, src: origin + a.src })),
-        fonts: project.fonts.map((f) => ({ ...f, src: origin + f.src })),
-      },
-    };
-    const composition = await selectComposition({
-      serveUrl,
-      id: "ImageVideo",
-      inputProps,
-      port: 3231,
-      chromiumOptions: { gl: "angle" },
-    });
-    if (job.status === "cancelled") return;
-    job.status = "rendering";
-    job.progress = 0.15;
-    await renderMedia({
-      serveUrl,
-      composition,
-      inputProps,
-      codec: "h264",
-      crf: quality === "high" ? 18 : 23,
-      pixelFormat: "yuv420p",
-      outputLocation: join(exportsDir, `${job.id}.mp4`),
-      concurrency: 2,
+    await renderProject(project, {
+      origin,
+      output: join(exportsDir, `${job.id}.mp4`),
+      quality,
       cancelSignal: job.cancelSignal,
-      port: 3232,
-      chromiumOptions: { gl: "angle" },
-      onProgress: ({ progress }) => {
-        if (job.status === "rendering") job.progress = 0.15 + progress * 0.85;
+      cancelled: () => job.status === "cancelled",
+      ports: { composition: 3231, render: 3232 },
+      onProgress: (progress, status) => {
+        if (job.status !== "cancelled") {
+          job.progress = progress;
+          job.status = status;
+        }
       },
     });
     if (job.status !== "cancelled") {
@@ -175,8 +142,7 @@ async function render(job, project, quality) {
       job.url = `/exports/${job.id}.mp4`;
     }
   } catch (error) {
-    if (job.status === "cancelled") job.status = "cancelled";
-    else {
+    if (job.status !== "cancelled") {
       job.status = "error";
       job.error = `Không xuất được video: ${error.message}`;
       console.error(error);
@@ -310,6 +276,14 @@ const server = createServer(async (req, res) => {
       }
       const job = {
         id: randomUUID(),
+        filename: Array.from(
+          String(payload.filename || "khung-video.mp4").replace(
+            /[\r\n"\\/\x00-\x1f]/g,
+            "-",
+          ),
+        )
+          .slice(-180)
+          .join(""),
         status: "preparing",
         progress: 0,
         running: true,
@@ -350,7 +324,14 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (/^\/exports\/[a-f0-9-]{36}\.mp4$/.test(url.pathname)) {
-      await serveFile(req, res, join(exportsDir, url.pathname.slice(9)), true);
+      const filename =
+        jobs.get(url.pathname.slice(9, -4))?.filename || "khung-video.mp4";
+      await serveFile(
+        req,
+        res,
+        join(exportsDir, url.pathname.slice(9)),
+        filename,
+      );
       return;
     }
     const relative = decodeURIComponent(url.pathname).replace(/^\/+/, "");

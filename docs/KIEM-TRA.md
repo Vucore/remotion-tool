@@ -19,10 +19,20 @@
 - Kiểm tra effect factory chỉ tạo descriptor và xác thực tham số, không khởi tạo GPU.
 - Theo yêu cầu người dùng, không chạy server, không kiểm thử giao diện và không render video ở lần mở rộng này. Người dùng tự kiểm tra preview, font, hiệu ứng GPU và MP4 trên máy thực tế.
 
+## Kiểm tra v0.3
+
+- ESLint, TypeScript, build production và 28 kiểm tra logic đã qua.
+- 12 kiểm tra mới bao phủ dựng theo config, thứ tự tự nhiên, ID/seed ổn định, tham số effect/lớp phủ mặc định, cả hai tỷ lệ và các FPS, phân bổ thời lượng tổng tới từng frame, cảnh giữ/ngoại lệ, captions theo tên ảnh, config lỗi, lưu mẫu từ cảnh và điểm lấy khung.
+- Kiểm tra đọc header PNG/JPG/WebP; từ chối header hỏng/ảnh quá lớn.
+- Kiểm tra tích hợp CLI bằng thư mục ảnh PNG và captions JSON trong thư mục tạm: sinh Project/báo cáo đúng, mở lại Project, từ chối ghi đè, kiểm tra nhánh resume và xác thực config trước khi bỏ qua. Chỉ lập bản dựng, không mở Chromium/server; fixture resume không phải video render thật.
+- Kiểm tra cú pháp các script Node và `git diff --check`.
+- Không chạy kiểm thử giao diện hoặc render MP4 trong lượt này theo yêu cầu người dùng tự test. Kết quả v0.1 ở trên không thay thế kiểm tra tích hợp phiên bản mới. Preview trực tiếp, kéo chuột, responsive, tên file tải xuống và vòng đời huỷ render cần được người dùng kiểm tra thực tế.
+
 ## Giới hạn hiện tại
 
 - Chỉ ảnh JPG, PNG, WebP; chưa có video nguồn, âm thanh, phụ đề tự động hoặc GPT.
 - Một dải cảnh nối tiếp; chữ thuộc từng cảnh. Có keyframe ảnh, chưa có timeline nhiều track hoặc keyframe tự do cho mọi thuộc tính chữ.
+- Có dựng tự động từ config trên web/CLI và hàng đợi CLI; chưa có màn hình quản lý hàng đợi nhiều bộ ảnh trên web. Chỉnh nhanh áp dụng cho một cảnh hoặc mọi cảnh, chưa có giao diện chọn nhiều cảnh riêng lẻ.
 - Chưa có animation nhân vật.
 - Thư viện tối đa 300 ảnh, 300 cảnh, 30 lớp chữ mỗi cảnh; ảnh tối đa 25 MB và 30.000 pixel mỗi chiều.
 - Tối đa 24 effect gốc, 8 lớp phủ và 100 keyframe ảnh mỗi cảnh; 30 font mỗi dự án. Font tối đa 5 MB, LUT inline tối đa 2 MB.
@@ -42,6 +52,7 @@
 - Chữ cong là một dòng theo cung SVG; dùng animation cho cả đường chữ. Các animation từng ký tự/từ được dùng với chữ thẳng. Khối 3D chữ là các lớp bóng giả chiều sâu, không phải mô hình 3D.
 - Bộ mẫu chuyển cảnh của editor được dựng bằng CSS/SVG và công thức theo frame; không tuyên bố là toàn bộ presentation của gói `@remotion/transitions`.
 - Font hệ thống có thể khác giữa các máy. Dùng font nhập từ máy để giữ cùng tài nguyên font cho preview và render.
+- CLI config hiện dùng font hệ thống; chưa có manifest nhập font riêng tự động. Web dùng font đã nhập trong thư viện dự án. Focus khác giữa ảnh trong cover hỗ trợ ảnh thường/bộ lọc/lớp phủ; native effect đang bật yêu cầu focus giữa ảnh, lỗi được báo khi kiểm tra Project.
 - Remotion cho phép viết hiệu ứng tuỳ biến không giới hạn. Danh mục hiện tại bao phủ toàn bộ effect factory công khai của package đã ghim phiên bản; không bao gồm mọi shader/animation tưởng tượng được, JavaScript tuỳ ý, morph glyph, text theo đường SVG tự vẽ hoặc 3D scene tuỳ biến.
 
 ## Các lệnh người dùng có thể tự chạy

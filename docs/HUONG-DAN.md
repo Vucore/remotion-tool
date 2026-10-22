@@ -20,14 +20,20 @@ npm start
 
 Dừng bằng `Ctrl+C` trong terminal. Nếu cổng đang dùng, chạy `PORT=3211 npm run dev` rồi mở địa chỉ được in ra.
 
-## Tạo video
+## Dựng tự động: luồng chính v0.3
+
+Chọn **Dựng tự động** → nhập bộ ảnh và config → **Tạo và xuất MP4**. Không cần tạo/chỉnh từng cảnh. Có ba mẫu dựng để bắt đầu; config lưu lại dùng được với bộ ảnh khác. **Chỉ dựng để xem trước** không xuất video. JSON và các thiết lập nâng cao đóng mặc định.
+
+Xem [hướng dẫn config, nội dung chữ, CLI và hàng đợi](TU-DONG-HOA.md).
+
+## Tinh chỉnh bằng tay
 
 1. Nhấn **Nhập ảnh** hoặc kéo ảnh vào ô nhập bên trái. Hỗ trợ JPG, PNG và WebP, mỗi ảnh tối đa 25 MB.
 2. Nhấn ảnh thu nhỏ để thêm một cảnh. Cảnh mới mặc định dài 4 giây.
 3. Chọn cảnh trong dải phía dưới. Kéo cảnh để đổi thứ tự, hoặc dùng hai nút mũi tên. Các nút kéo, chia, nhân bản và xoá có chú thích khi rê chuột.
-4. Trong tab **Ảnh**, chỉnh thời lượng, cách vừa khung, vị trí, phóng to, xoay hoặc lật. **Giữ toàn ảnh** giúp xem đủ ảnh gốc; phần trống dùng màu nền video.
-5. Trong tab **Chữ**, chọn mẫu rồi thêm lớp chữ. Chọn lớp trong danh sách để chỉnh font, nội dung, màu, vị trí, thời gian và animation. Mở các nhóm nâng cao khi cần.
-6. Trong tab **Hiệu ứng**, chọn chuyển động ảnh, kiểu nối sang cảnh tiếp và chỉnh màu.
+4. Thanh công cụ trên dải dưới có **Ảnh**, số giây, **Chuyển động**, **Chữ**, **Hiệu ứng**. Chỉ hiện nhóm đang cần. Kéo mép phải cảnh để đổi thời lượng; bấm số giây để nhập chính xác. **Giữ toàn ảnh** giúp xem đủ ảnh gốc, phần trống dùng nền video.
+5. Bấm nút nằm giữa hai cảnh để chọn chuyển cảnh/thời lượng/hướng. Bấm nhãn chuyển động hoặc hiệu ứng trên cảnh để chọn preset; có thể kéo preset thả vào cảnh khác. Chọn **Áp dụng cho mọi cảnh** nếu muốn dùng chung.
+6. Bấm lớp chữ trên cảnh hoặc vùng chữ ở preview để sửa nội dung, font, cỡ, màu, timing và animation cơ bản. Kéo vùng chữ để đổi vị trí; chọn ảnh rồi kéo để đổi vị trí ảnh. Bấm **Nâng cao** mới mở bảng bên phải với đầy đủ kiểu chữ, 81 effect, keyframe và tham số chi tiết. **Lưu mẫu config** lấy thiết lập cảnh đang chọn để dùng cho bộ ảnh khác.
 7. Chọn một trong hai tỷ lệ video phía trên vùng xem trước: **9:16 dọc (1080×1920)** hoặc **16:9 ngang (1920×1080)**. Mặc định 9:16. Nhấn phát hoặc kéo vạch phát để kiểm tra.
 8. Nhấn **Xuất video**, chọn chất lượng và bắt đầu xuất. Khi hoàn thành, nhấn **Tải video MP4**. File cũng nằm trong `data/exports/`.
 
@@ -45,6 +51,7 @@ Chuyển cảnh được đặt trên cảnh đi trước. Ở cảnh cuối, tu
 
 - Cấu hình tự lưu trong trình duyệt sau khi thay đổi. Dùng cùng địa chỉ `127.0.0.1:3210` để thấy bản đang làm; `localhost` là một vùng lưu khác của trình duyệt.
 - Nút **Lưu dự án** tải file `.khung.json`; nút thư mục mở lại file JSON.
+- Dự án tự động giữ cả config và danh sách cảnh **Đang giữ**. Chỉnh tay đánh dấu cảnh được giữ khi dựng lại; bỏ giữ trên cảnh hoặc trong màn hình tự động để tái dựng toàn bộ.
 - JSON chứa cấu hình và LUT dạng văn bản, không nhúng ảnh/font. Giữ `data/uploads/` và `data/fonts/` khi sao lưu hoặc di chuyển dự án sang máy khác.
 - Nếu thiếu ảnh, nhập lại ảnh rồi chọn nó ở **Ảnh → Thay ảnh** cho cảnh tương ứng.
 - Tạo dự án mới/xoá cảnh không xoá file gốc trong `data/uploads`, để những dự án đã lưu trước đó còn mở được.
@@ -64,6 +71,8 @@ Phím tắt chỉnh sửa không chạy khi đang gõ trong một ô nhập ho�
 
 ## Chữ nâng cao
 
+Mở **Nâng cao → Chữ** để dùng các mục dưới đây; chúng không xuất hiện lúc đầu.
+
 - **Mẫu chữ**: thêm lớp với kiểu dựng sẵn hoặc áp mẫu lên lớp đang chọn; có thể hoàn tác.
 - Danh sách lớp có nút ẩn/hiện, đưa trước/sau, nhân bản và xoá. Lớp ở cuối được vẽ trên các lớp phía trước.
 - **Nội dung & font**: font hệ thống hoặc font từ máy (WOFF/WOFF2/TTF/OTF, tối đa 5 MB); cỡ, đậm, nghiêng, gạch và đổi hoa/thường.
@@ -73,6 +82,8 @@ Phím tắt chỉnh sửa không chạy khi đang gõ trong một ô nhập ho�
 - **Số đếm động**: giá trị đầu/cuối, số lẻ, tiền tố/hậu tố. Số định dạng theo tiếng Việt.
 
 ## Hiệu ứng nâng cao
+
+Mở **Nâng cao → Hiệu ứng** để dùng thư viện đầy đủ và các tham số dưới đây.
 
 - **Chuyển động ảnh**: chọn preset, mức/tốc độ, easing, mặt nạ và độ hiện.
 - **Chuyển cảnh**: kiểu nối, thời lượng, easing; hướng áp dụng cho các kiểu trượt/đẩy/quét/rèm.

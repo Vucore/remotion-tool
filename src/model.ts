@@ -17,6 +17,7 @@ import {
   type Value,
 } from "./effects/catalog";
 import { validateNativeEffect } from "./effects/runtime";
+import { parseAutoConfig, type AutoConfig } from "./auto/config";
 export type Motion = keyof typeof MOTIONS;
 export type Transition = keyof typeof TRANSITIONS;
 export type Filter = "none" | "warm" | "cool" | "mono" | "vintage";
@@ -113,6 +114,8 @@ export type Scene = {
   assetId: string;
   duration: number;
   fit: "cover" | "contain";
+  focusX: number;
+  focusY: number;
   x: number;
   y: number;
   scale: number;
@@ -149,6 +152,7 @@ export type Project = {
   assets: Asset[];
   scenes: Scene[];
   fonts: FontAsset[];
+  automation?: { config: AutoConfig; locks: string[] };
 };
 export const id = () => crypto.randomUUID();
 export const emptyProject = (): Project => ({
@@ -167,6 +171,8 @@ export const makeScene = (assetId: string): Scene => ({
   assetId,
   duration: 4,
   fit: "cover",
+  focusX: 50,
+  focusY: 50,
   x: 0,
   y: 0,
   scale: 1,
@@ -468,6 +474,8 @@ export function parseProject(value: unknown): Project {
       assetId: s.assetId,
       duration: number(s.duration, 0.5, 300),
       fit: pick(s.fit, ["cover", "contain"]),
+      focusX: number(s.focusX, 0, 100),
+      focusY: number(s.focusY, 0, 100),
       x: number(s.x, -100, 100),
       y: number(s.y, -100, 100),
       scale: number(s.scale, 0.1, 5),
@@ -620,6 +628,14 @@ export function parseProject(value: unknown): Project {
   if (new Set(scenes.map((s) => s.id)).size !== scenes.length)
     throw new Error("ID cảnh bị trùng.");
   for (const scene of scenes) {
+    if (
+      scene.fit === "cover" &&
+      scene.effects.some((effect) => effect.enabled) &&
+      (scene.focusX !== 50 || scene.focusY !== 50)
+    )
+      throw new Error(
+        "Stack hiệu ứng gốc dùng điểm lấy khung ở giữa (focus x/y = 0.5). Dùng bộ lọc màu hoặc lớp phủ nếu cần đổi điểm lấy khung.",
+      );
     for (const items of [scene.texts, scene.effects, scene.overlays])
       if (new Set(items.map((item) => item.id)).size !== items.length)
         throw new Error("ID lớp trong cảnh bị trùng.");
@@ -643,6 +659,20 @@ export function parseProject(value: unknown): Project {
     scenes,
     fonts,
   };
+  if (p.automation !== undefined) {
+    if (
+      !p.automation ||
+      !Array.isArray(p.automation.locks) ||
+      p.automation.locks.length > 300
+    )
+      throw new Error("Cấu hình tự động hoặc danh sách cảnh giữ không hợp lệ.");
+    result.automation = {
+      config: parseAutoConfig(p.automation.config),
+      locks: [
+        ...new Set(p.automation.locks.map((value) => str(value, 500))),
+      ].filter((value) => scenes.some((s) => s.id === value)),
+    };
+  }
   if (
     result.width * 16 !== result.height * 9 &&
     result.width * 9 !== result.height * 16

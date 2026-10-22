@@ -61,6 +61,8 @@ const SceneView = ({
     width: "100%",
     height: "100%",
     objectFit: scene.fit,
+    objectPosition:
+      scene.fit === "cover" ? `${scene.focusX}% ${scene.focusY}%` : "50% 50%",
     opacity: pose.opacity,
     transform: `perspective(1400px) translate(${pose.x}%,${pose.y}%) rotate(${pose.rotate}deg) rotateX(${pose.rx}deg) rotateY(${pose.ry}deg) scale(${pose.scale}) scaleX(${scene.flip ? -1 : 1})`,
     filter: `brightness(${scene.brightness}%) contrast(${scene.contrast}%) saturate(${scene.saturation}%) ${filterStyles[scene.filter]}`,

@@ -1,3 +1,4 @@
+import { textTemplate } from "../text-template";
 import { useEffect, useRef, useState } from "react";
 import {
   TEXT_PRESETS,
@@ -24,115 +25,6 @@ import {
   Color,
   Group,
 } from "./Controls";
-function template(kind: string): Partial<TextLayer> {
-  const base: Partial<TextLayer> = {
-    fill: "solid",
-    stroke: 0,
-    shadow: 0,
-    glow: 0,
-    depth: 0,
-    italic: false,
-    decoration: "none",
-    fontFamily: "Arial",
-    gradientColor: "#ffd68a",
-  };
-  const styles: Record<string, Partial<TextLayer>> = {
-    basic: { size: 64, color: "#ffffff", background: "#153d35", weight: 700 },
-    title: {
-      size: 112,
-      background: "transparent",
-      color: "#ffffff",
-      weight: 900,
-      y: 30,
-      animationIn: "word-rise",
-    },
-    subtitle: {
-      size: 58,
-      background: "#13251e",
-      color: "#ffffff",
-      weight: 600,
-      y: 86,
-      padding: 14,
-      animationIn: "fade",
-    },
-    label: {
-      size: 44,
-      background: "#f7dba0",
-      color: "#183c2a",
-      weight: 700,
-      padding: 18,
-      radius: 16,
-    },
-    neon: {
-      size: 90,
-      background: "transparent",
-      color: "#54ffd6",
-      glow: 20,
-      weight: 700,
-      loop: "neon-flicker",
-    },
-    outline: {
-      size: 112,
-      background: "transparent",
-      fill: "outline",
-      stroke: 3,
-      strokeColor: "#ffffff",
-      weight: 900,
-    },
-    shadow: {
-      size: 96,
-      background: "transparent",
-      color: "#fff0c0",
-      depth: 12,
-      shadowColor: "#264f43",
-      weight: 900,
-    },
-    gradient: {
-      size: 100,
-      background: "transparent",
-      color: "#8ffff0",
-      gradientColor: "#ffde8e",
-      fill: "gradient",
-      weight: 800,
-    },
-    highlight: {
-      size: 72,
-      background: "#e6ff9a",
-      color: "#1f3d2b",
-      radius: 0,
-      padding: 10,
-      weight: 700,
-    },
-    retro: {
-      size: 90,
-      background: "transparent",
-      color: "#ffe1a0",
-      stroke: 2,
-      strokeColor: "#7d3e3a",
-      depth: 5,
-      shadowColor: "#7d3e3a",
-      fontFamily: "Georgia",
-    },
-    glass: {
-      size: 64,
-      background: "transparent",
-      color: "#ffffff",
-      shadow: 14,
-      shadowColor: "#000000",
-      weight: 400,
-    },
-    editorial: {
-      size: 84,
-      background: "transparent",
-      color: "#f6ead0",
-      fontFamily: "Georgia",
-      weight: 400,
-      italic: true,
-      lineHeight: 1.3,
-    },
-  };
-  return { ...base, ...styles[kind] };
-}
 export function TextPanel({
   scene,
   project,
@@ -140,6 +32,7 @@ export function TextPanel({
   onFonts,
   onMessage,
   onPreview,
+  activeId,
 }: {
   scene: Scene;
   project: Project;
@@ -147,8 +40,13 @@ export function TextPanel({
   onFonts: (fonts: FontAsset[]) => void;
   onMessage: (m: string) => void;
   onPreview: (time: number) => void;
+  activeId?: string;
 }) {
   const [active, setActive] = useState(scene.texts[0]?.id ?? "");
+  useEffect(() => {
+    if (activeId && scene.texts.some((t) => t.id === activeId))
+      setActive(activeId);
+  }, [activeId, scene.texts]);
   const [preset, setPreset] = useState("basic");
   const [fontBusy, setFontBusy] = useState(false);
   const fontInput = useRef<HTMLInputElement>(null);
@@ -235,7 +133,7 @@ export function TextPanel({
             onClick={() => {
               const next = {
                 ...makeText(),
-                ...template(preset),
+                ...textTemplate(preset),
                 name: `Chữ ${scene.texts.length + 1}`,
               };
               onChange({ texts: [...scene.texts, next] });
@@ -247,7 +145,7 @@ export function TextPanel({
           <button
             className="text-button"
             disabled={!text}
-            onClick={() => patch(template(preset))}
+            onClick={() => patch(textTemplate(preset))}
           >
             Áp mẫu vào lớp
           </button>

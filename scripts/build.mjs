@@ -26,6 +26,8 @@ export async function buildApp(watch = false) {
       animation: "src/animation.ts",
       effects: "src/effects/runtime.ts",
       catalog: "src/catalog.ts",
+      auto: "src/auto/compile.ts",
+      "auto-config": "src/auto/config.ts",
     },
     bundle: true,
     outdir: "dist",

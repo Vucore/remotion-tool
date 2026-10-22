@@ -70,3 +70,7 @@ Theo yêu cầu mới nhất, dừng kiểm thử tương tác; chỉ chạy ki�
 ## Mở rộng v0.2
 
 Đã triển khai thư viện 81 hiệu ứng gốc của `@remotion/effects` 4.0.537, tham số và xếp chồng/tự động hoá, mở rộng chữ và font riêng, lớp phủ, chuyển động, mặt nạ, chuyển cảnh và keyframe ảnh. Xem [kế hoạch chi tiết](MO-RONG-CHU-HIEU-UNG.md) và [danh mục](DANH-MUC-CHU-HIEU-UNG.md). Người dùng tự test preview/render; lần mở rộng này không khởi động server.
+
+## Dựng tự động và UX v0.3
+
+Luồng chính chuyển thành bộ ảnh + config → tự dựng và xuất MP4. Dùng chung bộ dựng cho web/CLI/hàng đợi. Tinh chỉnh cơ bản chuyển xuống dải cảnh; bảng phải đóng mặc định và chỉ phục vụ nâng cao. Xem [kế hoạch/tiến độ](TRIEN-KHAI-TU-DONG-UX.md) và [hướng dẫn thực tế](TU-DONG-HOA.md).

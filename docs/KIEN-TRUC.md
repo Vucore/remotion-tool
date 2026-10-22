@@ -50,3 +50,16 @@ Thời lượng cảnh tính bằng frame nguyên khi dựng video. Chuyển c�
 ## Mở rộng sau
 
 Âm thanh và phụ đề; timeline nhiều track; keyframe chữ; video nguồn; GPT; shader/3D/animation tuỳ biến khác. Đây là các mục dự kiến.
+
+## Dựng tự động v0.3
+
+- `src/auto/config.ts` chuẩn hoá/kiểm tra config v1, registry mẫu có phiên bản và tạo config từ cảnh mẫu.
+- `src/auto/compile.ts` là bộ dựng dùng chung, nhận config và danh sách Asset đã biết kích thước. Tạo Project và báo cáo; ID dựa trên tên, chuyển động/lớp phủ dựa trên seed. Kiểm tra bằng `parseProject` trước khi xuất.
+- Project v1 thêm trường `automation` tuỳ chọn chứa config và danh sách cảnh giữ. Dự án cũ vẫn đọc được. Lịch sử của editor giữ cả dữ liệu này; dựng lại là một lần commit.
+- `src/editor/AutoPanel.tsx` nhận bộ ảnh/config, ghi config dùng lại, dựng xem trước hoặc gọi thẳng API xuất hiện có với Project vừa dựng.
+- `QuickPanel.tsx` phục vụ thao tác cơ bản ở dải dưới. `PreviewEditor.tsx` đặt vùng chọn/kéo ngoài composition, không lọt vào MP4.
+- `scripts/auto-edit.mjs` đọc thư mục/captions, lưu ảnh theo hash và gọi cùng compiler. Hàng đợi chạy tuần tự, có báo cáo/tiếp tục theo hash. `--plan` không tạo server hoặc Chromium.
+- `scripts/render-project.mjs` dùng chung bởi server và CLI. CLI chỉ bật server tài nguyên tạm trong lúc render và đóng sau đó; web vẫn dùng server loopback của editor. Bundle tách theo PID để hai tiến trình không cùng ghi một thư mục.
+- `scripts/image-info.mjs` đọc kích thước PNG/JPG/WebP từ header, giới hạn kích thước trước khi đưa vào renderer. Việc giải mã đầy đủ được thực hiện khi render/preview.
+
+Xem [cấu hình và quy tắc phân bổ thời lượng](TU-DONG-HOA.md), gồm giới hạn focus khi kết hợp native effect.
