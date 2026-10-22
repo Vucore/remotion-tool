@@ -8,6 +8,8 @@ import { makeText, type Project, type Scene, type TextLayer } from "../model";
 import { Icon } from "../icons";
 import { Field, Numeric, Slider, Select } from "../panels/Controls";
 import { useState, type DragEvent } from "react";
+import { SceneObjectsPanel } from "./SceneObjectsPanel";
+import type { ActorInstance } from "../actors/types";
 const draggablePreset = (patch: Partial<Scene>) => ({
   draggable: true,
   onDragStart: (event: DragEvent<HTMLButtonElement>) => {
@@ -25,7 +27,9 @@ export type QuickKind =
   | "motion"
   | "transition"
   | "effect"
+  | "object"
   | "text";
+// Object placement stays in the same bottom editor as image/text tools.
 const labels: Record<QuickKind, string> = {
   image: "Ảnh",
   duration: "Thời lượng",
@@ -33,6 +37,7 @@ const labels: Record<QuickKind, string> = {
   transition: "Chuyển cảnh",
   effect: "Hiệu ứng",
   text: "Chữ",
+  object: "Nhân vật & vật thể",
 };
 const motions = [
   "none",
@@ -55,6 +60,11 @@ export function QuickPanel({
   onAdvanced,
   onPreviewText,
   onSaveConfig,
+  objectId,
+  onObjectId,
+  onObjectAll,
+  onObjectLibrary,
+  onObjectPlay,
 }: {
   scene: Scene;
   project: Project;
@@ -67,6 +77,11 @@ export function QuickPanel({
   onAdvanced: (panel: "image" | "text" | "effects") => void;
   onPreviewText: (text: TextLayer) => void;
   onSaveConfig: () => void;
+  objectId: string | null;
+  onObjectId: (id: string) => void;
+  onObjectAll: (object: ActorInstance) => void;
+  onObjectLibrary: () => void;
+  onObjectPlay: () => void;
 }) {
   const [all, setAll] = useState(false);
   const text = scene.texts.find((t) => t.id === textId) ?? scene.texts[0];
@@ -102,6 +117,7 @@ export function QuickPanel({
             "motion",
             "transition",
             "text",
+            "object",
             "effect",
           ] as const
         ).map((key) => (
@@ -124,6 +140,7 @@ export function QuickPanel({
                   motion: "motion",
                   transition: "transition",
                   text: "text",
+                  object: "motion",
                   effect: "effect",
                 }[key]
               }
@@ -137,27 +154,29 @@ export function QuickPanel({
           type="button"
           className="button"
           onClick={onSaveConfig}
-          title="Dùng thiết lập cảnh cho cả bộ ảnh; chữ hiện tại được dùng chung"
+          title="Lưu chữ, màu và chuyển cảnh để dùng lại. Vị trí đối tượng được lưu trong dự án."
         >
           <Icon name="save" size={15} />
-          Lưu mẫu config
+          Lưu mẫu dựng
         </button>
-        <button
-          type="button"
-          className="button quick-advanced"
-          onClick={() =>
-            onAdvanced(
-              kind === "text"
-                ? "text"
-                : kind === "image" || kind === "duration"
-                  ? "image"
-                  : "effects",
-            )
-          }
-        >
-          <Icon name="settings" size={15} />
-          Nâng cao
-        </button>
+        {kind !== "object" && (
+          <button
+            type="button"
+            className="button quick-advanced"
+            onClick={() =>
+              onAdvanced(
+                kind === "text"
+                  ? "text"
+                  : kind === "image" || kind === "duration"
+                    ? "image"
+                    : "effects",
+              )
+            }
+          >
+            <Icon name="settings" size={15} />
+            Nâng cao
+          </button>
+        )}
       </div>
       {kind && (
         <section
@@ -166,7 +185,7 @@ export function QuickPanel({
         >
           <div className="quick-content-heading">
             <strong>{labels[kind]}</strong>
-            {kind !== "text" && (
+            {kind !== "text" && kind !== "object" && (
               <label className="checkbox-field">
                 <input
                   type="checkbox"
@@ -185,6 +204,18 @@ export function QuickPanel({
               <Icon name="close" size={16} />
             </button>
           </div>
+          {kind === "object" && (
+            <SceneObjectsPanel
+              project={project}
+              scene={scene}
+              objectId={objectId}
+              onSelect={onObjectId}
+              onChange={onChange}
+              onAll={onObjectAll}
+              onLibrary={onObjectLibrary}
+              onPlay={onObjectPlay}
+            />
+          )}
           {kind === "image" && (
             <div className="quick-fields">
               <Select
@@ -225,7 +256,12 @@ export function QuickPanel({
               <Numeric
                 label="Hiển thị cảnh (giây)"
                 value={scene.duration}
-                min={0.5}
+                min={
+                  scene.voice
+                    ? Math.ceil(scene.voice.duration * project.fps - 1e-8) /
+                      project.fps
+                    : 0.5
+                }
                 max={300}
                 step={0.1}
                 onChange={(duration) =>
@@ -233,7 +269,9 @@ export function QuickPanel({
                 }
               />
               <span className="quick-hint">
-                Có thể kéo mép phải của cảnh. Chuyển cảnh dùng phần chồng lấn.
+                {scene.voice
+                  ? "Giữ trọn WAV. Tăng thời lượng sẽ thêm khoảng nghỉ sau lời đọc."
+                  : "Có thể kéo mép phải của cảnh. Chuyển cảnh dùng phần chồng lấn."}
               </span>
             </div>
           )}
@@ -449,14 +487,31 @@ export function QuickPanel({
               {text && (
                 <>
                   <div className="quick-text-main">
-                    <Field label="Nội dung">
+                    <Field
+                      label={
+                        text.captions
+                          ? `${text.captions.length} câu từ TXT · tự khớp voice`
+                          : "Nội dung"
+                      }
+                    >
                       <textarea
                         aria-label="Nội dung chữ"
-                        value={text.text}
+                        value={
+                          text.captions
+                            ? text.captions.map((c) => c.text).join("\n")
+                            : text.text
+                        }
+                        readOnly={Boolean(text.captions)}
                         maxLength={2000}
                         onChange={(e) => patchText({ text: e.target.value })}
                       />
                     </Field>
+                    {text.captions && (
+                      <p className="quick-hint">
+                        Sửa lời trong TXT rồi nạp lại ở Dựng tự động để căn lại
+                        thời gian. Font, màu và vị trí áp dụng cho mọi câu.
+                      </p>
+                    )}
                     <div className="quick-fields">
                       <Select
                         label="Font"
@@ -518,32 +573,36 @@ export function QuickPanel({
                         })
                       }
                     />
-                    <Numeric
-                      label="Bắt đầu (s)"
-                      value={text.start}
-                      min={0}
-                      max={Math.max(0, scene.duration - 0.05)}
-                      onChange={(start) =>
-                        patchText({
-                          start,
-                          end:
-                            text.end !== null
-                              ? Math.max(start, text.end)
-                              : null,
-                          offset: 0,
-                          span: null,
-                        })
-                      }
-                    />
-                    <Numeric
-                      label="Kết thúc (s)"
-                      value={text.end ?? scene.duration}
-                      min={Math.min(text.start, scene.duration)}
-                      max={scene.duration}
-                      onChange={(end) =>
-                        patchText({ end, offset: 0, span: null })
-                      }
-                    />
+                    {!text.captions && (
+                      <>
+                        <Numeric
+                          label="Bắt đầu (s)"
+                          value={text.start}
+                          min={0}
+                          max={Math.max(0, scene.duration - 0.05)}
+                          onChange={(start) =>
+                            patchText({
+                              start,
+                              end:
+                                text.end !== null
+                                  ? Math.max(start, text.end)
+                                  : null,
+                              offset: 0,
+                              span: null,
+                            })
+                          }
+                        />
+                        <Numeric
+                          label="Kết thúc (s)"
+                          value={text.end ?? scene.duration}
+                          min={Math.min(text.start, scene.duration)}
+                          max={scene.duration}
+                          onChange={(end) =>
+                            patchText({ end, offset: 0, span: null })
+                          }
+                        />
+                      </>
+                    )}
                     <button
                       type="button"
                       className="button"

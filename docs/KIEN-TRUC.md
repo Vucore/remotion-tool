@@ -1,5 +1,17 @@
 # Kiến trúc editor
 
+## Nhân vật và vật thể v0.5
+
+- `src/actors/types.ts` và `schema.ts`: thư viện PNG/rig/sprite, instance và động tác trong từng cảnh; các trường Project/Scene mới là tuỳ chọn để đọc dự án cũ.
+- `src/actors/import.ts`: nhận tên bộ phận, sheet/chuỗi frame và mô tả bộ `character.json`; dùng chung cho upload web và `scripts/actor-packs.mjs` của CLI. Mô tả được sinh từ UI, không bắt người dùng viết JSON.
+- `ActorView.tsx`: renderer theo frame dùng chung trong video và xem thử; rig xoay phần theo khớp, sprite cắt sheet/đổi frame, PNG biến đổi nguyên khối. WAV có envelope RMS 50 ms để nhún/mở miệng theo năng lượng, không phải khớp khẩu hình theo âm vị.
+- `plan.ts`: planner theo quy tắc/seed khi bật tự thêm; giữ các scene đã chỉnh nếu được giữ. `timing.ts` chuẩn hoá khoảng hiển thị/động tác khi thời lượng thay đổi.
+- `ActorPanel.tsx` quản lý thư viện; `AssetPreview.tsx` có Player riêng, không ghi vào Project. `SceneObjectsPanel.tsx` nằm trong QuickPanel dưới timeline cho từng cảnh. `PreviewEditor.tsx` cung cấp tay nắm kéo/đổi kích thước ngoài composition, không đi vào MP4. App dùng bản nháp trong lúc kéo và commit một lần khi thả.
+- `actorsEdited` phân biệt cảnh có bố trí/xoá đối tượng thủ công với cảnh planner tạo. Scene lock cùng cờ này giữ chỉnh tay khi tái dựng. Chế độ placement chỉ dùng trong preview lúc dừng; renderer xuất luôn dùng chuyển động thật.
+- Renderer/server kiểm tra và phục vụ cả tài nguyên con của rig/sprite; CLI đưa chúng vào resource map và manifest hash. Không thêm dependency cho asset.
+
+Tự động hoá tác vụ lặp lại; vị trí và cử động đặc thù thuộc từng cảnh. Xem [hướng dẫn v0.5](NHAN-VAT-VA-VAT-THE.md) và [trạng thái kiểm tra](KIEM-TRA.md).
+
 ## Phạm vi
 
 Đầu ra đã được người dùng xác nhận: ghép ảnh tĩnh thành video. Đây là editor cho video từ ảnh, chưa phải công cụ chỉnh sửa video nguồn hoặc chỉnh ảnh chuyên sâu.
@@ -49,7 +61,7 @@ Thời lượng cảnh tính bằng frame nguyên khi dựng video. Chuyển c�
 
 ## Mở rộng sau
 
-Âm thanh và phụ đề; timeline nhiều track; keyframe chữ; video nguồn; GPT; shader/3D/animation tuỳ biến khác. Đây là các mục dự kiến.
+Nhạc nền/mix nhiều audio track; timeline nhiều track; keyframe chữ; video nguồn; GPT; shader/3D/animation tuỳ biến khác. Voice WAV và phụ đề TXT được bổ sung ở v0.4 bên dưới.
 
 ## Dựng tự động v0.3
 
@@ -63,3 +75,16 @@ Thời lượng cảnh tính bằng frame nguyên khi dựng video. Chuyển c�
 - `scripts/image-info.mjs` đọc kích thước PNG/JPG/WebP từ header, giới hạn kích thước trước khi đưa vào renderer. Việc giải mã đầy đủ được thực hiện khi render/preview.
 
 Xem [cấu hình và quy tắc phân bổ thời lượng](TU-DONG-HOA.md), gồm giới hạn focus khi kết hợp native effect.
+
+## Voice và phụ đề v0.4
+
+- `src/auto/narration.ts`: parser TXT đánh số, ghép ảnh/WAV theo số, tách câu/cụm và xác thực Caption JSON.
+- `scripts/wav-info.mjs`: đọc RIFF fmt/data để xác định thời lượng chính xác theo sample, kiểm tra format/kích thước.
+- `scripts/narration.mjs`: dùng chung web/CLI, kiểm tra tài nguyên, hash/cache và chạy tiến trình căn câu có hỗ trợ hủy.
+- `scripts/voice/align.py`: SoundFile → mono 16 kHz → Stable-ts/Whisper forced alignment với text gốc; giữ ranh giới câu, trả JSON-lines progress/result/error. Không phát sinh timing bằng chia đều.
+- `scripts/setup-voice.mjs`: tạo `.venv-voice` bằng uv, cài requirements và tải model. Không phụ thuộc Python hệ thống của server.
+- API: POST `/api/voices` nhận WAV; POST `/api/narration` tạo tác vụ căn câu/dựng Project, GET/DELETE `/api/narration/:id` đọc/hủy. Kết quả Project đi vào API export hiện có.
+- Project v1 thêm `voiceover` tuỳ chọn (WAV library + TXT). Scene có `voice` trỏ WAV; lớp Text có mảng `captions` theo kiểu Remotion Caption. Schema cũ vẫn đọc được.
+- Khi có voice, timeline giữ start/end logic nối tiếp. `visualDuration` kéo dài hình trước bằng overlap của cảnh sau. Audio và cue chạy từ đầu logic của mỗi cảnh, ngoài hiệu ứng chuyển hình. Tổng frame không trừ overlap; caption được chọn theo frame trong `TextRender`.
+- Compiler cập nhật voice/cue/thời lượng từ bộ ghép, giữ các kiểu chỉnh sửa theo quy tắc cảnh giữ. JSON cache/dự án luôn được xác thực trước render.
+- Web/CLI lưu WAV trong `data/uploads/`; renderer thêm origin vào đường dẫn ảnh/font/WAV, phục vụ WAV với MIME và range requests. Hàng đợi hash cả voice/text/config, dùng lại alignment khi bộ đầu vào không đổi.

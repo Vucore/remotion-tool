@@ -1,0 +1,26 @@
+{
+  "autoEditVersion": 1,
+  "template": "story-clean@1",
+  "input": { "directory": "./images" },
+  "output": {
+    "file": "./output/video.mp4",
+    "ratio": "9:16",
+    "fps": 30,
+    "quality": "high"
+  },
+  "timing": { "mode": "per-image", "seconds": 5 },
+  "characters": {
+    "enabled": true,
+    "directories": ["./characters"],
+    "cast": "rotate",
+    "behavior": "story",
+    "layout": "auto",
+    "size": "medium",
+    "speaker": "narrator",
+    "entrance": "slide",
+    "exit": false
+  },
+  "motion": { "presets": ["zoom-in", "zoom-out"], "amount": 6 },
+  "transition": { "preset": "fade", "seconds": 0.5 },
+  "text": { "source": "none" }
+}

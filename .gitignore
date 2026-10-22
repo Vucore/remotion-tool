@@ -10,3 +10,5 @@ out
 data/
 .cache/
 test-results/
+.venv-voice/
+__pycache__/

@@ -222,14 +222,31 @@ export function TextPanel({
                 onChange={(e) => patch({ name: e.target.value })}
               />
             </Field>
-            <Field label="Nội dung">
+            <Field
+              label={
+                text.captions
+                  ? `${text.captions.length} câu từ TXT`
+                  : "Nội dung"
+              }
+            >
               <textarea
                 rows={3}
                 maxLength={2000}
-                value={text.text}
+                value={
+                  text.captions
+                    ? text.captions.map((c) => c.text).join("\n")
+                    : text.text
+                }
+                readOnly={Boolean(text.captions)}
                 onChange={(e) => patch({ text: e.target.value })}
               />
             </Field>
+            {text.captions && (
+              <p className="field-hint">
+                Nội dung và mốc câu được căn theo WAV. Sửa TXT rồi dựng lại để
+                cập nhật; các thiết lập kiểu chữ áp dụng cho mọi câu.
+              </p>
+            )}
             <Select
               label="Font chữ"
               value={text.fontFamily}
@@ -567,34 +584,39 @@ export function TextPanel({
             )}
           </Group>
           <Group title="Thời gian & chuyển động" open>
-            <div className="two-columns">
-              <Numeric
-                label="Bắt đầu (s)"
-                value={text.start}
-                min={0}
-                max={scene.duration}
-                onChange={(start) =>
-                  patch({
-                    start,
-                    end: text.end !== null ? Math.max(text.end, start) : null,
-                  })
-                }
-              />
-              <Numeric
-                label="Kết thúc (s)"
-                value={text.end ?? scene.duration}
-                min={text.start}
-                max={Math.max(text.start, scene.duration)}
-                onChange={(end) => patch({ end })}
-              />
-            </div>
-            <Check
-              label="Giữ đến cuối cảnh"
-              checked={text.end === null}
-              onChange={(checked) =>
-                patch({ end: checked ? null : scene.duration })
-              }
-            />
+            {!text.captions && (
+              <>
+                <div className="two-columns">
+                  <Numeric
+                    label="Bắt đầu (s)"
+                    value={text.start}
+                    min={0}
+                    max={scene.duration}
+                    onChange={(start) =>
+                      patch({
+                        start,
+                        end:
+                          text.end !== null ? Math.max(text.end, start) : null,
+                      })
+                    }
+                  />
+                  <Numeric
+                    label="Kết thúc (s)"
+                    value={text.end ?? scene.duration}
+                    min={text.start}
+                    max={Math.max(text.start, scene.duration)}
+                    onChange={(end) => patch({ end })}
+                  />
+                </div>
+                <Check
+                  label="Giữ đến cuối cảnh"
+                  checked={text.end === null}
+                  onChange={(checked) =>
+                    patch({ end: checked ? null : scene.duration })
+                  }
+                />
+              </>
+            )}
             <Select
               label="Chữ vào"
               value={text.animationIn}

@@ -1,0 +1,29 @@
+{
+  "autoEditVersion": 1,
+  "template": "story-clean@1",
+  "input": { "directory": "./images" },
+  "narration": {
+    "enabled": true,
+    "directory": "./voices",
+    "script": "./script.txt",
+    "language": "vi",
+    "model": "small",
+    "maxChars": 100
+  },
+  "output": {
+    "file": "./output/video.mp4",
+    "ratio": "9:16",
+    "fps": 30,
+    "quality": "high"
+  },
+  "motion": {
+    "policy": "alternate",
+    "presets": ["zoom-in", "pan-left", "zoom-out"],
+    "amount": 8
+  },
+  "transition": { "preset": "fade", "seconds": 0.5 },
+  "text": {
+    "preset": "subtitle",
+    "style": { "size": 54, "y": 85, "width": 86 }
+  }
+}

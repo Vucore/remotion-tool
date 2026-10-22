@@ -19,6 +19,8 @@ import { AnimatedText } from "./TextRender";
 import { Overlays } from "./Overlays";
 import { FontLoader } from "./FontLoader";
 import { useMemo } from "react";
+import { Audio } from "@remotion/media";
+import { SceneActors } from "./actors/ActorView";
 const filterStyles = {
   none: "",
   warm: "sepia(.22) saturate(1.12)",
@@ -31,11 +33,13 @@ const SceneView = ({
   project,
   item,
   nextOverlap,
+  placementMode,
 }: {
   scene: Scene;
   project: Project;
   item: ReturnType<typeof timeline>[number];
   nextOverlap: number;
+  placementMode?: boolean;
 }) => {
   const frame = useCurrentFrame(),
     { fps } = useVideoConfig();
@@ -46,11 +50,11 @@ const SceneView = ({
     ? clamp(
         ease(
           scene.transitionEasing,
-          (frame - (item.duration - nextOverlap)) / nextOverlap,
+          (frame - (item.visualDuration - nextOverlap)) / nextOverlap,
         ),
       )
     : 0;
-  const pose = imagePose(scene, frame, fps, item.duration);
+  const pose = imagePose(scene, frame, fps, item.visualDuration);
   const effects = effectDescriptors(
     scene.effects,
     frame / fps,
@@ -112,15 +116,22 @@ const SceneView = ({
               <Img src={asset.src} style={imageStyle} />
             ))}
         </AbsoluteFill>
+        <SceneActors
+          project={project}
+          scene={scene}
+          placementMode={placementMode}
+        />
         <Overlays layers={scene.overlays} sceneFrames={item.duration} />
-        {scene.texts.map((text) => (
-          <AnimatedText
-            key={text.id}
-            text={text}
-            sceneFrames={item.duration}
-            width={project.width}
-          />
-        ))}
+        {scene.texts
+          .filter((text) => !text.captions)
+          .map((text) => (
+            <AnimatedText
+              key={text.id}
+              text={text}
+              sceneFrames={item.duration}
+              width={project.width}
+            />
+          ))}
         {flashIn && progress < 1 && (
           <AbsoluteFill
             style={{
@@ -141,7 +152,13 @@ const SceneView = ({
     </AbsoluteFill>
   );
 };
-export const Video = ({ project }: { project: Project }) => {
+export const Video = ({
+  project,
+  placementMode = false,
+}: {
+  project: Project;
+  placementMode?: boolean;
+}) => {
   const usedFonts = useMemo(
     () =>
       project.fonts.filter((font) =>
@@ -162,7 +179,7 @@ export const Video = ({ project }: { project: Project }) => {
         <Sequence
           key={item.scene.id}
           from={item.from}
-          durationInFrames={item.duration}
+          durationInFrames={item.visualDuration}
           premountFor={fps}
         >
           <SceneView
@@ -170,9 +187,41 @@ export const Video = ({ project }: { project: Project }) => {
             project={project}
             item={item}
             nextOverlap={items[index + 1]?.overlap ?? 0}
+            placementMode={placementMode}
           />
         </Sequence>
       ))}
+      {items.map((item) => {
+        const voice = project.voiceover?.assets.find(
+          (v) => v.id === item.scene.voice?.assetId,
+        );
+        return (
+          <Sequence
+            key={`voice-${item.scene.id}`}
+            from={item.from}
+            durationInFrames={item.duration}
+            premountFor={fps}
+          >
+            {voice && (
+              <Audio
+                src={voice.src}
+                durationInFrames={Math.ceil(voice.duration * fps)}
+                premountFor={fps}
+              />
+            )}
+            {item.scene.texts
+              .filter((text) => text.captions)
+              .map((text) => (
+                <AnimatedText
+                  key={text.id}
+                  text={text}
+                  sceneFrames={item.duration}
+                  width={project.width}
+                />
+              ))}
+          </Sequence>
+        );
+      })}
     </AbsoluteFill>
   );
 };

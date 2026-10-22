@@ -1,5 +1,7 @@
 # Dựng video tự động từ bộ ảnh + config — v0.3
 
+**v0.4 có thêm WAV + TXT và tự căn phụ đề từng câu.** Xem [cài bằng uv và luồng dựng theo voice](VOICE-VA-PHU-DE.md). Tài liệu bên dưới mô tả chế độ ảnh không có voice; quy tắc trừ thời gian chồng lấn không áp dụng cho chế độ voice.
+
 Luồng chính: **bộ ảnh + config → tạo toàn bộ cảnh → áp quy tắc → Remotion xuất MP4**. Không phải ngồi chỉnh từng ảnh và không phải viết mã React cho mỗi video.
 
 ## Trên web

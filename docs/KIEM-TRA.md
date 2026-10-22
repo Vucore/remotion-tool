@@ -1,5 +1,13 @@
 # Kết quả kiểm tra và giới hạn
 
+## Trạng thái v0.5 — nhân vật, vật thể và xem thử động tác
+
+Đã viết luồng nhập ba loại asset, renderer/planner dùng chung, chỉnh vị trí/động tác từng cảnh, xem thử độc lập bằng Remotion Player và lưu/mở mẫu qua form. Theo yêu cầu chỉ code, chưa chạy lint/TypeScript/build/test, cài môi trường, server hoặc render cho v0.5. [Hướng dẫn cài và tự kiểm tra](NHAN-VAT-VA-VAT-THE.md). Các kết quả cũ bên dưới không chứng nhận luồng asset mới.
+
+## Trạng thái v0.4 — voice và phụ đề
+
+Code thêm WAV/TXT, forced alignment, timeline voice và luồng web/CLI. Lint/TypeScript đã qua ở một mốc trung gian; sau yêu cầu chỉ code của người dùng, không chạy thêm kiểm tra, cài Python/model hoặc render. Bản cuối cần người dùng tự kiểm tra theo [hướng dẫn uv và voice](VOICE-VA-PHU-DE.md). Các kết quả v0.1–v0.3 dưới đây là lịch sử, không chứng nhận luồng voice mới.
+
 ## Kiểm tra v0.1 trước lần mở rộng
 
 - ESLint, TypeScript và build giao diện.
@@ -30,15 +38,15 @@
 
 ## Giới hạn hiện tại
 
-- Chỉ ảnh JPG, PNG, WebP; chưa có video nguồn, âm thanh, phụ đề tự động hoặc GPT.
+- Ảnh JPG/PNG/WebP; v0.4 có WAV + TXT và căn phụ đề theo câu. Chưa có video nguồn hoặc GPT. Xem [cài môi trường và tự kiểm tra v0.4](VOICE-VA-PHU-DE.md).
 - Một dải cảnh nối tiếp; chữ thuộc từng cảnh. Có keyframe ảnh, chưa có timeline nhiều track hoặc keyframe tự do cho mọi thuộc tính chữ.
 - Có dựng tự động từ config trên web/CLI và hàng đợi CLI; chưa có màn hình quản lý hàng đợi nhiều bộ ảnh trên web. Chỉnh nhanh áp dụng cho một cảnh hoặc mọi cảnh, chưa có giao diện chọn nhiều cảnh riêng lẻ.
-- Chưa có animation nhân vật.
+- Có animation nhân vật/vật thể từ PNG, bộ phận và sprite đã chuẩn bị. Tối đa 20 bộ, 1.200 ảnh/frame, 4 lớp đối tượng/cảnh. Chưa có tự tách/xếp xương từ ảnh phẳng, IK/mesh, atlas không đều hoặc sinh animation bằng AI.
 - Thư viện tối đa 300 ảnh, 300 cảnh, 30 lớp chữ mỗi cảnh; ảnh tối đa 25 MB và 30.000 pixel mỗi chiều.
 - Tối đa 24 effect gốc, 8 lớp phủ và 100 keyframe ảnh mỗi cảnh; 30 font mỗi dự án. Font tối đa 5 MB, LUT inline tối đa 2 MB.
 - Thời lượng cảnh 0,5–300 giây, video tối đa một giờ; dự án JSON gửi lên server tối đa 16 MB. localStorage có giới hạn riêng của trình duyệt: dự án nhiều LUT có thể phải lưu JSON thay vì tự lưu.
 - Hoàn tác giữ tối đa khoảng 80 thay đổi. Kéo slider nhiều bước được ghi thành nhiều thay đổi.
-- JSON không chứa file ảnh/font. Cần giữ `data/uploads/` và `data/fonts/` để mở lại đầy đủ. LUT inline có trong JSON.
+- JSON không chứa file ảnh/WAV/font. Cần giữ `data/uploads/` và `data/fonts/` để mở lại đầy đủ. LUT inline, TXT và cue phụ đề có trong JSON.
 - Mỗi lần chạy server chỉ xuất một video; sau khi huỷ có thể cần đợi vài giây để giải phóng tác vụ.
 - Tốc độ preview/render phụ thuộc kích thước ảnh, độ phân giải và máy. Chưa đánh giá tải dài hoặc triển khai công khai.
 - Chưa có đóng gói desktop, tài khoản người dùng hoặc cộng tác nhiều người. Server chỉ phục vụ cục bộ.

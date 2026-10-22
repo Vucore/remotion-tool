@@ -7,10 +7,20 @@ import {
   type Asset,
   type Project,
   type Scene,
+  type Voiceover,
 } from "../model";
 import { parseAutoConfig, type AutoConfig } from "./config";
 import { textTemplate } from "../text-template";
 import { makeEffect, EFFECT_MAP, effectFields } from "../effects/catalog";
+import {
+  pairNarration,
+  parseCaptions,
+  splitSentences,
+  type VoiceAlignment,
+} from "./narration";
+import type { ActorDefinition } from "../actors/types";
+import { parseActorLibrary } from "../actors/schema";
+import { planActors } from "../actors/plan";
 
 export function hash(value: string): string {
   let n = 2166136261;
@@ -55,9 +65,19 @@ export function compileAuto(
   assets: Asset[],
   previous?: Project,
   keepLocks = true,
+  narration?: { input: Voiceover; alignments: VoiceAlignment[] },
+  actorLibrary: ActorDefinition[] = previous?.actors ?? [],
 ): { project: Project; report: AutoReport } {
   const config = parseAutoConfig(input),
     fps = config.output.fps;
+  if (config.narration.enabled && !narration)
+    throw Error(
+      "Cần bộ WAV + script.txt và căn câu trước khi dựng video có voice.",
+    );
+  const pairs =
+    config.narration.enabled && narration
+      ? pairNarration(assets, narration.input)
+      : undefined;
   if (!assets.length || assets.length > 300)
     throw Error("Bộ ảnh cần từ 1 đến 300 ảnh.");
   const names = assets.map((a) => a.name.normalize("NFC"));
@@ -65,8 +85,8 @@ export function compileAuto(
     throw Error(
       "Bộ ảnh có tên trùng. Đổi tên ảnh để config xác định đúng từng ảnh.",
     );
-  const ordered = [...assets];
-  if (config.input.order !== "input")
+  const ordered = pairs ? pairs.map((p) => p.image) : [...assets];
+  if (!pairs && config.input.order !== "input")
     ordered.sort((a, b) =>
       config.input.order === "natural"
         ? compareNames(a.name, b.name)
@@ -165,7 +185,9 @@ export function compileAuto(
       kind: layer.kind,
       id: layer.id,
     }));
-    const caption = override?.text ?? captionFor(config, asset.name);
+    const caption = pairs
+      ? ""
+      : (override?.text ?? captionFor(config, asset.name));
     if (caption)
       scene.texts = [
         {
@@ -190,6 +212,12 @@ export function compileAuto(
   // Manually duplicated or split scenes can be retained explicitly as well.
   for (const scene of previous?.scenes ?? [])
     if (lockSet.has(scene.id) && !scenes.some((s) => s.id === scene.id)) {
+      if (pairs) {
+        warnings.push(
+          "Bản dựng voice chỉ giữ một cảnh cho mỗi bộ ảnh/WAV/TXT; cảnh thêm/chia thủ công không được đưa vào bản dựng mới.",
+        );
+        continue;
+      }
       if (!assets.some((a) => a.id === scene.assetId))
         throw Error(
           "Một cảnh đang giữ dùng ảnh ngoài bộ ảnh. Bỏ giữ hoặc thêm lại ảnh trước khi dựng.",
@@ -199,6 +227,58 @@ export function compileAuto(
     }
   if (scenes.length > 300)
     throw Error("Bản dựng vượt quá 300 cảnh, kể cả cảnh đang giữ.");
+  if (pairs && narration) {
+    if (
+      narration.alignments.length !== pairs.length ||
+      new Set(narration.alignments.map((a) => a.voiceId)).size !== pairs.length
+    )
+      throw Error("Kết quả căn câu thiếu hoặc trùng WAV.");
+    scenes.forEach((scene, index) => {
+      const pair = pairs[index];
+      const aligned = narration.alignments.find(
+        (a) => a.voiceId === pair.voice.id,
+      );
+      const captions = parseCaptions(aligned?.captions, pair.voice.duration);
+      const expected = splitSentences(pair.text, config.narration.maxChars);
+      if (
+        expected.length !== captions.length ||
+        captions.some((c, i) => c.text !== expected[i])
+      )
+        throw Error(
+          `${pair.voice.name}: kết quả phụ đề không khớp TXT. Hãy căn lại.`,
+        );
+      const oldStyle = scene.texts.find((t) => t.captions);
+      scene.duration = Math.ceil(pair.voice.duration * fps - 1e-8) / fps;
+      scene.voice = { assetId: pair.voice.id, duration: pair.voice.duration };
+      scene.texts = [
+        ...scene.texts.filter((t) => !t.captions),
+        {
+          ...makeText(),
+          ...textTemplate(config.text.preset),
+          animationIn: "none",
+          animationOut: "none",
+          ...structuredClone(config.text.style),
+          ...(oldStyle && lockSet.has(scene.id) ? oldStyle : {}),
+          id: `${scene.id}-voice-caption`,
+          name: "Phụ đề theo voice",
+          text: captions[0].text,
+          start: 0,
+          end: null,
+          offset: 0,
+          span: null,
+          captions,
+        },
+      ];
+    });
+    warnings.push(
+      "Thời lượng và text lấy từ WAV/TXT; timing, duration override và nội dung text thông thường không áp dụng. Cảnh giữ vẫn được cập nhật voice/phụ đề.",
+    );
+  } else {
+    for (const scene of scenes) {
+      delete scene.voice;
+      scene.texts = scene.texts.filter((t) => !t.captions);
+    }
+  }
   const base: Project = {
     ...emptyProject(),
     name: config.output.name,
@@ -209,9 +289,16 @@ export function compileAuto(
     assets: ordered,
     scenes,
     fonts: previous?.fonts ?? [],
+    actors: parseActorLibrary(actorLibrary),
+    ...(pairs && narration
+      ? { voiceover: structuredClone(narration.input) }
+      : previous?.voiceover
+        ? { voiceover: structuredClone(previous.voiceover) }
+        : {}),
   };
-  if (config.timing.mode === "total")
+  if (!pairs && config.timing.mode === "total")
     fitTotal(base, config, fixed, lockSet, warnings);
+  warnings.push(...planActors(base, config.characters, config.seed, lockSet));
   for (const scene of scenes)
     if (scene.duration * fps < 1) throw Error("Thời lượng cảnh quá ngắn.");
   base.automation = {

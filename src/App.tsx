@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Player, PlayerRef } from "@remotion/player";
 import {
   Asset,
@@ -6,6 +6,7 @@ import {
   Project,
   Scene,
   TextLayer,
+  VoiceAsset,
   emptyProject,
   id,
   makeScene,
@@ -27,6 +28,19 @@ import { PreviewEditor } from "./editor/PreviewEditor";
 import { compileAuto, type AutoReport } from "./auto/compile";
 import { configFromScene, type AutoConfig } from "./auto/config";
 import { MOTIONS, TRANSITIONS } from "./catalog";
+import { parseScript } from "./auto/narration";
+import { buildWithNarration } from "./editor/narration-client";
+import { uploadActorFiles } from "./editor/actor-upload";
+import { isActorPath } from "./actors/import";
+import {
+  actorCapabilities,
+  defaultActorImport,
+  type ActorDefinition,
+  type ActorImportOptions,
+  type ActorInstance,
+} from "./actors/types";
+import { parseActorLibrary } from "./actors/schema";
+import { fitObject } from "./actors/timing";
 
 const STORAGE = "khung-editor-project-v1";
 const clock = (frames: number, fps: number) =>
@@ -152,11 +166,19 @@ export function App() {
   );
   const [panel, setPanel] = useState<"image" | "text" | "effects">("image");
   const [mode, setMode] = useState<"auto" | "edit">(() =>
-    project.scenes.length ? "edit" : "auto",
+    project.automation || !project.scenes.length ? "auto" : "edit",
   );
   const [advanced, setAdvanced] = useState(false);
   const [quick, setQuick] = useState<QuickKind | null>(null);
   const [activeText, setActiveText] = useState<string | null>(null);
+  const [activeObject, setActiveObject] = useState<string | null>(null);
+  const [objectDraft, setObjectDraft] = useState<{
+    sceneId: string;
+    id: string;
+    x: number;
+    y: number;
+    height: number;
+  } | null>(null);
   const [report, setReport] = useState<AutoReport | null>(null);
   const [resizeDraft, setResizeDraft] = useState<{
     id: string;
@@ -180,6 +202,7 @@ export function App() {
   const [job, setJob] = useState<Job | null>(null);
   const [quality, setQuality] = useState("standard");
   const [startingExport, setStartingExport] = useState(false);
+  const [preparingVoice, setPreparingVoice] = useState(false);
   const [help, setHelp] = useState(false);
   const [previewRevision, setPreviewRevision] = useState(0);
   const player = useRef<PlayerRef>(null);
@@ -188,6 +211,32 @@ export function App() {
   const dialog = useRef<HTMLDialogElement>(null);
   const pollingFailures = useRef(0);
   const selectedScene = project.scenes.find((s) => s.id === selected);
+  const previewProject = useMemo(
+    () =>
+      objectDraft
+        ? {
+            ...project,
+            scenes: project.scenes.map((s) =>
+              s.id === objectDraft.sceneId
+                ? {
+                    ...s,
+                    actors: s.actors?.map((i) =>
+                      i.id === objectDraft.id
+                        ? {
+                            ...i,
+                            x: objectDraft.x,
+                            y: objectDraft.y,
+                            height: objectDraft.height,
+                          }
+                        : i,
+                    ),
+                  }
+                : s,
+            ),
+          }
+        : project,
+    [project, objectDraft],
+  );
   const selectedAsset = project.assets.find(
     (a) => a.id === selectedScene?.assetId,
   );
@@ -195,11 +244,36 @@ export function App() {
   const duration = totalFrames(project);
   const hasScenes = project.scenes.length > 0;
   const busy =
-    startingExport || (job && ["preparing", "rendering"].includes(job.status));
+    preparingVoice ||
+    startingExport ||
+    (job && ["preparing", "rendering"].includes(job.status));
   const commit = useCallback((change: Project | ((p: Project) => Project)) => {
     setHistory((h) => {
       let next = typeof change === "function" ? change(h.present) : change;
       if (next === h.present) return h;
+      if (next.scenes.some((s) => s.voice && s.duration < s.voice.duration))
+        next = {
+          ...next,
+          scenes: next.scenes.map((s) =>
+            s.voice && s.duration < s.voice.duration
+              ? {
+                  ...s,
+                  duration:
+                    Math.ceil(s.voice.duration * next.fps - 1e-8) / next.fps,
+                }
+              : s,
+          ),
+        };
+      next = {
+        ...next,
+        scenes: next.scenes.map((s) =>
+          s.actors &&
+          s.duration !==
+            h.present.scenes.find((old) => old.id === s.id)?.duration
+            ? { ...s, actors: s.actors.map((i) => fitObject(i, s.duration)) }
+            : s,
+        ),
+      };
       if (h.present.automation && next.automation === h.present.automation) {
         const changed = next.scenes
           .filter((scene) => {
@@ -266,8 +340,60 @@ export function App() {
   const choose = (sceneId: string) => {
     setSelected(sceneId);
     setActiveText(null);
+    setActiveObject(null);
+    setObjectDraft(null);
     const item = items.find((t) => t.scene.id === sceneId);
     if (item) seek(item.from + item.overlap);
+  };
+  const openObjects = () => {
+    const sceneId = selectedScene?.id ?? project.scenes[0]?.id;
+    if (!sceneId) return;
+    player.current?.pause();
+    choose(sceneId);
+    setMode("edit");
+    setAdvanced(false);
+    setQuick("object");
+  };
+  const copyObjectToAll = (object: ActorInstance) => {
+    const sourceDuration = selectedScene?.duration ?? 1;
+    let skipped = 0;
+    const scenes = project.scenes.map((scene) => {
+      const objects = scene.actors ?? [];
+      const existing =
+        objects.find((i) => i.id === object.id) ??
+        objects.find((i) => i.actorId === object.actorId);
+      if (!existing && objects.length >= 4) {
+        skipped++;
+        return scene;
+      }
+      const ratio = scene.duration / sourceDuration;
+      const next = fitObject(
+        {
+          ...structuredClone(object),
+          id: existing?.id ?? id(),
+          manual: true,
+          from: object.from * ratio,
+          to: object.to === null ? null : object.to * ratio,
+          actions: object.actions.map((a) => ({
+            ...a,
+            start: a.start * ratio,
+            end: a.end * ratio,
+          })),
+        },
+        scene.duration,
+      );
+      return {
+        ...scene,
+        actorsEdited: true,
+        actors: existing
+          ? objects.map((i) => (i.id === existing.id ? next : i))
+          : [...objects, next],
+      };
+    });
+    commit({ ...project, scenes });
+    setMessage(
+      `Đã dùng lại vị trí và chuyển động cho ${scenes.length - skipped} cảnh.${skipped ? ` Bỏ qua ${skipped} cảnh đã đủ 4 lớp.` : ""}`,
+    );
   };
 
   async function cancelExport() {
@@ -376,6 +502,12 @@ export function App() {
   }, [commit, selected]);
   const split = () => {
     if (!selected) return;
+    if (selectedScene?.voice || selectedScene?.actors?.length) {
+      setMessage(
+        "Cảnh có voice/nhân vật tự động được giữ theo lịch dựng. Hãy chia đầu vào thành các cảnh nhỏ hơn rồi dựng lại.",
+      );
+      return;
+    }
     const result = splitScene(project, selected, frame);
     if (result) commit(result);
     else
@@ -423,6 +555,7 @@ export function App() {
     files: FileList | File[],
     strict = false,
     replace = false,
+    commitImport = true,
   ): Promise<Asset[]> {
     if (!files.length || uploading) return [];
     setUploading(true);
@@ -469,7 +602,7 @@ export function App() {
         );
       }
     }
-    if (imported.length && (!strict || !errors.length))
+    if (commitImport && imported.length && (!strict || !errors.length))
       commit((p) =>
         replace
           ? {
@@ -490,6 +623,187 @@ export function App() {
         : `Đã nhập ${imported.length} ảnh. Nhấn vào ảnh để thêm cảnh.`,
     );
     return imported;
+  }
+  async function importAutoInputs(
+    files: File[],
+    config: AutoConfig,
+  ): Promise<AutoConfig> {
+    const actorFiles = files.filter((f) =>
+      isActorPath(f.webkitRelativePath || f.name),
+    );
+    const images = files.filter(
+      (f) => /\.(png|jpe?g|webp)$/i.test(f.name) && !actorFiles.includes(f),
+    );
+    const wavs = files.filter(
+      (f) => /\.wav$/i.test(f.name) && !actorFiles.includes(f),
+    );
+    const texts = files.filter(
+      (f) => /\.txt$/i.test(f.name) && !actorFiles.includes(f),
+    );
+    if (texts.length > 1)
+      throw Error("Chỉ chọn một file TXT chứa toàn bộ lời đọc.");
+    if (wavs.length > 300) throw Error("Tối đa 300 WAV trong một bộ đầu vào.");
+    let script = project.voiceover?.script ?? "",
+      scriptName = project.voiceover?.scriptName ?? "";
+    if (texts[0]) {
+      if (texts[0].size > 1_000_000)
+        throw Error("TXT tối đa 1 MB, mã hoá UTF-8.");
+      script = await texts[0].text();
+      parseScript(script);
+      scriptName = texts[0].name;
+    }
+    const voices: VoiceAsset[] = [];
+    setUploading(true);
+    try {
+      const actorImport = actorFiles.some((f) => /\.(png|webp)$/i.test(f.name))
+        ? await uploadActorFiles(actorFiles, defaultActorImport())
+        : undefined;
+      for (const file of wavs) {
+        if (file.size > 100 * 1024 * 1024)
+          throw Error(`${file.name}: WAV tối đa 100 MB.`);
+        const response = await fetch(
+          `/api/voices?name=${encodeURIComponent(file.name)}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "audio/wav" },
+            body: file,
+          },
+        );
+        const voice = await response.json();
+        if (!response.ok) throw Error(`${file.name}: ${voice.error}`);
+        voices.push(voice);
+      }
+      const imported = images.length
+        ? await importImages(images, true, true, false)
+        : project.assets;
+      const voiceAssets = wavs.length
+        ? voices
+        : (project.voiceover?.assets ?? []);
+      const actors = actorImport
+        ? mergeActors(project.actors ?? [], actorImport.actors)
+        : project.actors;
+      const effectiveConfig = actorImport
+        ? {
+            ...config,
+            characters: {
+              ...config.characters,
+              selected: config.characters.selected.length
+                ? [
+                    ...new Set([
+                      ...config.characters.selected,
+                      ...actorImport.actors.map((a) => a.id),
+                    ]),
+                  ]
+                : [],
+            },
+          }
+        : config;
+      commit((p) => ({
+        ...p,
+        assets: imported,
+        ...(actors ? { actors } : {}),
+        scenes: [],
+        ...(voiceAssets.length || script
+          ? { voiceover: { assets: voiceAssets, script, scriptName } }
+          : {}),
+        automation: { config: effectiveConfig, locks: [] },
+      }));
+      setSelected(null);
+      setReport(null);
+      setMessage(
+        `Đã nhập ${imported.length} ảnh · ${voiceAssets.length} WAV${script ? ` · ${scriptName}` : ""}${actorImport ? ` · ${actorImport.actors.length} bộ nhân vật` : ""}.${actorImport?.warnings.length ? ` ${actorImport.warnings.join(" ")}` : ""}`,
+      );
+      return effectiveConfig;
+    } finally {
+      setUploading(false);
+    }
+  }
+  function mergeActors(
+    existing: ActorDefinition[],
+    incoming: ActorDefinition[],
+  ) {
+    return parseActorLibrary([
+      ...existing.filter((a) => !incoming.some((i) => i.id === a.id)),
+      ...incoming,
+    ]);
+  }
+  function saveRecipe(config: AutoConfig) {
+    commit((p) =>
+      JSON.stringify(p.automation?.config) === JSON.stringify(config)
+        ? p
+        : { ...p, automation: { config, locks: p.automation?.locks ?? [] } },
+    );
+  }
+  async function importActors(
+    files: File[],
+    options: ActorImportOptions,
+    config: AutoConfig,
+  ): Promise<ActorDefinition[]> {
+    setUploading(true);
+    try {
+      const result = await uploadActorFiles(files, options);
+      const actors = mergeActors(project.actors ?? [], result.actors);
+      const next = {
+        ...config,
+        characters: {
+          ...config.characters,
+          selected: config.characters.selected.length
+            ? [
+                ...new Set([
+                  ...config.characters.selected,
+                  ...result.actors.map((a) => a.id),
+                ]),
+              ]
+            : [],
+        },
+      };
+      commit((p) => ({
+        ...p,
+        actors,
+        scenes: p.scenes.map((s) =>
+          s.actors
+            ? {
+                ...s,
+                actors: s.actors.map((i) => {
+                  const actor = actors.find((a) => a.id === i.actorId);
+                  return actor
+                    ? {
+                        ...i,
+                        actions: i.actions.filter((a) =>
+                          actorCapabilities(actor).includes(a.kind),
+                        ),
+                      }
+                    : i;
+                }),
+              }
+            : s,
+        ),
+        automation: { config: next, locks: p.automation?.locks ?? [] },
+      }));
+      setMessage(
+        `Đã nhập ${result.actors.length} bộ tài nguyên. Xem động tác, rồi chọn Đặt nhân vật / vật thể để thêm vào ảnh.${result.warnings.length ? ` ${result.warnings.join(" ")}` : ""}`,
+      );
+      return result.actors;
+    } finally {
+      setUploading(false);
+    }
+  }
+  function updateActorLibrary(actors: ActorDefinition[]) {
+    const validated = parseActorLibrary(actors);
+    commit((p) => ({
+      ...p,
+      actors: validated,
+      scenes: p.scenes.map((s) =>
+        s.actors
+          ? {
+              ...s,
+              actors: s.actors.filter((i) =>
+                validated.some((a) => a.id === i.actorId),
+              ),
+            }
+          : s,
+      ),
+    }));
   }
   function addAsset(asset: Asset) {
     if (project.scenes.length >= 300) {
@@ -634,23 +948,33 @@ export function App() {
     config: AutoConfig,
     exportNow: boolean,
     keep: boolean,
+    signal: AbortSignal,
+    onProgress: (message: string) => void,
   ) {
-    const result = compileAuto(config, project.assets, project, keep);
-    player.current?.pause();
-    commit(result.project);
-    requestAnimationFrame(() => player.current?.seekTo(0));
-    setSelected(result.project.scenes[0]?.id ?? null);
-    setFrame(0);
-    setReport(result.report);
-    setQuick(null);
-    setAdvanced(false);
-    setQuality(config.output.quality);
-    setMessage(
-      `Đã tự dựng ${result.report.sceneCount} cảnh · ${result.report.seconds.toLocaleString("vi-VN")}s.`,
-    );
-    if (exportNow) {
-      setExportOpen(true);
-      await render(result.project, config.output.quality);
+    setPreparingVoice(true);
+    try {
+      const result = config.narration.enabled
+        ? await buildWithNarration(project, config, keep, signal, onProgress)
+        : compileAuto(config, project.assets, project, keep);
+      if (signal.aborted) throw Error("Đã huỷ dựng video.");
+      player.current?.pause();
+      commit(result.project);
+      requestAnimationFrame(() => player.current?.seekTo(0));
+      setSelected(result.project.scenes[0]?.id ?? null);
+      setFrame(0);
+      setReport(result.report);
+      setQuick(null);
+      setAdvanced(false);
+      setQuality(config.output.quality);
+      setMessage(
+        `Đã tự dựng ${result.report.sceneCount} cảnh · ${result.report.seconds.toLocaleString("vi-VN")}s.`,
+      );
+      if (exportNow) {
+        setExportOpen(true);
+        await render(result.project, config.output.quality);
+      }
+    } finally {
+      setPreparingVoice(false);
     }
   }
   const showAdvanced = (next: "image" | "text" | "effects") => {
@@ -661,6 +985,12 @@ export function App() {
     const item = items.find((t) => t.scene.id === selected);
     if (!item) return;
     player.current?.pause();
+    if (text.captions?.[0]) {
+      seek(
+        item.from + Math.ceil((text.captions[0].startMs * project.fps) / 1000),
+      );
+      return;
+    }
     const end = text.end ?? item.scene.duration;
     seek(
       Math.min(
@@ -796,7 +1126,11 @@ export function App() {
             project={project}
             uploading={uploading}
             busy={Boolean(busy)}
-            onImport={(files) => importImages(files, true, true)}
+            onImport={importAutoInputs}
+            onImportActors={importActors}
+            onActorLibrary={updateActorLibrary}
+            onConfig={saveRecipe}
+            onEditObjects={openObjects}
             onBuild={autoBuild}
             onExample={example}
           />
@@ -879,7 +1213,7 @@ export function App() {
                       "Tạo dự án mới? Lưu file dự án nếu bạn muốn giữ bản hiện tại.",
                     )
                   ) {
-                    commit(emptyProject());
+                    commit({ ...emptyProject(), actors: project.actors });
                     setSelected(null);
                     setFrame(0);
                   }
@@ -940,7 +1274,11 @@ export function App() {
                 key={previewRevision}
                 ref={player}
                 component={Video}
-                inputProps={{ project }}
+                inputProps={{
+                  project: previewProject,
+                  placementMode:
+                    mode === "edit" && quick === "object" && !playing,
+                }}
                 durationInFrames={duration}
                 compositionWidth={project.width}
                 compositionHeight={project.height}
@@ -977,12 +1315,12 @@ export function App() {
                 </div>
                 <h1>
                   {mode === "auto"
-                    ? "Bộ ảnh + config → video."
+                    ? "Bộ ảnh + lời đọc → video."
                     : "Bắt đầu từ một bức ảnh."}
                 </h1>
                 <p>
                   {mode === "auto"
-                    ? "Nhập bộ ảnh và config ở bên trái, rồi chọn Tạo và xuất MP4."
+                    ? "Nhập ảnh, WAV và TXT nếu có, chọn mẫu dựng rồi tạo video."
                     : "Nhập ảnh, thêm cảnh và chỉnh nhanh ở dải phía dưới."}
                 </p>
                 <Button
@@ -1006,6 +1344,43 @@ export function App() {
                   project={project}
                   scene={selectedScene}
                   textId={activeText}
+                  objectId={activeObject}
+                  objectsEnabled={quick === "object"}
+                  objectDraft={
+                    objectDraft?.sceneId === selectedScene.id
+                      ? objectDraft
+                      : null
+                  }
+                  onSelectObject={setActiveObject}
+                  onObjectDrag={(draft) =>
+                    setObjectDraft({ ...draft, sceneId: selectedScene.id })
+                  }
+                  onObjectCancel={() => setObjectDraft(null)}
+                  onObjectCommit={(value) => {
+                    setObjectDraft(null);
+                    update({
+                      actorsEdited: true,
+                      actors: selectedScene.actors?.map((i) =>
+                        i.id === value.id
+                          ? {
+                              ...i,
+                              x: value.x,
+                              y: value.y,
+                              height: value.height,
+                              manual: true,
+                            }
+                          : i,
+                      ),
+                    });
+                  }}
+                  onObjectRemove={(objectId) =>
+                    update({
+                      actorsEdited: true,
+                      actors: selectedScene.actors?.filter(
+                        (i) => i.id !== objectId,
+                      ),
+                    })
+                  }
                   enabled
                   onSelectImage={() => setQuick("image")}
                   onSelectText={(textId) => {
@@ -1085,7 +1460,14 @@ export function App() {
                           <input
                             aria-label="Thời lượng cảnh"
                             type="number"
-                            min="0.5"
+                            min={
+                              selectedScene.voice
+                                ? Math.ceil(
+                                    selectedScene.voice.duration * project.fps -
+                                      1e-8,
+                                  ) / project.fps
+                                : 0.5
+                            }
                             max="300"
                             step="0.5"
                             value={selectedScene.duration}
@@ -1096,7 +1478,9 @@ export function App() {
                           />
                         </Field>
                         <p className="field-hint">
-                          Phần nối cảnh được chồng lấn vào nhau.
+                          {selectedScene.voice
+                            ? "Thời lượng giữ trọn WAV. Chuyển cảnh chỉ chồng phần hình ảnh."
+                            : "Phần nối cảnh được chồng lấn vào nhau."}
                         </p>
                       </section>
                       <section className="control-section">
@@ -1305,13 +1689,16 @@ export function App() {
             <p className="muted">
               {hasScenes
                 ? "Bản dựng đã sẵn sàng để xem trước hoặc xuất. Bạn có thể tinh chỉnh nếu cần."
-                : "Dùng lại một config cho nhiều bộ ảnh, không cần tạo từng cảnh."}
+                : "Dùng lại một mẫu cho nhiều bộ ảnh, không cần tạo từng cảnh."}
             </p>
           </div>
           {hasScenes && (
             <div className="auto-input-actions">
               <Button icon="settings" onClick={() => setMode("edit")}>
                 Tinh chỉnh kết quả
+              </Button>
+              <Button icon="motion" onClick={openObjects}>
+                Đặt nhân vật / vật thể
               </Button>
               <Button icon="save" onClick={save}>
                 Lưu dự án
@@ -1341,8 +1728,29 @@ export function App() {
               project={project}
               kind={quick}
               textId={activeText}
+              objectId={activeObject}
+              onObjectId={setActiveObject}
+              onObjectAll={copyObjectToAll}
+              onObjectLibrary={() => {
+                player.current?.pause();
+                setMode("auto");
+              }}
+              onObjectPlay={() => {
+                const item = items.find((t) => t.scene.id === selected);
+                if (item) {
+                  seek(item.from + item.overlap);
+                  player.current?.play();
+                }
+              }}
               onTextId={setActiveText}
-              onKind={setQuick}
+              onKind={(kind) => {
+                setQuick(kind);
+                setObjectDraft(null);
+                if (kind === "object") {
+                  player.current?.pause();
+                  if (selected) choose(selected);
+                }
+              }}
               onChange={update}
               onAll={(patch) =>
                 commit((p) => ({
@@ -1356,10 +1764,11 @@ export function App() {
               onAdvanced={showAdvanced}
               onPreviewText={previewText}
               onSaveConfig={() =>
-                saveJson(
-                  "auto-edit.config.json",
-                  configFromScene(project, selectedScene),
-                )
+                saveJson("mau-tu-canh.khung-preset.json", {
+                  presetVersion: 1,
+                  name: "Mẫu từ cảnh đang chọn",
+                  config: configFromScene(project, selectedScene),
+                })
               }
             />
           )}
@@ -1606,17 +2015,18 @@ export function App() {
                                   choose(item.scene.id);
                                   setActiveText(text.id);
                                   setQuick("text");
-                                  const local =
-                                    text.start +
-                                    Math.min(
-                                      text.inDuration + 0.1,
-                                      Math.max(
-                                        0,
-                                        ((text.end ?? item.scene.duration) -
-                                          text.start) /
-                                          2,
-                                      ),
-                                    );
+                                  const local = text.captions?.[0]
+                                    ? text.captions[0].startMs / 1000
+                                    : text.start +
+                                      Math.min(
+                                        text.inDuration + 0.1,
+                                        Math.max(
+                                          0,
+                                          ((text.end ?? item.scene.duration) -
+                                            text.start) /
+                                            2,
+                                        ),
+                                      );
                                   seek(
                                     Math.min(
                                       item.end - 1,
@@ -1627,7 +2037,11 @@ export function App() {
                                 }}
                               >
                                 <Icon name="text" size={12} />
-                                <span>{text.text || "Chữ trống"}</span>
+                                <span>
+                                  {text.captions
+                                    ? `${text.captions.length} câu theo voice`
+                                    : text.text || "Chữ trống"}
+                                </span>
                               </button>
                             ))}
                           </div>
@@ -1658,7 +2072,12 @@ export function App() {
                             if (!gesture || gesture.id !== item.scene.id)
                               return;
                             gesture.value = Math.max(
-                              0.5,
+                              item.scene.voice
+                                ? Math.ceil(
+                                    item.scene.voice.duration * project.fps -
+                                      1e-8,
+                                  ) / project.fps
+                                : 0.5,
                               Math.min(
                                 300,
                                 Math.round(
@@ -1771,7 +2190,8 @@ export function App() {
               để đổi chuyển cảnh.
             </li>
             <li>
-              Dựng tự động: nhập bộ ảnh + config rồi chọn Tạo và xuất MP4.
+              Dựng tự động: nhập ảnh, WAV/TXT và nhân vật nếu có; chọn mẫu rồi
+              Tạo và xuất MP4.
             </li>
             <li>Phát xem trước, rồi nhấn Xuất video.</li>
           </ol>
@@ -1836,7 +2256,8 @@ export function App() {
             </Field>
             <p className="field-hint">
               Xuất trên máy của bạn. Hãy giữ công cụ đang chạy đến khi hoàn tất.
-              Bản đầu chưa có âm thanh.
+              {project.scenes.some((s) => s.voice) &&
+                " WAV và phụ đề theo câu sẽ được đưa vào MP4."}
             </p>
           </>
         )}

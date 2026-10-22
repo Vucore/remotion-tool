@@ -130,7 +130,7 @@ function styleOf(
   };
 }
 export function AnimatedText({
-  text,
+  text: source,
   sceneFrames,
   width,
 }: {
@@ -140,6 +140,20 @@ export function AnimatedText({
 }) {
   const frame = useCurrentFrame(),
     { fps } = useVideoConfig();
+  const cue = source.captions?.find(
+    (c) => (frame * 1000) / fps >= c.startMs && (frame * 1000) / fps < c.endMs,
+  );
+  if (source.captions && !cue) return null;
+  const text = cue
+    ? {
+        ...source,
+        text: cue.text,
+        start: cue.startMs / 1000,
+        end: cue.endMs / 1000,
+        offset: 0,
+        span: null,
+      }
+    : source;
   const start = text.start,
     end = Math.min(text.end ?? sceneFrames / fps, sceneFrames / fps),
     elapsed = frame / fps - start,

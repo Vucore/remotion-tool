@@ -1,5 +1,7 @@
 import { EASINGS, MOTIONS, TRANSITIONS, TEXT_PRESETS } from "../catalog";
 import type { Project, Scene, TextLayer } from "../model";
+import type { ActorSettings } from "../actors/types";
+import { parseActorSettings } from "../actors/schema";
 
 export const AUTO_TEMPLATES = {
   "story-clean@1": "Kể chuyện nhẹ",
@@ -10,6 +12,7 @@ export type AutoConfig = {
   autoEditVersion: 1;
   template: keyof typeof AUTO_TEMPLATES;
   seed: number;
+  characters: ActorSettings;
   input: {
     directory: string;
     order: "natural" | "name" | "input";
@@ -28,6 +31,14 @@ export type AutoConfig = {
     seconds: number;
     minSeconds: number;
     maxSeconds: number;
+  };
+  narration: {
+    enabled: boolean;
+    directory: string;
+    script: string;
+    language: "vi" | "en";
+    model: "tiny" | "base" | "small" | "medium";
+    maxChars: number;
   };
   framing: { fit: "cover" | "contain"; focus: { x: number; y: number } };
   motion: {
@@ -140,9 +151,11 @@ export function parseAutoConfig(value: unknown): AutoConfig {
       "autoEditVersion",
       "template",
       "seed",
+      "characters",
       "input",
       "output",
       "timing",
+      "narration",
       "framing",
       "motion",
       "transition",
@@ -175,6 +188,16 @@ export function parseAutoConfig(value: unknown): AutoConfig {
     "maxSeconds",
   ]);
   const framing = section(o, "framing", ["fit", "focus"]);
+  const narration = section(o, "narration", [
+    "enabled",
+    "directory",
+    "script",
+    "language",
+    "model",
+    "maxChars",
+  ]);
+  if (narration.enabled !== undefined && typeof narration.enabled !== "boolean")
+    throw Error("narration.enabled: cần true hoặc false.");
   const focus = obj(framing.focus ?? {}, "framing.focus");
   keys(focus, ["x", "y"], "framing.focus");
   const motion = section(o, "motion", [
@@ -280,6 +303,7 @@ export function parseAutoConfig(value: unknown): AutoConfig {
     autoEditVersion: 1,
     template,
     seed: num(o.seed ?? 42, "seed", 0, 99999),
+    characters: parseActorSettings(o.characters),
     input: {
       directory: text(input.directory ?? "./images", "input.directory"),
       order: choice(
@@ -312,6 +336,22 @@ export function parseAutoConfig(value: unknown): AutoConfig {
       seconds: num(timing.seconds ?? 4, "timing.seconds", 0.5, 3600),
       minSeconds: num(timing.minSeconds ?? 1, "timing.minSeconds", 0.5, 300),
       maxSeconds: num(timing.maxSeconds ?? 300, "timing.maxSeconds", 0.5, 300),
+    },
+    narration: {
+      enabled: narration.enabled === true,
+      directory: text(narration.directory ?? "./voices", "narration.directory"),
+      script: text(narration.script ?? "./script.txt", "narration.script"),
+      language: choice(
+        narration.language ?? "vi",
+        ["vi", "en"],
+        "narration.language",
+      ),
+      model: choice(
+        narration.model ?? "small",
+        ["tiny", "base", "small", "medium"],
+        "narration.model",
+      ),
+      maxChars: num(narration.maxChars ?? 100, "narration.maxChars", 40, 240),
     },
     framing: {
       fit: choice(framing.fit ?? "cover", ["cover", "contain"], "framing.fit"),
@@ -422,6 +462,17 @@ export const defaultAutoConfig = (): AutoConfig =>
 
 export function configFromScene(project: Project, scene: Scene): AutoConfig {
   const advanced = structuredClone(scene) as Partial<Scene>;
+  delete advanced.voice;
+  delete advanced.actors;
+  delete advanced.actorsEdited;
+  const subtitle = scene.texts.find((t) => t.captions);
+  advanced.texts = advanced.texts?.filter((t) => !t.captions);
+  const subtitleStyle = subtitle
+    ? (structuredClone(subtitle) as Partial<TextLayer>)
+    : undefined;
+  if (subtitleStyle)
+    for (const key of ["id", "text", "captions", "offset", "span"] as const)
+      delete subtitleStyle[key];
   for (const key of [
     "id",
     "assetId",
@@ -442,6 +493,7 @@ export function configFromScene(project: Project, scene: Scene): AutoConfig {
   return parseAutoConfig({
     autoEditVersion: 1,
     template: "story-clean@1",
+    characters: project.automation?.config.characters ?? { enabled: false },
     output: {
       ratio: project.width < project.height ? "9:16" : "16:9",
       fps: project.fps,
@@ -449,6 +501,9 @@ export function configFromScene(project: Project, scene: Scene): AutoConfig {
       background: project.background,
     },
     timing: { mode: "per-image", seconds: scene.duration },
+    narration: scene.voice
+      ? { ...project.automation?.config.narration, enabled: true }
+      : { enabled: false },
     framing: {
       fit: scene.fit,
       focus: { x: scene.focusX / 100, y: scene.focusY / 100 },
@@ -468,6 +523,9 @@ export function configFromScene(project: Project, scene: Scene): AutoConfig {
       preset: scene.filter === "none" ? "natural" : scene.filter,
       scene: advanced,
     },
-    text: { source: "none" },
+    text: {
+      source: "none",
+      ...(subtitleStyle ? { style: subtitleStyle } : {}),
+    },
   });
 }

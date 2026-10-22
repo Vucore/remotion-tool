@@ -11,13 +11,17 @@ import {
 import { createReadStream } from "node:fs";
 import { createServer } from "node:http";
 import { createHash } from "node:crypto";
-import { resolve, dirname, join, extname } from "node:path";
+import { resolve, dirname, join, extname, basename } from "node:path";
 import { pathToFileURL } from "node:url";
 import { makeCancelSignal } from "@remotion/renderer";
 import { compileAuto, hash } from "../dist/auto.mjs";
 import { parseAutoConfig } from "../dist/auto-config.mjs";
 import { imageInfo } from "./image-info.mjs";
 import { renderProject } from "./render-project.mjs";
+import { wavInfo } from "./wav-info.mjs";
+import { prepareNarration } from "./narration.mjs";
+import { parseScript } from "../dist/narration.mjs";
+import { loadActorPacks } from "./actor-packs.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const errorMessage = (error) =>
@@ -36,7 +40,7 @@ async function exists(path) {
   }
 }
 async function localResources(files) {
-  const server = createServer((req, res) => {
+  const server = createServer(async (req, res) => {
     const path = new URL(req.url, "http://127.0.0.1").pathname,
       file = files.get(path);
     if (!file || !["GET", "HEAD"].includes(req.method)) {
@@ -61,14 +65,37 @@ async function localResources(files) {
         ".woff": "font/woff",
         ".otf": "font/otf",
         ".ttf": "font/ttf",
+        ".wav": "audio/wav",
       }[extname(file)] || "application/octet-stream",
     );
     res.setHeader("X-Content-Type-Options", "nosniff");
+    const info = await stat(file).catch(() => null);
+    if (!info) {
+      res.writeHead(404);
+      res.end();
+      return;
+    }
+    res.setHeader("Accept-Ranges", "bytes");
+    const range = req.headers.range?.match(/^bytes=(\d+)-(\d*)$/);
+    let start = 0,
+      end = info.size - 1;
+    if (range) {
+      start = Number(range[1]);
+      end = range[2] ? Math.min(Number(range[2]), end) : end;
+      if (start > end || start >= info.size) {
+        res.writeHead(416, { "Content-Range": `bytes */${info.size}` });
+        res.end();
+        return;
+      }
+      res.statusCode = 206;
+      res.setHeader("Content-Range", `bytes ${start}-${end}/${info.size}`);
+    }
+    res.setHeader("Content-Length", end - start + 1);
     if (req.method === "HEAD") {
       res.end();
       return;
     }
-    createReadStream(file)
+    createReadStream(file, { start, end })
       .on("error", () => res.destroy())
       .pipe(res);
   });
@@ -88,6 +115,8 @@ async function localResources(files) {
 export async function runAuto({
   config: configPath,
   images,
+  voices,
+  script,
   out,
   planOnly = false,
   overwrite = false,
@@ -98,8 +127,12 @@ export async function runAuto({
 }) {
   const fullConfig = resolve(configPath),
     base = dirname(fullConfig);
-  const config = parseAutoConfig(await readJson(fullConfig));
+  const rawConfig = await readJson(fullConfig);
+  const config = parseAutoConfig(
+    rawConfig?.presetVersion === 1 ? rawConfig.config : rawConfig,
+  );
   if (
+    !config.narration.enabled &&
     config.text.source === "file" &&
     !Object.keys(config.text.captions).length
   )
@@ -154,7 +187,79 @@ export async function runAuto({
     });
     manifest.push({ name: entry.name, sha256: digest });
   }
-  const { project, report } = compileAuto(config, assets);
+  let narration;
+  if (config.narration.enabled) {
+    const scriptPath = resolve(base, script ?? config.narration.script);
+    if ((await stat(scriptPath)).size > 1_000_000)
+      throw Error("TXT tối đa 1 MB, mã hoá UTF-8.");
+    const content = await readFile(scriptPath, "utf8");
+    parseScript(content);
+    const voiceDirectory = resolve(base, voices ?? config.narration.directory);
+    const wavs = (
+      await readdir(voiceDirectory, { withFileTypes: true })
+    ).filter((e) => e.isFile() && /\.wav$/i.test(e.name));
+    if (!wavs.length || wavs.length > 300)
+      throw Error("Thư mục voice cần 1–300 WAV, không đọc thư mục con.");
+    const voiceAssets = [];
+    for (const entry of wavs) {
+      if (signal?.aborted) throw Error("Đã huỷ.");
+      const path = join(voiceDirectory, entry.name);
+      if ((await stat(path)).size > 100 * 1024 * 1024)
+        throw Error(`${entry.name}: WAV tối đa 100 MB.`);
+      const bytes = await readFile(path),
+        metadata = wavInfo(bytes),
+        digest = createHash("sha256").update(bytes).digest("hex");
+      const src = `/media/${digest}.wav`,
+        stored = join(assetDirectory, `${digest}.wav`);
+      await writeFile(stored, bytes);
+      files.set(src, stored);
+      voiceAssets.push({
+        id: `voice-${hash(entry.name)}-${digest.slice(0, 12)}`,
+        name: entry.name,
+        src,
+        duration: metadata.duration,
+      });
+    }
+    narration = await prepareNarration(
+      config,
+      assets,
+      {
+        assets: voiceAssets,
+        script: content,
+        scriptName: basename(scriptPath),
+      },
+      {
+        assetDirectory,
+        signal,
+        onProgress: (value, message) => onProgress(value * 0.35, message),
+      },
+    );
+    manifest.push(...narration.manifest, {
+      name: basename(scriptPath),
+      sha256: createHash("sha256").update(content).digest("hex"),
+    });
+  }
+  let actors = [],
+    actorWarnings = [];
+  if (config.characters.enabled) {
+    const imported = await loadActorPacks(
+      config.characters.directories.map((p) => resolve(base, p)),
+      { assetDirectory, signal },
+    );
+    actors = imported.actors;
+    actorWarnings = imported.warnings;
+    manifest.push(...imported.manifest);
+    for (const [src, file] of imported.resources) files.set(src, file);
+  }
+  const { project, report } = compileAuto(
+    config,
+    assets,
+    undefined,
+    false,
+    narration,
+    actors,
+  );
+  report.warnings.push(...actorWarnings);
   const usedFonts = new Set(
     project.scenes
       .flatMap((s) => s.texts.map((t) => t.fontFamily))
@@ -166,11 +271,11 @@ export async function runAuto({
     );
   await mkdir(dirname(output), { recursive: true });
   const runHash = createHash("sha256")
-    .update(JSON.stringify({ config, manifest, output, engine: "khung-0.3.0" }))
+    .update(JSON.stringify({ config, manifest, output, engine: "khung-0.5.0" }))
     .digest("hex");
   const runReport = {
     ...report,
-    engine: "khung-0.3.0",
+    engine: "khung-0.5.0",
     manifest,
     runHash,
     output,
@@ -215,7 +320,8 @@ export async function runAuto({
       quality: config.output.quality,
       cancelSignal: cancel.cancelSignal,
       cancelled: () => signal?.aborted,
-      onProgress,
+      onProgress: (value, stage) =>
+        onProgress(narration ? 0.35 + value * 0.65 : value, stage),
     });
     if (signal?.aborted) throw Error("Đã huỷ.");
     await rename(temporary, output);
@@ -242,7 +348,14 @@ function argumentsFor(argv) {
     if (["--plan", "--overwrite", "--resume", "--help"].includes(key))
       args[key.slice(2)] = true;
     else if (
-      ["--config", "--images", "--out", "--batch"].includes(key) &&
+      [
+        "--config",
+        "--images",
+        "--voices",
+        "--script",
+        "--out",
+        "--batch",
+      ].includes(key) &&
       argv[i + 1] &&
       !argv[i + 1].startsWith("--")
     )
@@ -256,7 +369,7 @@ async function main() {
   if (args.config && args.batch) throw Error("Chọn --config hoặc --batch.");
   if (args.help || (!args.config && !args.batch)) {
     console.log(
-      "npm run auto -- --config ./auto-edit.config.json [--images ./images] [--out ./video.mp4] [--plan] [--overwrite]\nnpm run auto -- --batch ./jobs.json [--resume]",
+      "npm run auto -- --config ./auto-edit.config.json [--images ./images] [--voices ./voices] [--script ./script.txt] [--out ./video.mp4] [--plan] [--overwrite]\nnpm run auto -- --batch ./jobs.json [--resume]",
     );
     return;
   }

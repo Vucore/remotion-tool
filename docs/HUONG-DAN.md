@@ -1,5 +1,9 @@
 # Hướng dẫn sử dụng
 
+**Nhân vật/vật thể (v0.5):** xem [chuẩn bị PNG, bộ phận và sprite; xem thử động tác; đặt vào từng ảnh](NHAN-VAT-VA-VAT-THE.md). Nút **Xem động tác** phát thử độc lập trước khi dùng. Tự động hoá việc lặp lại; vị trí và cử động riêng của cảnh do người dùng chọn.
+
+**Dựng tự động có voice (v0.4):** xem [Ảnh + WAV + TXT, cài bằng uv và tự căn phụ đề](VOICE-VA-PHU-DE.md). Chỉ cần thả bộ ảnh, WAV và TXT đánh số, chọn mẫu nếu cần, rồi bấm Tạo và xuất MP4.
+
 ## Chạy công cụ
 
 Yêu cầu Node.js 22.13 trở lên (Node 24 đã được kiểm tra).
@@ -33,7 +37,7 @@ Xem [hướng dẫn config, nội dung chữ, CLI và hàng đợi](TU-DONG-HOA.
 3. Chọn cảnh trong dải phía dưới. Kéo cảnh để đổi thứ tự, hoặc dùng hai nút mũi tên. Các nút kéo, chia, nhân bản và xoá có chú thích khi rê chuột.
 4. Thanh công cụ trên dải dưới có **Ảnh**, số giây, **Chuyển động**, **Chữ**, **Hiệu ứng**. Chỉ hiện nhóm đang cần. Kéo mép phải cảnh để đổi thời lượng; bấm số giây để nhập chính xác. **Giữ toàn ảnh** giúp xem đủ ảnh gốc, phần trống dùng nền video.
 5. Bấm nút nằm giữa hai cảnh để chọn chuyển cảnh/thời lượng/hướng. Bấm nhãn chuyển động hoặc hiệu ứng trên cảnh để chọn preset; có thể kéo preset thả vào cảnh khác. Chọn **Áp dụng cho mọi cảnh** nếu muốn dùng chung.
-6. Bấm lớp chữ trên cảnh hoặc vùng chữ ở preview để sửa nội dung, font, cỡ, màu, timing và animation cơ bản. Kéo vùng chữ để đổi vị trí; chọn ảnh rồi kéo để đổi vị trí ảnh. Bấm **Nâng cao** mới mở bảng bên phải với đầy đủ kiểu chữ, 81 effect, keyframe và tham số chi tiết. **Lưu mẫu config** lấy thiết lập cảnh đang chọn để dùng cho bộ ảnh khác.
+6. Bấm lớp chữ trên cảnh hoặc vùng chữ ở preview để sửa nội dung, font, cỡ, màu, timing và animation cơ bản. Kéo vùng chữ để đổi vị trí; chọn ảnh rồi kéo để đổi vị trí ảnh. Bấm **Nâng cao** mới mở bảng bên phải với đầy đủ kiểu chữ, 81 effect, keyframe và tham số chi tiết. **Lưu mẫu dựng** lấy thiết lập cảnh đang chọn để dùng cho bộ ảnh khác. Vị trí/động tác đối tượng riêng của từng cảnh dùng **Lưu dự án**.
 7. Chọn một trong hai tỷ lệ video phía trên vùng xem trước: **9:16 dọc (1080×1920)** hoặc **16:9 ngang (1920×1080)**. Mặc định 9:16. Nhấn phát hoặc kéo vạch phát để kiểm tra.
 8. Nhấn **Xuất video**, chọn chất lượng và bắt đầu xuất. Khi hoàn thành, nhấn **Tải video MP4**. File cũng nằm trong `data/exports/`.
 
