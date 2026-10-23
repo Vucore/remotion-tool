@@ -140,6 +140,31 @@ export function AnimatedText({
 }) {
   const frame = useCurrentFrame(),
     { fps } = useVideoConfig();
+  return (
+    <TextAtFrame
+      text={source}
+      sceneFrames={sceneFrames}
+      width={width}
+      frame={frame}
+      fps={fps}
+    />
+  );
+}
+
+// Shared by the composition and lightweight gallery previews.
+export function TextAtFrame({
+  text: source,
+  sceneFrames,
+  width,
+  frame,
+  fps,
+}: {
+  text: TextLayer;
+  sceneFrames: number;
+  width: number;
+  frame: number;
+  fps: number;
+}) {
   const cue = source.captions?.find(
     (c) => (frame * 1000) / fps >= c.startMs && (frame * 1000) / fps < c.endMs,
   );

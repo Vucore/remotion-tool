@@ -2,6 +2,7 @@ import { EASINGS, MOTIONS, TRANSITIONS, TEXT_PRESETS } from "../catalog";
 import type { Project, Scene, TextLayer } from "../model";
 import type { ActorSettings } from "../actors/types";
 import { parseActorSettings } from "../actors/schema";
+import { NARRATION_LANGUAGES, type NarrationLanguage } from "./languages";
 
 export const AUTO_TEMPLATES = {
   "story-clean@1": "Kể chuyện nhẹ",
@@ -36,7 +37,7 @@ export type AutoConfig = {
     enabled: boolean;
     directory: string;
     script: string;
-    language: "vi" | "en";
+    language: NarrationLanguage;
     model: "tiny" | "base" | "small" | "medium";
     maxChars: number;
   };
@@ -65,7 +66,12 @@ export type AutoConfig = {
     preset: "natural" | "warm" | "cool" | "mono" | "vintage";
     scene: Partial<Scene>;
   };
-  overrides: { file: string; scene: Partial<Scene>; text?: string }[];
+  overrides: {
+    file: string;
+    scene: Partial<Scene>;
+    text?: string;
+    textStyle?: Partial<TextLayer>;
+  }[];
 };
 type Obj = Record<string, unknown>;
 function obj(v: unknown, path: string): Obj {
@@ -132,6 +138,7 @@ export function scenePatch(v: unknown, path: string): Partial<Scene> {
       "mask",
       "motionAmount",
       "motionSpeed",
+      "motionStart",
       "motionEasing",
       "transitionDirection",
       "transitionEasing",
@@ -343,7 +350,7 @@ export function parseAutoConfig(value: unknown): AutoConfig {
       script: text(narration.script ?? "./script.txt", "narration.script"),
       language: choice(
         narration.language ?? "vi",
-        ["vi", "en"],
+        Object.keys(NARRATION_LANGUAGES) as NarrationLanguage[],
         "narration.language",
       ),
       model: choice(
@@ -425,13 +432,21 @@ export function parseAutoConfig(value: unknown): AutoConfig {
     },
     overrides: overrides.map((v, i) => {
       const s = obj(v, `overrides[${i}]`);
-      keys(s, ["file", "scene", "text"], `overrides[${i}]`);
+      keys(s, ["file", "scene", "text", "textStyle"], `overrides[${i}]`);
       return {
         file: text(s.file, `overrides[${i}].file`, 500),
         scene: scenePatch(s.scene ?? {}, `overrides[${i}].scene`),
         ...(s.text === undefined
           ? {}
           : { text: text(s.text, `overrides[${i}].text`, 2000) }),
+        ...(s.textStyle === undefined
+          ? {}
+          : {
+              textStyle: parseAutoConfig({
+                autoEditVersion: 1,
+                text: { style: s.textStyle },
+              }).text.style,
+            }),
       };
     }),
   };

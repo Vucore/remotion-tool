@@ -1,17 +1,21 @@
 # Tài liệu Khung
 
-- [Kế hoạch và tiến độ](KE-HOACH.md)
-- [Kiến trúc](KIEN-TRUC.md)
-- [Thiết kế giao diện](THIET-KE.md)
 - [Hướng dẫn sử dụng](HUONG-DAN.md)
-- [Nhân vật/vật thể PNG, bộ phận, sprite và xem thử animation](NHAN-VAT-VA-VAT-THE.md)
-- [Kế hoạch và phạm vi triển khai nhân vật v0.5](TRIEN-KHAI-NHAN-VAT.md)
-- [Ảnh + WAV + TXT: cài bằng uv, tự căn câu và xuất video](VOICE-VA-PHU-DE.md)
-- [Dựng tự động từ bộ ảnh + config, CLI và hàng đợi](TU-DONG-HOA.md)
-- [Tiến độ triển khai dựng tự động và UX v0.3](TRIEN-KHAI-TU-DONG-UX.md)
-- [Kết quả kiểm tra và giới hạn](KIEM-TRA.md)
-- [Kế hoạch mở rộng Chữ và Hiệu ứng](MO-RONG-CHU-HIEU-UNG.md)
-- [Danh mục Chữ và Hiệu ứng đã tích hợp](DANH-MUC-CHU-HIEU-UNG.md)
-- [Bản đề xuất ban đầu: dựng tự động và UX](DE-XUAT-DUNG-TU-DONG-VA-UX.md) — lưu để đối chiếu; xem tài liệu v0.3 cho triển khai thực tế.
+- [Bộ minh hoạ: 3 ảnh + 3 WAV + TXT](../test/README.md)
+- [Kế hoạch và phạm vi hiện tại](TRIEN-KHAI-KE-CHUYEN-TU-DONG.md)
+- [Thiết kế giao diện](THIET-KE.md)
+- [Kế hoạch không gian dựng, timeline ba hàng và thiết lập nhanh](KHONG-GIAN-DUNG-VIDEO.md)
+- [Mở rộng animation, gallery demo và layout có thanh kéo](MO-RONG-THIET-LAP-VA-LAYOUT.md)
+- [Kiến trúc](KIEN-TRUC.md)
+- [Cài voice bằng uv](VOICE-VA-PHU-DE.md)
+- [Hỗ trợ WAV/MP3 và giữ chất lượng nguồn](HO-TRO-MP3.md)
+- [Tạo voice từ TXT bằng Chatterbox TTS](TICH-HOP-TTS.md)
+- [Xuất/dịch SRT và sidebar với dialog](PHU-DE-SRT-VA-GIAO-DIEN.md)
+- [Dung lượng và file sinh ra ở lượt SRT](DUNG-LUONG-SRT.md)
+- [Chuẩn bị nhân vật/vật thể](NHAN-VAT-VA-VAT-THE.md)
+- [CLI AutoConfig và hàng đợi](TU-DONG-HOA.md)
+- [Danh mục runtime chữ/effect cho dữ liệu tương thích](DANH-MUC-CHU-HIEU-UNG.md)
+- [Kiểm tra và giới hạn](KIEM-TRA.md)
+- [Dọn tệp cũ và bộ mẫu](DON-DEP-VA-BO-MAU.md)
 
-Tài liệu và kế hoạch triển khai nằm trong thư mục này theo yêu cầu người dùng. `PRODUCT.md` ở gốc chỉ ghi mục đích và phạm vi sản phẩm để các công cụ phát triển nhận diện dự án.
+Tài liệu phản ánh luồng hiện tại. Đã bỏ các đề xuất, kế hoạch và demo video cũ không còn dùng. `test/` là dữ liệu mẫu; `tests/` là kiểm tra mã nguồn.

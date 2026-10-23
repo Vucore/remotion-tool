@@ -1,7 +1,7 @@
 {
   "name": "khung-image-video-editor",
-  "version": "0.5.0",
-  "description": "Web editor tiếng Việt: ghép ảnh tĩnh thành video bằng Remotion",
+  "version": "0.8.0",
+  "description": "Tự dựng video kể chuyện từ ảnh, WAV, TXT và asset nhân vật bằng Remotion",
   "type": "module",
   "license": "UNLICENSED",
   "engines": {
@@ -38,6 +38,7 @@
     "sync:effects": "node scripts/sync-effects.mjs",
     "auto": "node scripts/auto-edit.mjs",
     "preauto": "node scripts/build.mjs",
+    "setup:python": "uv sync",
     "setup:voice": "node scripts/setup-voice.mjs"
   },
   "allowScripts": {

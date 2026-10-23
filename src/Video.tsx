@@ -13,6 +13,7 @@ import {
   imagePose,
   maskStyle,
   transitionStyle,
+  outgoingTransitionStyle,
 } from "./animation";
 import { effectDescriptors } from "./effects/runtime";
 import { AnimatedText } from "./TextRender";
@@ -68,18 +69,10 @@ const SceneView = ({
     objectPosition:
       scene.fit === "cover" ? `${scene.focusX}% ${scene.focusY}%` : "50% 50%",
     opacity: pose.opacity,
+    transformOrigin: `${scene.focusX}% ${scene.focusY}%`,
     transform: `perspective(1400px) translate(${pose.x}%,${pose.y}%) rotate(${pose.rotate}deg) rotateX(${pose.rx}deg) rotateY(${pose.ry}deg) scale(${pose.scale}) scaleX(${scene.flip ? -1 : 1})`,
     filter: `brightness(${scene.brightness}%) contrast(${scene.contrast}%) saturate(${scene.saturation}%) ${filterStyles[scene.filter]}`,
   };
-  const isPush = scene.transition === "push" && outgoing > 0;
-  const horizontal =
-    scene.transitionDirection === "left" ||
-    scene.transitionDirection === "right";
-  const sign =
-    scene.transitionDirection === "right" ||
-    scene.transitionDirection === "down"
-      ? 1
-      : -1;
   const flashIn =
     item.incoming === "fade-black" || item.incoming === "fade-white";
   const flashOut =
@@ -92,9 +85,11 @@ const SceneView = ({
         style={{
           backgroundColor: project.background,
           overflow: "hidden",
-          transform: isPush
-            ? `translate${horizontal ? "X" : "Y"}(${outgoing * 100 * sign}%)`
-            : undefined,
+          ...outgoingTransitionStyle(
+            scene.transition,
+            outgoing,
+            scene.transitionDirection,
+          ),
         }}
       >
         <AbsoluteFill style={{ overflow: "hidden", ...maskStyle(scene.mask) }}>

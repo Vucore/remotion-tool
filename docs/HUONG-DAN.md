@@ -1,102 +1,83 @@
-# Hướng dẫn sử dụng
+# Dùng Khung v0.8
 
-**Nhân vật/vật thể (v0.5):** xem [chuẩn bị PNG, bộ phận và sprite; xem thử động tác; đặt vào từng ảnh](NHAN-VAT-VA-VAT-THE.md). Nút **Xem động tác** phát thử độc lập trước khi dùng. Tự động hoá việc lặp lại; vị trí và cử động riêng của cảnh do người dùng chọn.
+## Không gian làm việc
 
-**Dựng tự động có voice (v0.4):** xem [Ảnh + WAV + TXT, cài bằng uv và tự căn phụ đề](VOICE-VA-PHU-DE.md). Chỉ cần thả bộ ảnh, WAV và TXT đánh số, chọn mẫu nếu cần, rồi bấm Tạo và xuất MP4.
+Tài nguyên bên trái, preview ở giữa, thiết lập nhanh bên phải và timeline phía dưới. Không cần cuộn một form dài. Trên màn hình nhỏ dùng ba nút **Tệp · Video · Sửa** để đổi vùng; timeline luôn nằm dưới.
 
-## Chạy công cụ
+1. **Ảnh bối cảnh**: chọn nhiều PNG/JPG/WebP.
+2. **Voice**: chọn nhiều WAV/MP3, có thể trộn hai loại (tuỳ chọn).
+3. **Lời đọc TXT**: chọn một TXT đánh số 1., 2., 3.… chứa toàn bộ lời đọc.
 
-Yêu cầu Node.js 22.13 trở lên (Node 24 đã được kiểm tra).
+Ba ô nhận tệp riêng, có kéo thả/thay/bỏ độc lập. Ảnh 01 ghép với WAV 01 và mục TXT 1. Dùng **Thêm ảnh** để bổ sung vào bộ đang có. [Bộ mẫu để thử](../test/README.md).
+
+Phần **Voice** có hai nguồn: **Tải voice** để dùng WAV/MP3 sẵn, hoặc **Tạo từ TXT** để Chatterbox Modal tự đọc từng mục. Chọn model, ngôn ngữ, giọng preset/giọng mẫu và định dạng WAV/MP3; tham số sâu/URL nằm trong mục thu gọn. **Tạo voice** để nghe trước, hoặc bấm thẳng **Xuất video** để tự tạo rồi ghép/căn/xuất. TTS trong tài liệu chưa có tiếng Việt. [Hướng dẫn TTS](TICH-HOP-TTS.md).
+
+Voice 01 có thể là `01.wav` hoặc `01.mp3`; tên/số ghép không đổi. Giữ nguyên file nguồn ở cả hai định dạng cho preview/xuất. Mỗi file 0,5–300 giây, tối đa 100 MB; không dùng đồng thời WAV và MP3 có cùng số cảnh. [Chi tiết voice và chất lượng](HO-TRO-MP3.md).
+
+## Chạy thử và timeline
+
+Ảnh vừa nhập sẽ tạo bản xem thử ngay. Có WAV thì phát cả voice và lấy đúng độ dài WAV; có TXT thì chia câu phụ đề. Khi chưa căn câu, nhãn **Phụ đề ước tính** luôn được hiển thị. Không cần cài Python để chỉ chạy bản xem thử.
+
+- Nút Play dưới preview hoặc phím Space để chạy/dừng. Bấm vào video cũng phát/dừng; có nút tắt tiếng và toàn màn hình.
+- Timeline có thước thời gian và ba hàng: ảnh, waveform voice, từng câu phụ đề. Độ rộng clip theo thời gian, không phải các thẻ cùng kích thước.
+- Click/drag thước hoặc vạch phát để tua. Phím mũi tên khi focus thước đi một frame; Shift đi một giây.
+- Click ảnh để chọn cảnh, click câu phụ đề để tua đến câu và mở tab Phụ đề. Nút giữa hai cảnh mở tab Chuyển cảnh.
+- Dùng thanh zoom, nút +/− hoặc **Vừa khung** để xem timeline dài. Waveform lấy từ envelope WAV đã nhập, không dùng dữ liệu ngẫu nhiên.
+
+Timeline phục vụ xem/tua và thiết lập tự động. Không cắt, kéo dài hay xê dịch voice/câu bằng tay, nên quy tắc ghép số vẫn được giữ.
+
+## Thiết lập nhanh
+
+Sidebar thu gọn: bấm ô **Chatterbox TTS** để mở thiết lập giọng; **Sửa lời đọc** và **Nhân vật & vật thể** cũng mở dialog. Nút **SRT** trên preview hoặc **Phụ đề & SRT** ở tài nguyên mở công cụ tải SRT gốc, nhập SRT bên ngoài, dịch và tải bản dịch/song ngữ. MP4 xuất xong có thêm liên kết SRT. [Hướng dẫn SRT](PHU-DE-SRT-VA-GIAO-DIEN.md).
+
+Chọn trực tiếp trong bốn tab bên phải. Thay đổi xuất hiện ngay trong preview, không cần chạy lại model để xem hiệu ứng. Không còn bộ chọn ba phong cách ở trên preview.
+
+| Tab | Có thể chọn |
+| --- | --- |
+| Chuyển động | 33 lựa chọn, gồm đường cong, zigzag, hình số 8, zoom kết hợp và đàn hồi; mức/tốc độ/đường cong/thời gian, tâm zoom, khung ảnh và keyframe |
+| Chuyển cảnh | 38 lựa chọn, gồm lật trang, zoom xuyên cảnh, uốn ngang, hoán đổi phối cảnh, xoay khối; thời gian, hướng, đường cong |
+| Lớp phủ | Đủ 20 loại hiện có; chọn nhiều, tối đa 8 lớp theo schema; lọc/tìm kiếm, chỉnh cường độ, màu, tốc độ, kích thước |
+| Phụ đề | Bật/tắt, 14 kiểu chữ, 29 lựa chọn animation vào/ra, 12 lựa chọn lặp; font/màu/cỡ/vị trí, viền/bóng/màu chuyển và độ dài câu |
+
+Các mẫu phổ biến hiện trước; phần còn lại và thông số chi tiết đặt trong mục mở rộng. Mặc định áp dụng toàn video; ba nhóm ảnh/chuyển cảnh/phụ đề có thể đổi sang phạm vi cảnh như hướng dẫn bên dưới. Danh mục lớp phủ này là toàn bộ loại đang có trong engine, không phải giới hạn những gì có thể lập trình thêm bằng Remotion.
+
+Rê chuột hoặc focus bằng Tab vào ô chuyển động/chuyển cảnh/kiểu chữ để xem demo. Trên màn hình cảm ứng, chạm ô sẽ chọn và phát demo. Demo dùng hình minh họa cố định A/B, không lấy ảnh dự án, và dùng cùng hàm animation với video; chỉ ô đang tương tác chạy, không tải nhiều Player. Hệ điều hành bật giảm chuyển động thì demo đứng yên. Ảnh dự án chỉ hiện ở preview chính và bộ chọn tâm zoom.
+
+Mục **Tâm zoom và khung ảnh** cho phép bấm vào ảnh để đặt tâm, hoặc nhập tọa độ. **Đường đi tùy chỉnh** thêm mốc thời gian theo giây với vị trí/tỷ lệ/góc/độ hiện, tối đa 100 mốc. Mốc được kết hợp với kiểu chuyển động đã chọn; chọn Đứng yên nếu chỉ muốn chạy đường đi. Cảnh ngắn hơn mốc cuối sẽ kết thúc trước mốc đó.
+
+Phụ đề có nhóm thu gọn **Animation và thời gian**, **Bố cục và kiểu chữ**, **Viền, bóng và màu chuyển**. Có animation ra, thời gian vào/ra, trễ ký tự/từ, loop, căn lề, độ đậm/nghiêng, giãn dòng/chữ, nền trong suốt, gradient, glow, chữ cong. Thời gian vào/ra được giới hạn theo độ dài từng cue để không tràn sang câu tiếp theo. Tô sáng từng từ là animation trình bày trong cue, không phải alignment từng từ từ WAV.
+
+## Đổi kích thước không gian
+
+Kéo thanh dọc hai bên preview để đổi độ rộng tài nguyên/thiết lập; kéo thanh ngang trên timeline để đổi chiều cao. Kích thước được lưu trong trình duyệt, tự giới hạn khi cửa sổ nhỏ. Tab đến thanh kéo rồi dùng mũi tên (Shift để đi nhanh), Home/End để đến giới hạn. Nhấp đúp thanh kéo để đặt lại vùng đó, hoặc **Tệp → Khôi phục bố cục** để đặt lại cả ba vùng.
+
+Trên điện thoại, hai cột chuyển thành tab Tệp/Video/Sửa; vẫn kéo được chiều cao timeline.
+
+## Thiết lập riêng một cảnh
+
+Chọn cảnh trên timeline, đổi **Toàn video → Cảnh N** ở đầu bảng thiết lập. Chuyển động, khung ảnh, chuyển cảnh sau cảnh đó và trình bày phụ đề sẽ chỉ áp dụng cho cảnh đang xem. Đổi sang phạm vi cảnh sẽ tạm dừng video để tránh sửa nhầm cảnh khi đang phát. Nút **Dùng chung** bỏ thiết lập riêng của cảnh; **Bỏ chỉnh riêng** tại phạm vi toàn video bỏ tất cả ngoại lệ.
+
+Lớp phủ vẫn áp dụng toàn video. Thời lượng ảnh không voice và ký tự/câu là thiết lập chung; timing voice/cue giữ nguyên. Ngoại lệ lưu theo tên file ảnh trong dự án/mẫu, nên giữ tên file khi muốn dùng lại. Parallax tách tiền cảnh/hậu cảnh cần thêm các lớp ảnh riêng, chưa nằm trong đầu vào một ảnh/cảnh này.
+
+Nếu timing đã căn và text/WAV còn khớp, preview dùng lại cue cũ khi đổi hiệu ứng. Nếu thay text/độ dài câu thì cue tạm được tính lại và gắn nhãn ước tính.
+
+## Căn phụ đề và xuất
+
+- **Căn phụ đề**: chạy model với WAV/TXT để có mốc từng câu chính xác hơn, chưa xuất MP4.
+- **Xuất video**: kiểm tra ghép số, căn câu nếu cần, dựng và xuất MP4 tự động. Có tiến độ và nút Dừng; khi xong có nút Tải video.
+- Căn câu thực tế cần môi trường uv/model cài một lần bằng `npm run setup:voice`. Cấu hình model/ngôn ngữ/chất lượng nằm trong menu **Tệp**.
+- Không có WAV vẫn xuất ảnh + chữ; thời lượng/phụ đề là ước lượng theo độ dài lời đọc.
+
+## Lưu và dùng lại
+
+Menu **Tệp** có mở/lưu dự án, mở/lưu mẫu và câu chuyện mới. Mẫu `.khung-preset.json` giữ toàn bộ thiết lập nhanh, không chứa tài nguyên. Dự án giữ bản dựng đã căn; giữ thư mục `data/` để còn ảnh/voice. Dự án và mẫu cũ vẫn đọc được. Bản draft ước lượng không thay bản đã căn khi lưu/xuất.
+
+Nhân vật nhập riêng tại mục thu gọn bên trái. PNG chuyển động nguyên khối; rig/sprite dùng các động tác mà asset hỗ trợ. [Chuẩn bị asset](NHAN-VAT-VA-VAT-THE.md).
 
 ```sh
-npm install
 npm run dev
+# Chỉ cài một lần nếu cần căn phụ đề theo voice:
+npm run setup:voice
 ```
 
-Mở <http://127.0.0.1:3210>. Bản phát triển theo dõi thay đổi giao diện; tải lại trình duyệt sau khi sửa mã. Sửa model/backend thì khởi động lại lệnh dev.
-
-Để chạy bản build:
-
-```sh
-npm run build
-npm start
-```
-
-Dừng bằng `Ctrl+C` trong terminal. Nếu cổng đang dùng, chạy `PORT=3211 npm run dev` rồi mở địa chỉ được in ra.
-
-## Dựng tự động: luồng chính v0.3
-
-Chọn **Dựng tự động** → nhập bộ ảnh và config → **Tạo và xuất MP4**. Không cần tạo/chỉnh từng cảnh. Có ba mẫu dựng để bắt đầu; config lưu lại dùng được với bộ ảnh khác. **Chỉ dựng để xem trước** không xuất video. JSON và các thiết lập nâng cao đóng mặc định.
-
-Xem [hướng dẫn config, nội dung chữ, CLI và hàng đợi](TU-DONG-HOA.md).
-
-## Tinh chỉnh bằng tay
-
-1. Nhấn **Nhập ảnh** hoặc kéo ảnh vào ô nhập bên trái. Hỗ trợ JPG, PNG và WebP, mỗi ảnh tối đa 25 MB.
-2. Nhấn ảnh thu nhỏ để thêm một cảnh. Cảnh mới mặc định dài 4 giây.
-3. Chọn cảnh trong dải phía dưới. Kéo cảnh để đổi thứ tự, hoặc dùng hai nút mũi tên. Các nút kéo, chia, nhân bản và xoá có chú thích khi rê chuột.
-4. Thanh công cụ trên dải dưới có **Ảnh**, số giây, **Chuyển động**, **Chữ**, **Hiệu ứng**. Chỉ hiện nhóm đang cần. Kéo mép phải cảnh để đổi thời lượng; bấm số giây để nhập chính xác. **Giữ toàn ảnh** giúp xem đủ ảnh gốc, phần trống dùng nền video.
-5. Bấm nút nằm giữa hai cảnh để chọn chuyển cảnh/thời lượng/hướng. Bấm nhãn chuyển động hoặc hiệu ứng trên cảnh để chọn preset; có thể kéo preset thả vào cảnh khác. Chọn **Áp dụng cho mọi cảnh** nếu muốn dùng chung.
-6. Bấm lớp chữ trên cảnh hoặc vùng chữ ở preview để sửa nội dung, font, cỡ, màu, timing và animation cơ bản. Kéo vùng chữ để đổi vị trí; chọn ảnh rồi kéo để đổi vị trí ảnh. Bấm **Nâng cao** mới mở bảng bên phải với đầy đủ kiểu chữ, 81 effect, keyframe và tham số chi tiết. **Lưu mẫu dựng** lấy thiết lập cảnh đang chọn để dùng cho bộ ảnh khác. Vị trí/động tác đối tượng riêng của từng cảnh dùng **Lưu dự án**.
-7. Chọn một trong hai tỷ lệ video phía trên vùng xem trước: **9:16 dọc (1080×1920)** hoặc **16:9 ngang (1920×1080)**. Mặc định 9:16. Nhấn phát hoặc kéo vạch phát để kiểm tra.
-8. Nhấn **Xuất video**, chọn chất lượng và bắt đầu xuất. Khi hoàn thành, nhấn **Tải video MP4**. File cũng nằm trong `data/exports/`.
-
-**Thử với ảnh mẫu** tạo một video ba cảnh bằng các ảnh SVG cục bộ, giúp khám phá công cụ mà không cần nhập file. Đây là nội dung khởi đầu của editor mới, không dùng lại tài nguyên video test cũ.
-
-## Hiểu thời lượng
-
-Chuyển cảnh chồng hai cảnh lên nhau. Ví dụ ba cảnh dài 4 giây, hai lần nối 0,5 giây sẽ tạo video dài 11 giây.
-
-Chuyển cảnh được đặt trên cảnh đi trước. Ở cảnh cuối, tuỳ chọn này chỉ có hiệu lực sau khi thêm cảnh tiếp theo. Thời gian nối không vượt quá một nửa mỗi cảnh liên quan.
-
-Để chia cảnh, đưa vạch phát vào bên trong cảnh đang chọn, cách mép và đoạn chuyển cảnh ít nhất 0,5 giây, rồi nhấn nút kéo. Các phần giữ thời gian gốc của chuyển động và nội dung có thời gian riêng, giúp tiếp tục chuyển động thay vì bắt đầu lại.
-
-## Lưu và mở dự án
-
-- Cấu hình tự lưu trong trình duyệt sau khi thay đổi. Dùng cùng địa chỉ `127.0.0.1:3210` để thấy bản đang làm; `localhost` là một vùng lưu khác của trình duyệt.
-- Nút **Lưu dự án** tải file `.khung.json`; nút thư mục mở lại file JSON.
-- Dự án tự động giữ cả config và danh sách cảnh **Đang giữ**. Chỉnh tay đánh dấu cảnh được giữ khi dựng lại; bỏ giữ trên cảnh hoặc trong màn hình tự động để tái dựng toàn bộ.
-- JSON chứa cấu hình và LUT dạng văn bản, không nhúng ảnh/font. Giữ `data/uploads/` và `data/fonts/` khi sao lưu hoặc di chuyển dự án sang máy khác.
-- Nếu thiếu ảnh, nhập lại ảnh rồi chọn nó ở **Ảnh → Thay ảnh** cho cảnh tương ứng.
-- Tạo dự án mới/xoá cảnh không xoá file gốc trong `data/uploads`, để những dự án đã lưu trước đó còn mở được.
-
-## Phím tắt
-
-| Phím               | Thao tác             |
-| ------------------ | -------------------- |
-| Space              | Phát / tạm dừng      |
-| ← / →              | Lùi / tiến một frame |
-| ⌘/Ctrl Z           | Hoàn tác             |
-| ⌘/Ctrl Shift Z     | Làm lại              |
-| ⌘/Ctrl S           | Tải file dự án       |
-| Delete / Backspace | Xoá cảnh đang chọn   |
-
-Phím tắt chỉnh sửa không chạy khi đang gõ trong một ô nhập hoặc đang mở hộp xuất video.
-
-## Chữ nâng cao
-
-Mở **Nâng cao → Chữ** để dùng các mục dưới đây; chúng không xuất hiện lúc đầu.
-
-- **Mẫu chữ**: thêm lớp với kiểu dựng sẵn hoặc áp mẫu lên lớp đang chọn; có thể hoàn tác.
-- Danh sách lớp có nút ẩn/hiện, đưa trước/sau, nhân bản và xoá. Lớp ở cuối được vẽ trên các lớp phía trước.
-- **Nội dung & font**: font hệ thống hoặc font từ máy (WOFF/WOFF2/TTF/OTF, tối đa 5 MB); cỡ, đậm, nghiêng, gạch và đổi hoa/thường.
-- **Màu sắc & trang trí**: một màu, gradient, chữ rỗng, nền, bo góc, đệm, viền, bóng, phát sáng và độ dày khối giả 3D.
-- **Vị trí & bố cục**: phần trăm vị trí, độ rộng tối đa, giãn chữ/dòng, xoay/nghiêng, hướng viết và cong lên/xuống. Chữ cong dùng một dòng SVG và animation cả đường chữ.
-- **Thời gian & chuyển động**: khoảng xuất hiện, kiểu vào/ra, thời lượng, độ trễ ký tự/từ, easing và chuyển động lặp. Nút xem từ đầu chữ tua tới lớp và phát.
-- **Số đếm động**: giá trị đầu/cuối, số lẻ, tiền tố/hậu tố. Số định dạng theo tiếng Việt.
-
-## Hiệu ứng nâng cao
-
-Mở **Nâng cao → Hiệu ứng** để dùng thư viện đầy đủ và các tham số dưới đây.
-
-- **Chuyển động ảnh**: chọn preset, mức/tốc độ, easing, mặt nạ và độ hiện.
-- **Chuyển cảnh**: kiểu nối, thời lượng, easing; hướng áp dụng cho các kiểu trượt/đẩy/quét/rèm.
-- **Thư viện Remotion**: tìm theo tên tiếng Việt hoặc tên API, lọc nhóm rồi thêm. Mỗi hiệu ứng dùng factory chính thức; tham số được sinh từ schema cùng phiên bản package.
-- Hiệu ứng được tính từ trên xuống. Dùng nút đổi thứ tự, bật/tắt, nhân bản hoặc xoá. Mở một hiệu ứng để chỉnh thời gian và tham số.
-- Bật **Chuyển động** bên dưới tham số số để đặt giá trị đầu/cuối và easing. Nó diễn ra trong khoảng thời gian của hiệu ứng. Giá trị tĩnh chỉ dùng khi bỏ chuyển động.
-- **LUT**: nhập nội dung hoặc file `.cube` tối đa 2 MB. Nội dung được giữ trong JSON.
-- **Lớp phủ**: thêm tối đa 8 lớp; chỉnh màu, mức, cỡ/tốc độ, seed, thời gian và thứ tự. Lớp phủ được vẽ trên ảnh, dưới chữ.
-- **Keyframe ảnh**: đặt giá trị ảnh rồi ghi tại vạch phát, hoặc chỉnh từng mốc trực tiếp. Các mốc được nội suy và cộng với preset. Cảnh đã chia giữ các mốc theo thời gian chuyển động gốc để không nhảy hình.
-- Nếu preview báo lỗi GPU/tài nguyên, tắt hiệu ứng vừa thêm hoặc chọn ảnh/font khác rồi nhấn **Tải lại xem trước**.
-
-Xem [danh mục đầy đủ](DANH-MUC-CHU-HIEU-UNG.md) và [giới hạn tương thích](KIEM-TRA.md).
+Mở địa chỉ công cụ in ra, mặc định `http://127.0.0.1:3210`. Dừng bằng Ctrl+C. [Cài voice chi tiết](VOICE-VA-PHU-DE.md).

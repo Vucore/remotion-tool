@@ -23,6 +23,15 @@ export const MOTIONS = {
   "rotate-out": "Xoay lùi",
   "slide-up": "Đi lên",
   "slide-down": "Đi xuống",
+  curve: "Đường cong",
+  zigzag: "Zigzag",
+  "figure-eight": "Hình số 8",
+  "zoom-pan-left": "Zoom và lướt trái",
+  "zoom-pan-right": "Zoom và lướt phải",
+  "zoom-rotate": "Zoom và xoay",
+  "spring-in": "Zoom đàn hồi",
+  "spring-out": "Thu đàn hồi",
+  "focus-pulse": "Nhấn tâm ảnh",
 } as const;
 export const TRANSITIONS = {
   none: "Cắt thẳng",
@@ -53,6 +62,16 @@ export const TRANSITIONS = {
   glitch: "Nhiễu số",
   ripple: "Gợn sóng",
   "slide-rotate": "Trượt và nghiêng",
+  "book-flip": "Lật trang",
+  "cross-zoom": "Zoom xuyên cảnh",
+  crosswarp: "Uốn ngang",
+  swap: "Đổi chỗ phối cảnh",
+  "blur-slide": "Trượt mờ",
+  cube: "Xoay khối",
+  "dreamy-zoom": "Zoom trắng",
+  "zoom-in-out": "Zoom ra rồi vào",
+  dissolve: "Tan dần",
+  "push-cut": "Cắt nhấn",
 } as const;
 export const EASINGS = {
   linear: "Đều",

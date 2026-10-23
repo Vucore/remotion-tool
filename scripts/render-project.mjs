@@ -64,6 +64,8 @@ export async function renderProject(
     composition,
     inputProps,
     codec: "h264",
+    audioCodec: "aac",
+    audioBitrate: quality === "high" ? "320k" : "192k",
     crf: quality === "high" ? 18 : 23,
     pixelFormat: "yuv420p",
     outputLocation: output,

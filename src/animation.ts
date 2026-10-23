@@ -39,10 +39,19 @@ export function imagePose(
   fps: number,
   frames: number,
 ) {
-  const t = frame / fps + scene.motionOffset,
+  const t = Math.max(
+      0,
+      frame / fps + scene.motionOffset - (scene.motionStart ?? 0),
+    ),
     p = ease(
       scene.motionEasing,
-      t / Math.max(1 / fps, (scene.motionDuration ?? frames / fps) - 1 / fps),
+      (t * scene.motionSpeed) /
+        Math.max(
+          1 / fps,
+          (scene.motionDuration ??
+            Math.max(1 / fps, frames / fps - (scene.motionStart ?? 0))) -
+            1 / fps,
+        ),
     ),
     a = scene.motionAmount,
     w = t * scene.motionSpeed * Math.PI * 2;
@@ -145,6 +154,39 @@ export function imagePose(
       break;
     case "slide-down":
       y += p * a;
+      break;
+    case "curve":
+      x += (p - 0.5) * a;
+      y -= Math.sin(p * Math.PI) * a * 0.5;
+      scale *= 1 + a / 100;
+      break;
+    case "zigzag":
+      x += (p - 0.5) * a;
+      y += Math.sin(p * Math.PI * 4) * a * 0.2;
+      scale *= 1 + a / 100;
+      break;
+    case "figure-eight":
+      x += Math.sin(w * 0.25) * a * 0.3;
+      y += Math.sin(w * 0.5) * a * 0.15;
+      scale *= 1 + a / 100;
+      break;
+    case "zoom-pan-left":
+    case "zoom-pan-right":
+      scale *= 1 + (a * (0.5 + p)) / 100;
+      x += (scene.motion === "zoom-pan-left" ? 1 : -1) * (0.5 - p) * a * 0.5;
+      break;
+    case "zoom-rotate":
+      scale *= 1 + (p * a) / 100;
+      rotate += (p - 0.5) * a;
+      break;
+    case "spring-in":
+    case "spring-out": {
+      const q = 1 - Math.exp(-7 * p) * Math.cos(p * Math.PI * 4);
+      scale *= 1 + ((scene.motion === "spring-in" ? q : 1 - q) * a) / 100;
+      break;
+    }
+    case "focus-pulse":
+      scale *= 1 + (Math.sin(p * Math.PI) ** 2 * a) / 100;
       break;
   }
   return { x, y, scale, rotate, opacity: clamp(opacity), rx, ry };
@@ -310,6 +352,118 @@ export function transitionStyle(
         opacity: p,
         transform: `translateX(${s * 100 * sign}%) rotate(${s * -15 * sign}deg)`,
       };
+    case "book-flip":
+      return {
+        transformOrigin: direction === "right" ? "100% 50%" : "0% 50%",
+        transform: `perspective(1400px) rotateY(${s * -100 * sign}deg)`,
+        filter: `brightness(${0.5 + p * 0.5})`,
+        opacity: clamp(p * 3),
+        backfaceVisibility: "hidden",
+      };
+    case "cross-zoom":
+      return {
+        transform: `scale(${1 + s * 2})`,
+        opacity: p,
+        filter: `blur(${s * 12}px)`,
+      };
+    case "crosswarp":
+      return {
+        transform: `scaleX(${1 + s * 0.8}) skewY(${s * 12 * sign}deg)`,
+        opacity: p,
+        filter: `blur(${s * 4}px)`,
+      };
+    case "swap":
+      return {
+        transform: `perspective(1400px) translateX(${s * 110 * sign}%) rotateY(${s * -45 * sign}deg) scale(${1 - Math.sin(p * Math.PI) * 0.3})`,
+        opacity: clamp(p * 3),
+      };
+    case "blur-slide":
+      return {
+        transform: `translate${horizontal ? "X" : "Y"}(${s * 100 * sign}%)`,
+        filter: `blur(${s * 18}px)`,
+        opacity: p,
+      };
+    case "cube":
+      return {
+        transformOrigin: horizontal
+          ? `${sign > 0 ? 0 : 100}% 50%`
+          : `50% ${sign > 0 ? 0 : 100}%`,
+        transform: `perspective(1400px) rotate${horizontal ? "Y" : "X"}(${s * 90 * sign}deg)`,
+        opacity: clamp(p * 3),
+        backfaceVisibility: "hidden",
+      };
+    case "dreamy-zoom":
+      return {
+        transform: `scale(${1 + s * 0.3}) rotate(${s * 5}deg)`,
+        filter: `brightness(${1 + s * 3}) blur(${s * 6}px)`,
+        opacity: p,
+      };
+    case "zoom-in-out":
+      return { transform: `scale(${0.5 + p * 0.5})`, opacity: p };
+    case "dissolve":
+      return {
+        maskImage: tileMask(p, false),
+        filter: `brightness(${1 + s * 0.5})`,
+        opacity: clamp(p * 3),
+      };
+    case "push-cut":
+      return {
+        transform: `scale(${1 + s * 0.15})`,
+        opacity: clamp(p * 5),
+        filter: `brightness(${1 + s * 2})`,
+      };
+    default:
+      return {};
+  }
+}
+
+// Applied to the outgoing scene as well, so paired transitions move both images.
+export function outgoingTransitionStyle(
+  type: Transition,
+  progress: number,
+  direction: Scene["transitionDirection"],
+): CSSProperties {
+  const p = clamp(progress);
+  if (!p) return {};
+  const horizontal = direction === "left" || direction === "right";
+  const sign = direction === "right" || direction === "down" ? 1 : -1;
+  switch (type) {
+    case "push":
+      return {
+        transform: `translate${horizontal ? "X" : "Y"}(${p * 100 * sign}%)`,
+      };
+    case "cross-zoom":
+      return { transform: `scale(${1 + p * 2})`, filter: `blur(${p * 12}px)` };
+    case "crosswarp":
+      return {
+        transform: `scaleX(${1 - p * 0.4}) skewY(${p * -12 * sign}deg)`,
+      };
+    case "swap":
+      return {
+        transform: `perspective(1400px) translateX(${p * 110 * sign}%) rotateY(${p * 45 * sign}deg) scale(${1 - Math.sin(p * Math.PI) * 0.3})`,
+      };
+    case "blur-slide":
+      return {
+        transform: `translate${horizontal ? "X" : "Y"}(${p * 100 * sign}%)`,
+        filter: `blur(${p * 18}px)`,
+      };
+    case "cube":
+      return {
+        transformOrigin: horizontal
+          ? `${sign > 0 ? 0 : 100}% 50%`
+          : `50% ${sign > 0 ? 0 : 100}%`,
+        transform: `perspective(1400px) rotate${horizontal ? "Y" : "X"}(${p * 90 * sign}deg)`,
+        backfaceVisibility: "hidden",
+      };
+    case "book-flip":
+      return {
+        transformOrigin: direction === "right" ? "100% 50%" : "0% 50%",
+        transform: `perspective(1400px) rotateY(${p * 100 * sign}deg)`,
+        filter: `brightness(${1 - p * 0.5})`,
+        backfaceVisibility: "hidden",
+      };
+    case "zoom-in-out":
+      return { transform: `scale(${1 + p * 0.5})` };
     default:
       return {};
   }

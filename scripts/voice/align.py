@@ -21,7 +21,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--request")
     parser.add_argument("--model", choices=["tiny", "base", "small", "medium"], default="small")
-    parser.add_argument("--language", choices=["vi", "en"], default="vi")
+    parser.add_argument("--language", choices=["vi", "ar", "da", "de", "el", "en", "es", "fi", "fr", "he", "hi", "it", "ja", "ko", "ms", "nl", "no", "pl", "pt", "ru", "sv", "sw", "tr", "zh"], default="vi")
     parser.add_argument("--model-dir", required=True)
     parser.add_argument("--download", action="store_true")
     args = parser.parse_args()
@@ -48,7 +48,7 @@ def main():
             audio = samples.mean(axis=1)
             duration = len(audio) / rate
             if not np.isfinite(audio).all() or np.max(np.abs(audio)) < 1e-5:
-                raise RuntimeError(job["name"] + ": WAV im lặng hoặc dữ liệu âm thanh không hợp lệ.")
+                raise RuntimeError(job["name"] + ": voice im lặng hoặc dữ liệu âm thanh không hợp lệ.")
             if rate != 16000:
                 divisor = math.gcd(rate, 16000)
                 audio = resample_poly(audio, 16000 // divisor, rate // divisor).astype(np.float32)
@@ -58,7 +58,7 @@ def main():
                 failure_threshold=0.15, verbose=None,
             )
         if result is None:
-            raise RuntimeError(job["name"] + ": không căn được lời đọc. Kiểm tra TXT đúng lời WAV.")
+            raise RuntimeError(job["name"] + ": không căn được lời đọc. Kiểm tra TXT đúng lời voice.")
         segments = result.to_dict()["segments"]
         if len(segments) != len(job["sentences"]):
             raise RuntimeError(job["name"] + ": số câu căn được không khớp TXT.")
@@ -70,7 +70,7 @@ def main():
             start = round(max(0, segment["start"]) * 1000, 3)
             end = round(min(duration, segment["end"]) * 1000, 3)
             if not math.isfinite(start + end) or start < previous_end or end <= start:
-                raise RuntimeError(job["name"] + ": mốc câu không rõ hoặc chồng lấn; kiểm tra WAV/TXT.")
+                raise RuntimeError(job["name"] + ": mốc câu không rõ hoặc chồng lấn; kiểm tra voice/TXT.")
             probabilities = [w["probability"] for w in segment.get("words", []) if isinstance(w.get("probability"), (int, float)) and math.isfinite(w["probability"])]
             confidence = sum(probabilities) / len(probabilities) if probabilities else None
             captions.append({"text": sentence, "startMs": start, "endMs": end,

@@ -10,8 +10,22 @@ import { parseAutoConfig } from "../dist/auto-config.mjs";
 import { compileAuto } from "../dist/auto.mjs";
 import { pairNarration } from "../dist/narration.mjs";
 import { prepareNarration } from "./narration.mjs";
-import { wavInfo, wavEnvelope } from "./wav-info.mjs";
+import { wavEnvelope } from "./wav-info.mjs";
+import { inspectVoice, MAX_VOICE_BYTES } from "./voice-input.mjs";
 import { actorImages } from "../dist/actor-types.mjs";
+import { parseTtsSettings, ttsPlan } from "../dist/tts.mjs";
+import { generateTts } from "./tts.mjs";
+import {
+  projectSubtitles,
+  subtitleFilename,
+  toSrt,
+  validateCues,
+  languageCode,
+} from "../dist/subtitles.mjs";
+import {
+  translateSubtitles,
+  translationLanguages,
+} from "./translate-subtitles.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const port = Number(process.env.PORT || 3210);
@@ -27,6 +41,52 @@ await Promise.all([
 ]);
 const jobs = new Map();
 const narrationJobs = new Map();
+const ttsJobs = new Map();
+const translationJobs = new Map();
+async function buildTranslation(job, input) {
+  try {
+    job.result = await translateSubtitles(input, {
+      signal: job.controller.signal,
+      onProgress: (progress, message) => {
+        job.progress = progress;
+        job.message = message;
+      },
+    });
+    if (!job.controller.signal.aborted) {
+      job.status = "done";
+      job.progress = 1;
+    }
+  } catch (error) {
+    if (job.status !== "cancelled") {
+      job.status = "error";
+      job.error = error.message;
+    }
+  } finally {
+    job.running = false;
+  }
+}
+async function buildTts(job, input) {
+  try {
+    const result = await generateTts(input, {
+      signal: job.controller.signal,
+      onProgress: (progress, message) => {
+        job.progress = progress;
+        job.message = message;
+      },
+    });
+    if (job.controller.signal.aborted) return;
+    job.result = result;
+    job.status = "done";
+    job.progress = 1;
+  } catch (error) {
+    if (job.status !== "cancelled") {
+      job.status = "error";
+      job.error = error.message;
+    }
+  } finally {
+    job.running = false;
+  }
+}
 const publicNarration = (job) => ({
   id: job.id,
   status: job.status,
@@ -76,6 +136,9 @@ const publicJob = (job) => ({
   error: job.error,
   url: job.url,
   filename: job.filename,
+  ...(job.status === "done" && job.subtitleUrl
+    ? { subtitleUrl: job.subtitleUrl, subtitleFilename: job.subtitleFilename }
+    : {}),
 });
 async function body(req, limit = 16 * 1024 * 1024) {
   const chunks = [];
@@ -84,7 +147,7 @@ async function body(req, limit = 16 * 1024 * 1024) {
     size += chunk.length;
     if (size > limit) {
       const e = new Error(
-        "File quá lớn. Ảnh tối đa 25 MB; WAV 100 MB; font 5 MB; dự án 16 MB.",
+        "File quá lớn. Ảnh tối đa 25 MB; voice WAV/MP3 100 MB; font 5 MB; dự án 16 MB.",
       );
       e.status = 413;
       throw e;
@@ -108,7 +171,9 @@ const mime = {
   ".otf": "font/otf",
   ".mp4": "video/mp4",
   ".wav": "audio/wav",
+  ".mp3": "audio/mpeg",
   ".map": "application/json",
+  ".srt": "application/x-subrip; charset=utf-8",
 };
 async function serveFile(req, res, path, attachment = false) {
   let info;
@@ -139,7 +204,7 @@ async function serveFile(req, res, path, attachment = false) {
     const name =
       typeof attachment === "string" ? attachment : "khung-video.mp4";
     headers["Content-Disposition"] =
-      `attachment; filename="khung-video.mp4"; filename*=UTF-8''${encodeURIComponent(name).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`;
+      `attachment; filename="${extname(path) === ".srt" ? "khung-subtitles.srt" : "khung-video.mp4"}"; filename*=UTF-8''${encodeURIComponent(name).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`;
   }
   const range = req.headers.range?.match(/^bytes=(\d+)-(\d*)$/);
   if (range) {
@@ -180,6 +245,17 @@ async function render(job, project, quality) {
       },
     });
     if (job.status !== "cancelled") {
+      const cues = projectSubtitles(project);
+      if (cues.length) {
+        await writeFile(join(exportsDir, `${job.id}.srt`), toSrt(cues), "utf8");
+        job.subtitleUrl = `/exports/${job.id}.srt`;
+        job.subtitleFilename = subtitleFilename(
+          job.filename,
+          project.automation?.config.narration.language ??
+            project.voiceover?.uploadLanguage ??
+            "vi",
+        );
+      }
       job.status = "done";
       job.progress = 1;
       job.url = `/exports/${job.id}.mp4`;
@@ -225,18 +301,161 @@ const server = createServer(async (req, res) => {
       json(res, 200, { ok: true, name: "Khung" });
       return;
     }
+    if (url.pathname === "/api/subtitles/languages" && req.method === "POST") {
+      await body(req, 2048);
+      const controller = new AbortController();
+      const closed = () => {
+        if (!res.writableEnded) controller.abort();
+      };
+      res.once("close", closed);
+      try {
+        json(res, 200, {
+          languages: await translationLanguages({
+            signal: controller.signal,
+          }),
+        });
+      } finally {
+        res.removeListener("close", closed);
+      }
+      return;
+    }
+    if (url.pathname === "/api/subtitles/translate" && req.method === "POST") {
+      if ([...translationJobs.values()].some((j) => j.running)) {
+        json(res, 409, { error: "Một tác vụ dịch đang chạy hoặc đang dừng." });
+        return;
+      }
+      const payload = JSON.parse((await body(req)).toString());
+      const input = {
+        cues: validateCues(payload.cues),
+        source: languageCode(payload.source),
+        target: languageCode(payload.target),
+      };
+      if (input.source === input.target)
+        throw Error("Chọn ngôn ngữ dịch khác ngôn ngữ gốc.");
+      for (const [id, old] of translationJobs)
+        if (!old.running) translationJobs.delete(id);
+      const job = {
+        id: randomUUID(),
+        status: "translating",
+        progress: 0,
+        message: "Đang chuẩn bị dịch…",
+        running: true,
+        controller: new AbortController(),
+      };
+      translationJobs.set(job.id, job);
+      json(res, 202, publicNarration(job));
+      void buildTranslation(job, input);
+      return;
+    }
+    const translationId = url.pathname.match(
+      /^\/api\/subtitles\/translate\/([a-f0-9-]{36})$/,
+    )?.[1];
+    if (translationId) {
+      const job = translationJobs.get(translationId);
+      if (!job) {
+        json(res, 404, {
+          error:
+            "Không tìm thấy tác vụ dịch. Thử lại để dùng cache các câu đã dịch.",
+        });
+        return;
+      }
+      if (!["GET", "DELETE"].includes(req.method)) {
+        json(res, 405, { error: "Thao tác không hỗ trợ." });
+        return;
+      }
+      if (req.method === "DELETE" && job.running) {
+        job.status = "cancelled";
+        job.controller.abort();
+      }
+      json(res, 200, publicNarration(job));
+      return;
+    }
+    if (url.pathname === "/api/tts" && req.method === "POST") {
+      if ([...ttsJobs.values()].some((job) => job.running)) {
+        json(res, 409, {
+          error:
+            "Một tác vụ TTS đang chạy hoặc đang dừng. Đợi vài giây rồi thử lại.",
+        });
+        return;
+      }
+      const payload = JSON.parse((await body(req)).toString());
+      const project = parseProject(payload.project),
+        settings = parseTtsSettings(payload.settings);
+      const script = project.voiceover?.script ?? "";
+      ttsPlan(script, project.assets);
+      if (settings.voiceMode === "reference" && !settings.reference)
+        throw Error("Chọn file giọng mẫu WAV/MP3 trước khi tạo voice.");
+      for (const [id, previous] of ttsJobs)
+        if (!previous.running) ttsJobs.delete(id);
+      const job = {
+        id: randomUUID(),
+        status: "generating",
+        progress: 0,
+        message: "Đang chuẩn bị tạo voice…",
+        running: true,
+        controller: new AbortController(),
+      };
+      ttsJobs.set(job.id, job);
+      json(res, 202, publicNarration(job));
+      void buildTts(job, { script, images: project.assets, settings });
+      return;
+    }
+    const ttsId = url.pathname.match(/^\/api\/tts\/([a-f0-9-]{36})$/)?.[1];
+    if (ttsId) {
+      const job = ttsJobs.get(ttsId);
+      if (!job) {
+        json(res, 404, {
+          error: "Không tìm thấy tác vụ TTS. Thử lại để dùng các voice đã lưu.",
+        });
+        return;
+      }
+      if (!["GET", "DELETE"].includes(req.method)) {
+        json(res, 405, { error: "Thao tác không hỗ trợ." });
+        return;
+      }
+      if (req.method === "DELETE" && job.running) {
+        job.status = "cancelled";
+        job.controller.abort();
+      }
+      json(res, 200, publicNarration(job));
+      return;
+    }
     if (url.pathname === "/api/voices" && req.method === "POST") {
-      const bytes = await body(req, 100 * 1024 * 1024),
-        info = wavInfo(bytes);
-      const voiceId = randomUUID();
-      await writeFile(join(uploads, `${voiceId}.wav`), bytes);
-      json(res, 201, {
-        id: voiceId,
-        name: (url.searchParams.get("name") || "voice.wav").slice(0, 500),
-        src: `/media/${voiceId}.wav`,
-        duration: info.duration,
-        envelope: wavEnvelope(bytes, info),
-      });
+      const controller = new AbortController(),
+        abort = () => controller.abort();
+      const closed = () => {
+        if (!res.writableEnded) abort();
+      };
+      req.once("aborted", abort);
+      res.once("close", closed);
+      try {
+        const name = (url.searchParams.get("name") || "voice.wav").slice(
+          0,
+          500,
+        );
+        const input = await body(req, MAX_VOICE_BYTES);
+        const { bytes, decodedWav, info, extension } = await inspectVoice(
+          input,
+          {
+            name,
+            signal: controller.signal,
+          },
+        );
+        const envelope = wavEnvelope(decodedWav, info),
+          voiceId = randomUUID();
+        if (controller.signal.aborted) return;
+        await writeFile(join(uploads, `${voiceId}.${extension}`), bytes);
+        json(res, 201, {
+          id: voiceId,
+          name,
+          src: `/media/${voiceId}.${extension}`,
+          duration: info.duration,
+          envelope,
+        });
+      } finally {
+        req.removeListener("aborted", abort);
+        res.removeListener("close", closed);
+      }
       return;
     }
     if (url.pathname === "/api/narration" && req.method === "POST") {
@@ -448,7 +667,9 @@ const server = createServer(async (req, res) => {
       json(res, 405, { error: "Thao tác không hỗ trợ." });
       return;
     }
-    if (/^\/media\/[a-zA-Z0-9_-]+\.(png|jpg|webp|wav)$/.test(url.pathname)) {
+    if (
+      /^\/media\/[a-zA-Z0-9_-]+\.(png|jpg|webp|wav|mp3)$/.test(url.pathname)
+    ) {
       await serveFile(req, res, join(uploads, url.pathname.slice(7)));
       return;
     }
@@ -456,9 +677,13 @@ const server = createServer(async (req, res) => {
       await serveFile(req, res, join(fontsDir, url.pathname.slice(7)));
       return;
     }
-    if (/^\/exports\/[a-f0-9-]{36}\.mp4$/.test(url.pathname)) {
+    if (/^\/exports\/[a-f0-9-]{36}\.(mp4|srt)$/.test(url.pathname)) {
+      const subtitle = url.pathname.endsWith(".srt");
       const filename =
-        jobs.get(url.pathname.slice(9, -4))?.filename || "khung-video.mp4";
+        (subtitle
+          ? jobs.get(url.pathname.slice(9, -4))?.subtitleFilename
+          : jobs.get(url.pathname.slice(9, -4))?.filename) ||
+        (subtitle ? "phu-de.srt" : "khung-video.mp4");
       await serveFile(
         req,
         res,
@@ -504,6 +729,9 @@ server.on("error", (error) => {
 });
 for (const signal of ["SIGINT", "SIGTERM"])
   process.on(signal, () => {
+    for (const job of translationJobs.values())
+      if (job.running) job.controller.abort();
+    for (const job of ttsJobs.values()) if (job.running) job.controller.abort();
     for (const job of narrationJobs.values())
       if (job.running) job.controller.abort();
     for (const job of jobs.values())

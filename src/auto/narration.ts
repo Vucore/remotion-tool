@@ -75,15 +75,22 @@ export function pairNarration(
     return map;
   };
   const images = indexed(assets, "Ảnh"),
-    voices = indexed(input.assets, "WAV");
+    voices = indexed(input.assets, "Voice");
   return sections.map((s) => {
     const image = images.get(s.order),
       voice = voices.get(s.order);
     if (!image || !voice)
       throw Error(
-        `Cảnh ${s.order}: thiếu ${!image ? "ảnh" : "WAV"} có số thứ tự ${s.order}.`,
+        `Cảnh ${s.order}: thiếu ${!image ? "ảnh" : "voice WAV/MP3"} có số thứ tự ${s.order}.`,
       );
-    return { ...s, image, voice };
+    const text =
+      input.ttsKey && input.tts?.model === "turbo"
+        ? s.text
+            .replace(/\[(?:laugh|chuckle|sigh|gasp|cough)\]/gi, " ")
+            .replace(/[ \t]+/g, " ")
+            .trim()
+        : s.text;
+    return { ...s, text, image, voice };
   });
 }
 
@@ -107,7 +114,7 @@ export function splitSentences(text: string, maxChars = 100): string[] {
     }
   }
   if (!sentences.length || sentences.length > 300)
-    throw Error("Mỗi WAV cần 1–300 câu/cụm phụ đề.");
+    throw Error("Mỗi voice cần 1–300 câu/cụm phụ đề.");
   return sentences;
 }
 

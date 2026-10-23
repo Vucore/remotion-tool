@@ -194,6 +194,7 @@ export function compileAuto(
           ...makeText(),
           ...textTemplate(config.text.preset),
           ...structuredClone(config.text.style),
+          ...structuredClone(override?.textStyle ?? {}),
           id: `${sceneId}-text`,
           text: caption,
           width: config.text.style.width ?? 84,
@@ -258,6 +259,10 @@ export function compileAuto(
           animationIn: "none",
           animationOut: "none",
           ...structuredClone(config.text.style),
+          ...structuredClone(
+            config.overrides.find((o) => o.file === pairs[index].image.name)
+              ?.textStyle ?? {},
+          ),
           ...(oldStyle && lockSet.has(scene.id) ? oldStyle : {}),
           id: `${scene.id}-voice-caption`,
           name: "Phụ đề theo voice",

@@ -1,14 +1,34 @@
-node_modules
-dist
-.DS_Store
+# JavaScript dependencies and generated builds
+node_modules/
+/dist/
+/out/
+coverage/
+*.tsbuildinfo
+
+# Local configuration and secrets (keep distributable examples)
 .env
+.env.*
+!.env.example
+!.env.*.example
 
-# Ignore the output video from Git but not videos you import into src/.
-out
-
-# User uploads, renders and build caches
-data/
-.cache/
-test-results/
+# Python environments and bytecode; commit pyproject.toml and uv.lock
+.venv/
 .venv-voice/
+venv/
 __pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# User uploads, exported media, downloaded models and runtime caches
+/data/
+/.cache/
+/test-results/
+/playwright-report/
+
+# Local logs and OS files
+*.log
+.DS_Store
+Thumbs.db

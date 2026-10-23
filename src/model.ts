@@ -20,6 +20,8 @@ import { validateNativeEffect } from "./effects/runtime";
 import { parseAutoConfig, type AutoConfig } from "./auto/config";
 import type { Caption } from "@remotion/captions";
 import { parseCaptions } from "./auto/narration";
+import { parseTtsSettings, type TtsSettings } from "./auto/tts";
+import { NARRATION_LANGUAGES, type NarrationLanguage } from "./auto/languages";
 import type { ActorDefinition, ActorInstance } from "./actors/types";
 import { parseActorLibrary, parseActorInstances } from "./actors/schema";
 export type Motion = keyof typeof MOTIONS;
@@ -43,6 +45,9 @@ export type Voiceover = {
   assets: VoiceAsset[];
   script: string;
   scriptName: string;
+  ttsKey?: string;
+  tts?: TtsSettings;
+  uploadLanguage?: NarrationLanguage;
 };
 export type TextLayer = {
   captions?: Caption[];
@@ -160,6 +165,7 @@ export type Scene = {
   transitionEasing: EasingName;
   keyframes: ImageKeyframe[];
   motionOffset: number;
+  motionStart: number;
   motionDuration: number | null;
 };
 export type Project = {
@@ -219,6 +225,7 @@ export const makeScene = (assetId: string): Scene => ({
   transitionEasing: "linear",
   keyframes: [],
   motionOffset: 0,
+  motionStart: 0,
   motionDuration: null,
 });
 export const makeText = (): TextLayer => ({
@@ -347,7 +354,9 @@ export function splitScene(
     ...item.scene,
     duration: cut / p.fps,
     transition: "none" as const,
-    motionDuration: item.scene.motionDuration ?? item.scene.duration,
+    motionDuration:
+      item.scene.motionDuration ??
+      Math.max(1 / p.fps, item.scene.duration - item.scene.motionStart),
     texts: sliceTimed(item.scene.texts, 0, cut / p.fps, item.scene.duration),
     effects: sliceTimed(
       item.scene.effects,
@@ -367,7 +376,9 @@ export function splitScene(
     id: id(),
     duration: (item.duration - cut) / p.fps,
     motionOffset: item.scene.motionOffset + cut / p.fps,
-    motionDuration: item.scene.motionDuration ?? item.scene.duration,
+    motionDuration:
+      item.scene.motionDuration ??
+      Math.max(1 / p.fps, item.scene.duration - item.scene.motionStart),
     texts: sliceTimed(
       item.scene.texts,
       cut / p.fps,
@@ -493,14 +504,28 @@ export function parseProject(value: unknown): Project {
       !Array.isArray(p.voiceover.assets) ||
       p.voiceover.assets.length > 300
     )
-      throw Error("Đầu vào voice cần tối đa 300 WAV.");
+      throw Error("Đầu vào voice cần tối đa 300 WAV/MP3.");
     voiceover = {
       script: str(p.voiceover.script, 1_000_000),
       scriptName: str(p.voiceover.scriptName, 500),
+      ...(p.voiceover.uploadLanguage !== undefined
+        ? {
+            uploadLanguage: pick(
+              p.voiceover.uploadLanguage,
+              Object.keys(NARRATION_LANGUAGES) as NarrationLanguage[],
+            ),
+          }
+        : {}),
+      ...(p.voiceover.tts !== undefined
+        ? { tts: parseTtsSettings(p.voiceover.tts) }
+        : {}),
+      ...(p.voiceover.ttsKey !== undefined
+        ? { ttsKey: str(p.voiceover.ttsKey, 100) }
+        : {}),
       assets: p.voiceover.assets.map((v) => {
         const src = str(v.src, 200);
-        if (!/^\/media\/[a-zA-Z0-9_-]+\.wav$/.test(src))
-          throw Error("Đường dẫn WAV không hợp lệ. Nhập lại voice từ công cụ.");
+        if (!/^\/media\/[a-zA-Z0-9_-]+\.(wav|mp3)$/.test(src))
+          throw Error("Đường dẫn voice không hợp lệ. Nhập lại từ công cụ.");
         return {
           id: str(v.id),
           name: str(v.name),
@@ -513,10 +538,15 @@ export function parseProject(value: unknown): Project {
       }),
     };
     if (
+      voiceover.ttsKey &&
+      (!/^chatterbox-v1-[a-f0-9]{16}$/.test(voiceover.ttsKey) || !voiceover.tts)
+    )
+      throw Error("Thông tin voice TTS không hợp lệ.");
+    if (
       new Set(voiceover.assets.map((v) => v.id)).size !==
       voiceover.assets.length
     )
-      throw Error("ID WAV bị trùng.");
+      throw Error("ID voice bị trùng.");
   }
   const scenes = p.scenes.map((original) => {
     const s = { ...makeScene(original.assetId), ...original };
@@ -679,6 +709,7 @@ export function parseProject(value: unknown): Project {
       opacity: number(s.opacity, 0, 1),
       mask: pick(s.mask, Object.keys(MASKS) as Scene["mask"][]),
       motionAmount: number(s.motionAmount, 0, 100),
+      motionStart: number(s.motionStart, 0, 300),
       motionSpeed: number(s.motionSpeed, 0.1, 5),
       motionEasing: pick(s.motionEasing, Object.keys(EASINGS) as EasingName[]),
       transitionDirection: pick(s.transitionDirection, [
@@ -714,12 +745,10 @@ export function parseProject(value: unknown): Project {
         (v) => v.id === scene.voice!.assetId,
       );
       if (!asset || Math.abs(asset.duration - scene.voice.duration) > 0.000001)
-        throw Error(
-          "Cảnh thiếu WAV hoặc thời lượng voice không khớp tài nguyên.",
-        );
+        throw Error("Cảnh thiếu voice hoặc thời lượng không khớp tài nguyên.");
       if (scene.duration + 0.000001 < scene.voice.duration)
         throw Error(
-          "Thời lượng cảnh không được ngắn hơn voice. Công cụ giữ nguyên toàn bộ WAV.",
+          "Thời lượng cảnh không được ngắn hơn voice. Công cụ giữ nguyên toàn bộ lời đọc.",
         );
       for (const t of scene.texts)
         if (t.captions) parseCaptions(t.captions, scene.voice.duration);
@@ -792,7 +821,7 @@ function parseVoiceEnvelope(input: VoiceAsset["envelope"], duration: number) {
     !Array.isArray(input.values) ||
     input.values.length !== Math.ceil(duration * 20 - 1e-8)
   )
-    throw Error("Nhịp voice không khớp thời lượng WAV.");
+    throw Error("Nhịp voice không khớp thời lượng âm thanh.");
   return { stepMs: 50, values: input.values.map((v) => number(v, 0, 1)) };
 }
 

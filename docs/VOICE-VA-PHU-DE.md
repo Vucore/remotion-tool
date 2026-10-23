@@ -1,68 +1,34 @@
-# Tự dựng từ ảnh + WAV + một file TXT — v0.4
+# Voice và phụ đề tự động
 
-## Quy tắc đã chốt
+## Đầu vào
 
-- Một cảnh gồm một ảnh, một WAV và một mục text. Ghép theo số thứ tự trong tên file, không theo thứ tự chọn file.
-- `script.txt` UTF-8 chứa các mục `1. Nội dung…`, `2. Nội dung…`; mỗi mục bắt đầu ở đầu dòng, được xuống dòng tiếp bên dưới. Cũng nhận `1)` và `1:`.
-- Thời lượng cảnh lấy từ WAV, làm tròn lên đến frame để giữ trọn âm thanh. Giữ cả khoảng lặng; không đổi tốc độ voice.
-- Phụ đề hiện lần lượt từng câu. Câu dài tách thành cụm dễ đọc; mốc lấy từ forced alignment WAV + text, không chia đều thời gian.
-- Chuyển cảnh chồng hình, không trừ thời lượng voice hoặc trộn hai voice. Text và voice đi cùng cảnh khi đổi thứ tự.
-- Thiếu/trùng ảnh, WAV, mục TXT hoặc căn phụ đề thất bại thì dừng và chỉ rõ lỗi. Không âm thầm đoán cặp hoặc thay bằng timing giả.
+Voice có thể **tải WAV/MP3** hoặc **tạo từ TXT bằng Chatterbox Modal**. Hai cách dùng chung pipeline thời lượng, waveform và phụ đề. TTS có các ngôn ngữ trong tài liệu API (chưa có tiếng Việt); bộ căn local được mở rộng lựa chọn tương ứng. [Tạo và cấu hình TTS](TICH-HOP-TTS.md).
 
-## Kế hoạch triển khai
+Một cảnh = một ảnh + một voice WAV/MP3 + một mục TXT cùng số. Ví dụ `01.png`, `01.mp3` (hoặc `01.wav`) và mục `1. Nội dung đọc…`. TXT UTF-8 chứa toàn bộ lời đọc, đánh số liên tục từ 1; mỗi mục có thể gồm nhiều câu hoặc nhiều dòng. Tên file có thể kèm mô tả sau số.
 
-1. Mở rộng config, Project, kiểm tra WAV và bộ ghép số thứ tự/TXT dùng chung web–CLI.
-2. Thêm engine căn câu local Stable-ts/Whisper, cache theo WAV/text/model và lệnh cài một lần.
-3. Compiler dựng cảnh theo voice, lưu cue JSON tương thích Caption của Remotion; renderer phát audio và cue cùng cảnh, giữ nguyên tổng thời gian voice.
-4. Web nhận toàn bộ đầu vào trong một lần thả, tự bật chế độ voice, hiện kiểm tra cặp và tiến trình/hủy căn câu; cấu hình kỹ thuật đặt trong nâng cao.
-5. CLI và hàng đợi dùng cùng đầu vào/engine. Lưu dự án, báo cáo và hash audio/text để resume chính xác.
-6. Cung cấp hướng dẫn cài bằng uv và các bước người dùng tự kiểm tra. Theo yêu cầu mới nhất, không chạy thêm test, cài Python/model, mở server hoặc render trong lượt này.
+Trong web, dùng ba ô **Ảnh bối cảnh**, **Voice (WAV · MP3)**, **Lời đọc TXT**. Có thể chọn lẫn WAV và MP3 trong cùng một lần, ví dụ `01.mp3`, `02.wav`, `03.mp3`. Không tải thư mục chứa cả ba loại. Thay một loại giữ nguyên hai loại còn lại; lỗi ghép được báo trước khi dựng. [Bộ mẫu dùng ngay](../test/README.md).
 
-## Bộ đầu vào mẫu
+Mỗi voice tối đa 100 MB và 0,5–300 giây, tối đa 300 file. WAV cần RIFF/WAVE PCM 8/16/24/32-bit hoặc float 32/64-bit, mono/stereo, 8–192 kHz. MP3 nhận CBR/VBR mono/stereo. Có voice thì bắt buộc có TXT tương ứng, kể cả khi tắt hiển thị phụ đề. Hai file WAV/MP3 trùng số cảnh vẫn bị báo trùng.
 
-```text
-du-an/
-  auto-edit.config.json
-  script.txt
-  images/
-    01_mo-dau.jpg
-    02_bat-ngo.png
-  voices/
-    01.wav
-    02.wav
-```
+**Cả hai định dạng được giữ nguyên để preview/xuất.** MP3 chỉ được giải mã thành bản phân tích tạm cho waveform và WAV tạm cho aligner; không thay nguồn MP3 bằng WAV. Không đổi âm lượng, tốc độ, số kênh hoặc sample rate của bản phân tích. MP4 xuất mã hóa AAC 320 kbps (cao) / 192 kbps (tiêu chuẩn). [Chi tiết chất lượng và triển khai](HO-TRO-MP3.md).
 
-```text
-1. Sáng hôm ấy, câu chuyện bắt đầu.
-Một cuộc gọi bất ngờ vang lên.
+## Cài môi trường bằng uv
 
-2. Mọi thứ thay đổi từ khoảnh khắc đó.
-```
-
-Chỉ đặt số mục ở đầu dòng khi muốn mở cảnh mới. Nội dung trong TXT phải đúng lời WAV; đây là căn thời gian cho text đã có, không phải công cụ sửa lời hoặc xác minh nội dung.
-
-## Cài một lần bằng uv
-
-Thực hiện từ thư mục gốc của dự án. Node chạy web/Remotion; uv quản lý riêng môi trường Python căn voice.
+Chạy một lần trong thư mục dự án:
 
 ```sh
-npm ci
 npm run setup:voice
 ```
 
-`setup:voice` gọi `uv venv --python 3.11 .venv-voice`, cài các gói trong `scripts/voice/requirements.txt`, rồi tải model Whisper `small` vào `.cache/whisper/`. Không cần kích hoạt venv hoặc API key. Audio/text được xử lý trên máy. Cài lần đầu cần mạng để tải Python/thư viện/model; căn các video sau dùng model đã tải.
+Script dùng uv tạo `.venv` với Python 3.11, cài thư viện từ `pyproject.toml` bằng `uv sync`, tải model `small` vào `.cache/whisper`. Không sửa Python hệ thống.
 
-Nếu muốn chạy trực tiếp các lệnh uv, trên macOS/Linux:
+Muốn model khác:
 
 ```sh
-uv venv --python 3.11 .venv-voice
-uv pip install --python .venv-voice/bin/python -r scripts/voice/requirements.txt
-uv run --no-project --python .venv-voice/bin/python scripts/voice/align.py --download --model small --model-dir .cache/whisper
+npm run setup:voice -- --model base
 ```
 
-WAV được đọc qua SoundFile rồi resample tới 16 kHz để căn câu; không cần tự cài FFmpeg riêng cho bước căn WAV. Remotion xử lý phần mã hoá video. Model chạy CPU; lần đầu nạp model và căn bộ voice có thể mất thời gian, giao diện có tiến trình theo file và nút Hủy dựng.
-
-Muốn model khác: `npm run setup:voice -- --model base`, sau đó đặt `narration.model` thành `base` trong config. Các lựa chọn: tiny/base/small/medium. Model nhỏ nhanh hơn nhưng cần tự nghe kiểm tra độ chính xác. Mặc định `small`, tiếng Việt; nhận `language: "en"` cho tiếng Anh. Nếu dùng môi trường Python sẵn có, đặt biến `KHUNG_VOICE_PYTHON` thành **đường dẫn đầy đủ tới Python có đủ thư viện**, trước khi chạy server/CLI.
+Sau đó chọn đúng model đã cài tại **Tuỳ chọn thêm và mẫu dùng lại**. Các lựa chọn tiny/base/small/medium, mặc định small và tiếng Việt. Mọi thư viện Python dùng chung `.venv` do uv quản lý.
 
 ## Dùng trên web
 
@@ -70,75 +36,23 @@ Muốn model khác: `npm run setup:voice -- --model base`, sau đó đặt `narr
 npm run dev
 ```
 
-1. Mở địa chỉ công cụ in ra, chọn **Dựng tự động**.
-2. Thả chung ảnh, WAV và một TXT; có thể kèm config JSON. Hoặc chọn thư mục có các file này. Web nhận file trong thư mục con qua bộ chọn thư mục, nhưng ghép theo tên file/số thứ tự, không theo đường dẫn thư mục.
-3. Chế độ voice tự bật khi nhận WAV/TXT. Hiện số WAV, tên TXT và kết quả ghép; **Xem các cặp** để đối chiếu nếu cần. Thiếu/trùng số sẽ báo rõ và chưa cho dựng.
-4. Chọn mẫu edit/tỷ lệ nếu cần rồi nhấn **Tạo và xuất MP4**. Công cụ căn câu, tạo cảnh và tự chuyển sang xuất MP4. Không cần duyệt từng cảnh hoặc nhập số giây.
+1. Chọn ba đầu vào riêng. Dải thumbnail hiển thị ảnh, WAV và thời lượng theo số.
+2. Preview và timeline ba hàng có ngay sau nhập; nhấn Play để chạy thử cả ảnh/WAV. Cue chưa căn được ghi rõ ước tính. Chọn **Căn phụ đề** để chạy model trước, hoặc **Xuất video** để tự căn và xuất MP4.
+3. Theo dõi tiến độ và huỷ nếu cần. Nếu thiếu môi trường/model, lỗi xuất hiện ngay trên giao diện; đầu vào được giữ.
 
-Cũng có thể nạp từng loại file: chọn bộ ảnh trước, WAV sau và TXT cuối. Nhập ảnh mới thay bộ ảnh; nhập WAV mới thay bộ WAV; TXT mới thay lời đọc. Các loại chưa nạp lại vẫn được giữ. Nạp đầu vào mới xoá các cảnh đã dựng và danh sách giữ của bản cũ, có thể hoàn tác. Dùng dự án mới khi muốn bắt đầu một bộ hoàn toàn khác.
+Thời lượng cảnh lấy từ WAV. Chuyển cảnh kéo dài phần hình, không cắt mất lời đọc. Phụ đề chia câu/cụm từ TXT rồi dùng Stable-ts/Whisper tìm mốc trong WAV; không nhận dạng lại để thay text gốc. Kết quả được cache theo âm thanh, text và thiết lập model.
 
-Config không bắt buộc trên web; mẫu mặc định đã có chuyển động/chuyển cảnh. Chỉnh nâng cao đóng mặc định. Khi dựng theo voice, số giây mỗi ảnh/tổng thời lượng và thứ tự thư viện không quyết định bản dựng: thứ tự dùng số mục, thời lượng dùng WAV.
+Không có WAV thì vẫn dựng ảnh/TXT được nhưng mốc phụ đề là **ước lượng thời gian đọc**, không phải forced alignment.
 
-**Chỉ dựng để xem trước** chạy cùng bước căn câu nhưng chưa xuất MP4. Căn lại cùng WAV/text/model sẽ dùng cache. Chỉnh TXT rồi nạp lại để cập nhật lời; các trường nội dung phụ đề trong editor chỉ đọc. Có thể chỉnh font/màu/vị trí cho toàn bộ câu của cảnh.
+## CLI
 
-## Config và CLI
-
-Sao chép [voice-edit.config.json](examples/voice-edit.config.json) cùng [script.txt](examples/script.txt) vào bộ đầu vào. Thay nội dung TXT bằng đúng lời đọc, thêm các ảnh/WAV thật tương ứng. Config mẫu có `narration.enabled: true`.
+Cấu hình mẫu: [voice-edit.config.json](examples/voice-edit.config.json). Chỉnh đường dẫn ảnh, voice, TXT và đầu ra theo bộ của bạn; đường dẫn tương đối tính từ file config.
 
 ```sh
-npm run auto -- --config /duong-dan/du-an/voice-edit.config.json
-
-# Chỉ căn câu và lưu dự án/báo cáo, chưa xuất video
-npm run auto -- --config /duong-dan/du-an/voice-edit.config.json --plan
-
-# Thay bộ đầu vào mà giữ cùng quy tắc edit
-npm run auto -- --config /duong-dan/voice-edit.config.json --images ./images --voices ./voices --script ./script.txt --out ./output/video.mp4
+npm run auto -- --config /duong-dan/voice-edit.config.json --plan
+npm run auto -- --config /duong-dan/voice-edit.config.json
 ```
 
-Đường dẫn tương đối tính từ vị trí config, không phải thư mục terminal. CLI đọc ảnh/WAV trực tiếp trong các thư mục, không duyệt thư mục con. `--plan` **vẫn cần môi trường và model căn voice**, vì file dự án phải chứa mốc câu thật; chỉ bỏ bước Chromium/render. `preauto` tự build code trước khi chạy.
+`--plan` vẫn cần căn voice để tạo timing, nhưng chưa xuất MP4. [CLI và hàng đợi](TU-DONG-HOA.md).
 
-Đầu ra: MP4, `.khung.json`, `.report.json`. Project giữ WAV, text gốc và các cue JSON; cần giữ thư mục `data/uploads/` để mở lại. Báo cáo/hàng đợi resume tính cả WAV, TXT và thiết lập căn câu. Đổi đầu vào sẽ dựng lại. `--overwrite` cho phép ghi lại đầu ra đang có; `--resume` bỏ qua kết quả hoàn tất với đầu vào khớp.
-
-Ví dụ hàng đợi:
-
-```json
-{
-  "jobs": [
-    { "config": "./voice-edit.config.json", "images": "./bo-a/images", "voices": "./bo-a/voices", "script": "./bo-a/script.txt", "out": "./output/a.mp4" },
-    { "config": "./voice-edit.config.json", "images": "./bo-b/images", "voices": "./bo-b/voices", "script": "./bo-b/script.txt", "out": "./output/b.mp4" }
-  ]
-}
-```
-
-```sh
-npm run auto -- --batch /duong-dan/jobs.json --resume
-```
-
-## Quy tắc thời gian và giới hạn
-
-- Đánh số TXT liên tục từ 1. Ảnh/WAV lấy cụm số đầu tiên trong tên: `01.jpg`, `scene_01.jpg`, `voice_01.wav` cùng cảnh 1. Không có hai ảnh hoặc hai WAV cùng số.
-- WAV RIFF PCM 8/16/24/32-bit hoặc IEEE float 32/64-bit, mono/stereo, 8–192 kHz; 0,5–300 giây và tối đa 100 MB/file. Không nhận MP3 trong lần bổ sung này. Tối đa 300 cảnh, tổng video một giờ như editor hiện tại.
-- TXT UTF-8 tối đa 1 MB; mỗi mục tối đa 12.000 ký tự. Dấu câu/xuống dòng tách câu, câu quá dài chia cụm theo `narration.maxChars` (mặc định 100, từ 40–240). Tối đa 300 cue mỗi voice, vẫn chỉ dùng **một lớp phụ đề** cho mỗi cảnh.
-- Mỗi cảnh dài `ceil(thời lượng WAV × FPS) / FPS`. Hai WAV 4s và 6s, chuyển cảnh 0,5s vẫn ra video 10s. File có phần lẻ được đệm dưới một frame mỗi cảnh để giữ trọn audio.
-- Giữ nguyên khoảng lặng đầu/cuối WAV, không tăng/giảm tốc độ. Cue hiện từ lúc câu được đọc tới khi kết thúc, có thể ẩn giữa các khoảng nghỉ. Chuyển cảnh diễn ra ở đầu cảnh tiếp theo; hình trước kéo dài trong đoạn nối, voice trước đã kết thúc.
-- Dựng lại giữ kiểu ảnh/chữ của cảnh đang giữ nhưng vẫn cập nhật WAV, text và thời lượng theo bộ đầu vào. Cảnh thêm/chia thủ công ngoài bộ ghép không được giữ trong bản dựng voice mới; báo cáo ghi rõ. Editor không chia trực tiếp cảnh có WAV: hãy chia WAV/TXT ở đầu vào. Tăng thời lượng cảnh trong editor thêm khoảng nghỉ, không kéo giãn voice; không thể kéo ngắn hơn WAV.
-- `text.preset` và `text.style` vẫn điều khiển kiểu phụ đề. Nội dung và start/end lấy từ TXT/alignment; `text.source`, `overrides[].text`, timing và duration override thông thường không áp dụng cho chế độ voice. Các lớp chữ trang trí trong `look.scene.texts` vẫn dùng được.
-- Mô hình căn câu có thể sai khi lời trong TXT khác WAV, phát âm không rõ, nhạc nền lớn hoặc ngắt nghỉ bất thường. Nếu output thiếu cue/chồng mốc/không khớp text, tác vụ báo lỗi và không tự chia đều thời gian để lấp chỗ trống. Vẫn cần tự nghe kết quả thực tế.
-- Cache nằm trong `.cache/alignment/`. Nếu chủ động nâng thư viện/model engine, xoá cache alignment cũ rồi căn lại. Mô hình tại `.cache/whisper/` và venv tại `.venv-voice/` không đưa vào Git.
-
-## Tự kiểm tra sau khi cài
-
-Các bước dưới đây dành cho người dùng, **chưa được chạy trên bản code cuối** theo yêu cầu chỉ hoàn thiện code:
-
-```sh
-npm run lint
-npm run build
-# Tuỳ chọn: bộ kiểm tra logic hiện có
-npm test
-```
-
-Sau đó dùng hai ảnh, hai WAV và TXT tương ứng: dựng xem trước, nghe câu đầu/cuối mỗi WAV, kiểm tra phụ đề đổi đúng câu và không bị ảnh hưởng bởi fade 0,5s. Xuất một MP4, nghe cả âm thanh trong file xuất. Thử đảo thứ tự chọn file để thấy công cụ vẫn ghép theo số; đổi một mục TXT rồi dựng lại để kiểm tra căn mới. Nếu không muốn xuất video trong lần đầu, dùng `--plan` như trên.
-
-Chưa cài Python/model hoặc chưa render WAV thực tế trong lượt triển khai này. Kiểm tra lint/TypeScript trung gian đã chạy trước khi có yêu cầu dừng test; không được coi là xác nhận bản cuối hay độ chính xác alignment.
-
-Tham khảo engine: [Stable-ts alignment](https://github.com/jianfch/stable-ts#alignment). Engine dùng text đã cung cấp để căn vào âm thanh, sau đó xuất cue theo cấu trúc [Remotion Caption](https://www.remotion.dev/docs/captions/caption).
+Bộ `test/` đã kiểm tra format WAV và ghép đủ ba cặp; cần người dùng tự kiểm tra chất lượng mốc phụ đề với model thực tế. Không tự cài Python/model trong lượt chuẩn bị bộ mẫu.

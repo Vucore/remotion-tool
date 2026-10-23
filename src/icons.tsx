@@ -1,6 +1,18 @@
 import { CSSProperties } from "react";
 const paths: Record<string, React.ReactNode> = {
   plus: <path d="M12 5v14M5 12h14" />,
+  minus: <path d="M5 12h14" />,
+  down: <path d="m6 9 6 6 6-6" />,
+  volume: (
+    <>
+      <path d="m11 4-6 5H2v6h3l6 5Zm4 4a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" />
+    </>
+  ),
+  muted: (
+    <>
+      <path d="m11 4-6 5H2v6h3l6 5Zm5 5 5 6m0-6-5 6" />
+    </>
+  ),
   close: <path d="m6 6 12 12M18 6 6 18" />,
   lock: (
     <>
@@ -28,6 +40,12 @@ const paths: Record<string, React.ReactNode> = {
     </>
   ),
   text: <path d="M4 5h16M12 5v15m-4 0h8" />,
+  voice: (
+    <>
+      <rect x="9" y="2" width="6" height="13" rx="3" />
+      <path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8" />
+    </>
+  ),
   play: <path d="m8 4 12 8-12 8Z" />,
   pause: (
     <>

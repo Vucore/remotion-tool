@@ -1,74 +1,40 @@
-# Kết quả kiểm tra và giới hạn
+# Kiểm tra và giới hạn hiện tại
 
-## Trạng thái v0.5 — nhân vật, vật thể và xem thử động tác
+## Code và giao diện
 
-Đã viết luồng nhập ba loại asset, renderer/planner dùng chung, chỉnh vị trí/động tác từng cảnh, xem thử độc lập bằng Remotion Player và lưu/mở mẫu qua form. Theo yêu cầu chỉ code, chưa chạy lint/TypeScript/build/test, cài môi trường, server hoặc render cho v0.5. [Hướng dẫn cài và tự kiểm tra](NHAN-VAT-VA-VAT-THE.md). Các kết quả cũ bên dưới không chứng nhận luồng asset mới.
+- Build, TypeScript và ESLint phần code mới đã qua ở lượt triển khai giao diện tự động.
+- Chín kiểm tra tại `tests/story.test.mjs` và bảy kiểm tra `tests/advanced.test.mjs` đã qua: các luồng ghép/cue/voice cũ; toàn bộ 33 motion/38 transition/easing có kết quả hữu hạn; schema nâng cao, tất cả animation/loop chữ, lưu/mở và scoped override qua cả preview/bản dựng voice fixture. Danh mục lớp phủ vẫn 20 loại.
+- Mười hai kiểm tra `tests/auto.test.mjs` cũng qua sau khi mở rộng AutoConfig.overrides.textStyle; tổng 28 kiểm tra. Không cài dependency hoặc chạy model/render dài.
+- v0.8 đã xác nhận kéo/đổi kích thước bằng bàn phím, giữ kích thước qua reload, demo dùng hình A/B cố định, phạm vi cảnh không đổi cảnh khác và console không có lỗi. Desktop/mobile dùng cùng app.
+- Trình duyệt đã nhập bộ ba PNG/WAV/TXT trong `test/`, phát/dừng preview, click cue tua đúng câu, đổi kiểu chữ, bật đồng thời sao + tối góc và thấy waveform thật cùng ba hàng thời gian. Đã xem desktop và khung 390px chạy cùng app. Ảnh: `docs/images/workspace-desktop.png`, `docs/images/workspace-mobile.png`.
+- Ảnh giao diện hiện tại nằm trong `docs/images/`; các ảnh chụp editor cũ đã bỏ.
 
-## Trạng thái v0.4 — voice và phụ đề
+## Hỗ trợ WAV và MP3
 
-Code thêm WAV/TXT, forced alignment, timeline voice và luồng web/CLI. Lint/TypeScript đã qua ở một mốc trung gian; sau yêu cầu chỉ code của người dùng, không chạy thêm kiểm tra, cài Python/model hoặc render. Bản cuối cần người dùng tự kiểm tra theo [hướng dẫn uv và voice](VOICE-VA-PHU-DE.md). Các kết quả v0.1–v0.3 dưới đây là lịch sử, không chứng nhận luồng voice mới.
+Build, TypeScript, ESLint và toàn bộ 41 kiểm tra đã qua. Bốn kiểm tra mới ở `tests/voice-input.test.mjs` chạy FFmpeg thật với MP3 CBR/VBR, mono/stereo; xác nhận giữ nguyên byte nguồn, đúng số sample/sample rate/kênh, waveform, giới hạn và cleanup WAV tạm. Fixture căn voice trộn WAV/MP3 giữ nguyên đường dẫn nguồn qua compile và JSON round-trip.
 
-## Kiểm tra v0.1 trước lần mở rộng
+Đã kiểm tra API upload/tải lại cả MP3 và WAV: dữ liệu giống từng byte với nguồn, MIME đúng, HTTP Range 206 và waveform có tín hiệu; MP3 hỏng bị từ chối. Không chạy model căn phụ đề hoặc render MP4; không cài dependency mới. File thử đã dọn và server kiểm tra đã dừng. [Phạm vi và chất lượng](HO-TRO-MP3.md).
 
-- ESLint, TypeScript và build giao diện.
-- 9 bài kiểm tra model: thời lượng chồng lấn, giới hạn chuyển cảnh, đổi FPS, chia cảnh, đổi thứ tự, lưu/mở JSON và từ chối dữ liệu sai.
-- API cục bộ: nhận ảnh, từ chối file không phải ảnh, từ chối dự án rỗng, nguồn yêu cầu không hợp lệ, xuất MP4 và huỷ tác vụ.
-- Xuất thực tế H.264/yuv420p, 360×640, 30 fps, đúng 3,5 giây.
-- Xuất từ giao diện ở 1080×1920, 30 fps, đúng 11 giây. Kiểm tra metadata bằng Remotion Renderer.
-- Trên trình duyệt: nhập JPG từ máy, sửa chữ, nhân bản, hoàn tác, đổi sang video ngang, tải file JSON và xuất MP4.
-- Bố cục desktop và khung rộng 390 px. Ảnh chụp: [khung hẹp](images/editor-mobile.png).
+## Tạo voice từ TXT
 
-Ảnh chụp và kết quả render trên thuộc bản cơ bản v0.1, không phải bằng chứng render các shader mới.
+Build, TypeScript, ESLint và toàn bộ 47 kiểm tra đã qua sau tích hợp Chatterbox. Sáu nhóm mới tại `tests/tts.test.mjs` kiểm tra hai model/23 ngôn ngữ, payload clone, WAV/MP3 giữ byte nguồn, cache từng cảnh, tiếp tục sau lỗi, phản hồi sai, hủy/timeout và ghép vào bản dựng. Có kiểm tra giữ riêng ngôn ngữ voice tải lên khi bật/tắt TTS và khi mở lại dự án.
 
-## Kiểm tra v0.2
+Đã xem giao diện desktop/viewport 390px và thao tác đổi nguồn/model/ngôn ngữ/định dạng, thu gọn cấu hình, kiểm tra trạng thái thiếu mẫu. Review phần mở rộng đã sửa lỗi ghi đè ngôn ngữ upload; verdict xác nhận finding đó resolved, không mở rộng thành chứng nhận toàn ứng dụng. Không gọi Modal thật, không chạy Whisper thực tế, không render MP4 hoặc cài thêm môi trường. [Chi tiết triển khai](TICH-HOP-TTS.md).
 
-- ESLint, TypeScript và build giao diện.
-- 16 bài kiểm tra logic: model cũ, 81 bộ tham số mặc định của hiệu ứng chính thức, nâng cấp dự án cũ, lưu/mở kiểu chữ/font/keyframe, tự động hoá tham số, thời gian bật/tắt, chia cảnh giữ đồng hồ nguồn, mọi kiểu chuyển động/chuyển cảnh/easing trả kết quả hữu hạn và từ chối dữ liệu sai.
-- Kiểm tra effect factory chỉ tạo descriptor và xác thực tham số, không khởi tạo GPU.
-- Theo yêu cầu người dùng, không chạy server, không kiểm thử giao diện và không render video ở lần mở rộng này. Người dùng tự kiểm tra preview, font, hiệu ứng GPU và MP4 trên máy thực tế.
+## Bộ minh hoạ để người dùng thử
 
-## Kiểm tra v0.3
+`test/` có ba PNG 720×1280, ba WAV tiếng Việt PCM 16-bit/mono/24 kHz và một TXT. Đã kiểm tra header ảnh, WAV hợp lệ/có tín hiệu, ba cặp ảnh–voice–TXT ghép đúng theo số. Voice lần lượt dài khoảng 10,99 / 11,50 / 13,19 giây, tổng 35,68 giây.
 
-- ESLint, TypeScript, build production và 28 kiểm tra logic đã qua.
-- 12 kiểm tra mới bao phủ dựng theo config, thứ tự tự nhiên, ID/seed ổn định, tham số effect/lớp phủ mặc định, cả hai tỷ lệ và các FPS, phân bổ thời lượng tổng tới từng frame, cảnh giữ/ngoại lệ, captions theo tên ảnh, config lỗi, lưu mẫu từ cảnh và điểm lấy khung.
-- Kiểm tra đọc header PNG/JPG/WebP; từ chối header hỏng/ảnh quá lớn.
-- Kiểm tra tích hợp CLI bằng thư mục ảnh PNG và captions JSON trong thư mục tạm: sinh Project/báo cáo đúng, mở lại Project, từ chối ghi đè, kiểm tra nhánh resume và xác thực config trước khi bỏ qua. Chỉ lập bản dựng, không mở Chromium/server; fixture resume không phải video render thật.
-- Kiểm tra cú pháp các script Node và `git diff --check`.
-- Không chạy kiểm thử giao diện hoặc render MP4 trong lượt này theo yêu cầu người dùng tự test. Kết quả v0.1 ở trên không thay thế kiểm tra tích hợp phiên bản mới. Preview trực tiếp, kéo chuột, responsive, tên file tải xuống và vòng đời huỷ render cần được người dùng kiểm tra thực tế.
+WAV là lời đọc tổng hợp bằng giọng Linh trên macOS, cùng nội dung TXT. Không dùng tiếng bíp hoặc WAV im lặng. Bộ này chưa chạy qua model forced alignment trong lượt tạo dữ liệu; người dùng cần cài môi trường bằng uv và tự kiểm tra kết quả phụ đề khi dựng.
 
-## Giới hạn hiện tại
+## SRT và dialog tài nguyên
 
-- Ảnh JPG/PNG/WebP; v0.4 có WAV + TXT và căn phụ đề theo câu. Chưa có video nguồn hoặc GPT. Xem [cài môi trường và tự kiểm tra v0.4](VOICE-VA-PHU-DE.md).
-- Một dải cảnh nối tiếp; chữ thuộc từng cảnh. Có keyframe ảnh, chưa có timeline nhiều track hoặc keyframe tự do cho mọi thuộc tính chữ.
-- Có dựng tự động từ config trên web/CLI và hàng đợi CLI; chưa có màn hình quản lý hàng đợi nhiều bộ ảnh trên web. Chỉnh nhanh áp dụng cho một cảnh hoặc mọi cảnh, chưa có giao diện chọn nhiều cảnh riêng lẻ.
-- Có animation nhân vật/vật thể từ PNG, bộ phận và sprite đã chuẩn bị. Tối đa 20 bộ, 1.200 ảnh/frame, 4 lớp đối tượng/cảnh. Chưa có tự tách/xếp xương từ ảnh phẳng, IK/mesh, atlas không đều hoặc sinh animation bằng AI.
-- Thư viện tối đa 300 ảnh, 300 cảnh, 30 lớp chữ mỗi cảnh; ảnh tối đa 25 MB và 30.000 pixel mỗi chiều.
-- Tối đa 24 effect gốc, 8 lớp phủ và 100 keyframe ảnh mỗi cảnh; 30 font mỗi dự án. Font tối đa 5 MB, LUT inline tối đa 2 MB.
-- Thời lượng cảnh 0,5–300 giây, video tối đa một giờ; dự án JSON gửi lên server tối đa 16 MB. localStorage có giới hạn riêng của trình duyệt: dự án nhiều LUT có thể phải lưu JSON thay vì tự lưu.
-- Hoàn tác giữ tối đa khoảng 80 thay đổi. Kéo slider nhiều bước được ghi thành nhiều thay đổi.
-- JSON không chứa file ảnh/WAV/font. Cần giữ `data/uploads/` và `data/fonts/` để mở lại đầy đủ. LUT inline, TXT và cue phụ đề có trong JSON.
-- Mỗi lần chạy server chỉ xuất một video; sau khi huỷ có thể cần đợi vài giây để giải phóng tác vụ.
-- Tốc độ preview/render phụ thuộc kích thước ảnh, độ phân giải và máy. Chưa đánh giá tải dài hoặc triển khai công khai.
-- Chưa có đóng gói desktop, tài khoản người dùng hoặc cộng tác nhiều người. Server chỉ phục vụ cục bộ.
+Build, lint/TypeScript và 52 kiểm tra đã qua; sau sửa nhãn mốc ước tính đã chạy lại 5 nhóm SRT và lint. Các nhóm mới xác nhận xuất SRT theo timeline toàn cục, UTF-8/ngắt dòng/overlap, tên mã + tên ngôn ngữ, song ngữ, payload Google, cache không chứa key và lỗi/hủy qua API giả lập. Giao diện desktop và 390×844 đã mở dialog, đóng bằng Escape và tải SRT 12 cue/1.064 byte tại Downloads. Không gọi Google/Modal thật hoặc render MP4 kiểm chứng sidecar; chưa chạy model Whisper.
 
-## Tương thích hiệu ứng và chữ
+Ảnh mới: `docs/images/resources-desktop.png`, `subtitles-desktop.png`, `subtitles-mobile.png`. [Cách dùng và giới hạn](PHU-DE-SRT-VA-GIAO-DIEN.md); [dung lượng](DUNG-LUONG-SRT.md).
 
-- 81 factory chính thức gồm 11 Canvas 2D, 67 WebGL2 và 3 WebGPU (`cylinder`, `sphere`, `pageTurn`). WebGL2/WebGPU phụ thuộc trình duyệt, GPU và driver. Giao diện khoá nút thêm WebGPU nếu trình duyệt không công bố API; có API không có nghĩa driver chắc chắn hỗ trợ.
-- Renderer được cấu hình OpenGL `angle` cho WebGL2. Ba hiệu ứng WebGPU có thể báo không hỗ trợ trong môi trường render; không tự thay thế bằng hiệu ứng khác hoặc bỏ qua.
-- Hiệu ứng gốc áp dụng lên ảnh, không tự áp lên chữ. Chữ dùng CSS/SVG và bộ animation riêng, tránh phụ thuộc HTML-in-canvas. Lớp phủ nằm trên ảnh và dưới chữ; chuyển cảnh áp lên cả cảnh.
-- Các hiệu ứng gốc chạy theo thứ tự trong danh sách, sau đó bộ chỉnh màu cơ bản và biến đổi bố cục ảnh được áp dụng. Các mặt nạ cắt vùng khung ảnh.
-- Chữ cong là một dòng theo cung SVG; dùng animation cho cả đường chữ. Các animation từng ký tự/từ được dùng với chữ thẳng. Khối 3D chữ là các lớp bóng giả chiều sâu, không phải mô hình 3D.
-- Bộ mẫu chuyển cảnh của editor được dựng bằng CSS/SVG và công thức theo frame; không tuyên bố là toàn bộ presentation của gói `@remotion/transitions`.
-- Font hệ thống có thể khác giữa các máy. Dùng font nhập từ máy để giữ cùng tài nguyên font cho preview và render.
-- CLI config hiện dùng font hệ thống; chưa có manifest nhập font riêng tự động. Web dùng font đã nhập trong thư viện dự án. Focus khác giữa ảnh trong cover hỗ trợ ảnh thường/bộ lọc/lớp phủ; native effect đang bật yêu cầu focus giữa ảnh, lỗi được báo khi kiểm tra Project.
-- Remotion cho phép viết hiệu ứng tuỳ biến không giới hạn. Danh mục hiện tại bao phủ toàn bộ effect factory công khai của package đã ghim phiên bản; không bao gồm mọi shader/animation tưởng tượng được, JavaScript tuỳ ý, morph glyph, text theo đường SVG tự vẽ hoặc 3D scene tuỳ biến.
+## Giới hạn
 
-## Các lệnh người dùng có thể tự chạy
+Chỉ ảnh → video, không video nguồn hoặc GPT. Voice tải WAV/MP3 + TXT theo số hoặc tạo bằng Chatterbox từ TXT. Bộ căn local mặc định small, CPU; upload mặc định tiếng Việt, TTS theo ngôn ngữ model. TTS chưa có tiếng Việt, không tự dịch/phát hiện ngôn ngữ, chưa gọi cloud để đo chất lượng thực tế. Không có voice thì cue phụ đề là ước lượng. Animation PNG biến đổi nguyên khối; bộ phận/sprite chỉ dùng động tác mà asset hỗ trợ, không tự tạo diễn xuất mới.
 
-```sh
-npm run dev
-npm run lint
-npm test
-```
-
-Khi server đang chạy, có thể dùng `node scripts/smoke.mjs` để chạy kiểm tra tích hợp có xuất video thật. Script tạo file trong `data/` và `test-results/`, đều đã được bỏ qua trong Git.
+Runtime effect cũ còn để đọc/xuất dự án tương thích; một số effect phụ thuộc GPU. Có timeline ba hàng để xem/tua và thiết lập toàn video, không cắt/trim/mix nhiều track hoặc chỉnh mốc voice/cue bằng tay. Chưa chạy model alignment thực tế hoặc render lại MP4 ở lượt thay workspace này; không cài thêm thư viện.

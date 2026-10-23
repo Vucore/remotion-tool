@@ -1,22 +1,16 @@
-# Dựng video tự động từ bộ ảnh + config — v0.3
+# CLI dựng tự động từ bộ ảnh + AutoConfig
 
 **v0.4 có thêm WAV + TXT và tự căn phụ đề từng câu.** Xem [cài bằng uv và luồng dựng theo voice](VOICE-VA-PHU-DE.md). Tài liệu bên dưới mô tả chế độ ảnh không có voice; quy tắc trừ thời gian chồng lấn không áp dụng cho chế độ voice.
+
+Bản hiện tại nhận cả WAV/MP3, có thể trộn trong thư mục voice CLI hoặc ô Voice trên web. Nguồn lưu/preview/xuất giữ nguyên định dạng; WAV tạm chỉ dành cho phân tích/căn phụ đề. [Chi tiết](HO-TRO-MP3.md).
 
 Luồng chính: **bộ ảnh + config → tạo toàn bộ cảnh → áp quy tắc → Remotion xuất MP4**. Không phải ngồi chỉnh từng ảnh và không phải viết mã React cho mỗi video.
 
 ## Trên web
 
-1. Chạy `npm run dev`, mở địa chỉ công cụ in ra.
-2. Chọn **Dựng tự động**. Chọn cả bộ ảnh, hoặc **Chọn thư mục**. Có thể thả ảnh và config JSON cùng lúc. Nhập bộ ảnh mới sẽ thay toàn bộ bộ ảnh cũ; hoàn tác được. Không trộn âm thầm hai bộ ảnh.
-3. Nhấn **Nạp config** hoặc dùng một mẫu có sẵn. Chỉ tỷ lệ và số giây xuất hiện ở thiết lập nhanh; các mục còn lại nằm trong **Cấu hình nâng cao**.
-4. Nhấn **Tạo và xuất MP4**. Công cụ tự tạo scene và bắt đầu xuất ngay, không bắt mở từng cảnh hoặc duyệt preview trước.
-5. Khi xong, tải MP4. Có thể lưu dự án, báo cáo và config dùng lại. **Chỉ dựng để xem trước** là lựa chọn phụ, không xuất file.
+Giao diện hiện tại có ba ô riêng cho ảnh, WAV và TXT, mẫu dựng đơn giản, dải ảnh trực quan và nút Tạo video. Lưu/mở mẫu bằng nút, không yêu cầu viết JSON. Xem [hướng dẫn web](HUONG-DAN.md) và [bộ minh hoạ](../test/README.md).
 
-Nếu config dùng `text.source: "file"`, thả thêm file chữ có tên trùng `text.file`, hoặc dùng **Nạp nội dung chữ**. Config đã lưu từ web có thể chứa sẵn ánh xạ `text.captions` nên lần sau không cần file chữ rời.
-
-Web dùng các ảnh đã chọn trong thư viện; `input.directory` chỉ là đường dẫn logic để dùng config với CLI. Trình duyệt không tự đọc một thư mục bất kỳ trên máy. Tên ảnh cần duy nhất trong một bộ ảnh.
-
-Trên web, `output.file` lấy phần tên file cuối để tải xuống; đường dẫn thư mục của đầu ra chỉ áp dụng cho CLI. MP4 từ web vẫn được lưu trong `data/exports/` theo ID tác vụ.
+Phần dưới mô tả định dạng AutoConfig nâng cao của CLI. Đây là định dạng riêng với mẫu `.khung-preset.json` của web. Đường dẫn thư mục trong AutoConfig chỉ áp dụng cho CLI; video xuất từ web được lưu trong `data/exports/` theo ID tác vụ.
 
 ## Chạy không cần mở editor
 

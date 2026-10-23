@@ -1,37 +1,37 @@
-# Khung — Ghép ảnh thành video
+# Khung — Dựng video kể chuyện bằng Remotion
 
-Web editor tiếng Việt chạy cục bộ, dùng React và Remotion. Thư viện ảnh, dải cảnh kéo thả, thêm chữ, chỉnh bố cục/màu, chuyển động nhẹ, chuyển cảnh và xuất MP4.
+**v0.8**: không gian editor với preview ở giữa và timeline **Ảnh · Voice · Phụ đề** phía dưới. Có mốc thời gian, waveform thật, playhead, chạy thử và zoom timeline. Ba ô nhập riêng cho ảnh, WAV và một TXT đánh số.
 
-v0.5: **nhân vật/vật thể PNG, bộ phận và sprite; xem thử từng động tác trước khi dùng**. Đặt vị trí, đổi kích thước và chọn chuyển động riêng cho từng ảnh ở bảng dưới timeline; sao chép để dùng lại cho nhiều cảnh. Tự thêm theo mẫu là tuỳ chọn. Mẫu dựng có form và nút lưu/mở, JSON thu gọn. [Cách chuẩn bị asset, xem thử và sử dụng](docs/NHAN-VAT-VA-VAT-THE.md).
+Chọn đầu vào là có thể chạy thử ngay. Bốn tab thiết lập nhanh cập nhật preview trực tiếp: **Chuyển động · Chuyển cảnh · Lớp phủ · Phụ đề**. Đủ danh mục hiện có trong engine: 20 loại lớp phủ (tối đa 8 lớp), 38 chuyển cảnh, 33 lựa chọn chuyển động ảnh; kiểu/cỡ/màu/font/vị trí/animation phụ đề. Chỉ **9:16 và 16:9**.
 
-v0.4: **ảnh + nhiều WAV + một TXT đánh số → tự ghép cảnh, căn phụ đề từng câu và xuất video có voice**. [Cài bằng uv và hướng dẫn sử dụng](docs/VOICE-VA-PHU-DE.md), [config voice mẫu](docs/examples/voice-edit.config.json), [TXT mẫu](docs/examples/script.txt).
+**v0.8** thêm 14 kiểu chữ, 29 lựa chọn animation vào/ra, 12 lựa chọn lặp; tâm zoom, đường đi/keyframe, tốc độ/easing và kiểu chữ nâng cao. Chọn phạm vi toàn video hoặc từng cảnh. Ô tính năng có demo minh họa A/B khi rê chuột/focus, không lấy ảnh dự án. Kéo thanh phân cách để đổi kích thước các vùng; bố cục được lưu tự động. [Hướng dẫn](docs/HUONG-DAN.md), [phạm vi triển khai](docs/MO-RONG-THIET-LAP-VA-LAYOUT.md).
 
-v0.3: **bộ ảnh + config → tự dựng và xuất MP4** trên web hoặc CLI/hàng đợi. Editor có chỉnh nhanh ngay trên dải cảnh; bảng nâng cao chỉ mở khi cần. [Hướng dẫn tự động hoá](docs/TU-DONG-HOA.md), [config mẫu](docs/examples/auto-edit.example.json).
+Voice hỗ trợ **WAV và MP3**, có thể nhập chung; giữ nguyên nguồn cho preview/xuất, chỉ giải mã MP3 tạm khi phân tích/căn phụ đề. Ghép ảnh–voice–TXT theo số như trước. [Định dạng và chất lượng âm thanh](docs/HO-TRO-MP3.md).
 
-v0.2 bổ sung đủ 81 factory trong `@remotion/effects` 4.0.537, stack và automation, chữ nâng cao/font riêng, lớp phủ, mặt nạ và keyframe ảnh. Xem [danh mục đã tích hợp](docs/DANH-MUC-CHU-HIEU-UNG.md) và [giới hạn GPU](docs/KIEM-TRA.md).
+**Tạo voice từ TXT**: ngoài tải voice sẵn, có thể chọn Chatterbox TTS (Modal), Turbo/Multilingual, giọng preset/giọng mẫu và WAV/MP3. Xuất video tự gọi TTS từng cảnh, dùng lại audio đã tạo rồi căn phụ đề và render. Cấu hình nâng cao thu gọn; API hiện không hỗ trợ tiếng Việt. [Cách thiết lập và sử dụng](docs/TICH-HOP-TTS.md).
 
-Chỉ hai tỷ lệ: **9:16 dọc** và **16:9 ngang**.
+**Xuất video** tự ghép số, căn voice/phụ đề và xuất MP4. Khi chưa căn, preview ghi rõ **Phụ đề ước tính**; có thể bấm Căn phụ đề trước khi xuất. Mẫu dùng lại lưu/mở bằng nút, không cần viết JSON.
+
+**SRT**: xuất kèm MP4 hoặc tải riêng; nhập SRT có sẵn, dịch qua Google Translate miễn phí qua deep-translator và xuất bản dịch/song ngữ giữ thời gian. Tên file có mã + tên ngôn ngữ (`en_tienganh.srt`). Sidebar thu gọn, cấu hình giọng/lời đọc/nhân vật/SRT mở dialog. Không tải thêm model dịch local. [Hướng dẫn](docs/PHU-DE-SRT-VA-GIAO-DIEN.md), [dung lượng thực tế](docs/DUNG-LUONG-SRT.md).
 
 ```sh
 npm install
-# Cài môi trường căn voice một lần bằng uv và tải model small:
-npm run setup:voice
 npm run dev
+# Cài một lần nếu cần căn phụ đề thật theo WAV, dùng uv:
+npm run setup:voice
 ```
 
-Mở **http://127.0.0.1:3210**. Dừng bằng `Ctrl+C`.
+Mở `http://127.0.0.1:3210`. Dừng bằng Ctrl+C. Không cần Python cho preview tạm hoặc chỉ dựng ảnh/chữ; căn voice thực tế cần môi trường/model.
 
-Xem [hướng dẫn sử dụng](docs/HUONG-DAN.md), [kế hoạch thực hiện](docs/KE-HOACH.md) và [toàn bộ tài liệu](docs/README.md).
+Bộ minh hoạ sẵn tại [`test/`](test/README.md): ba PNG, ba WAV tiếng Việt và một TXT, khoảng 36 giây. Ảnh 01 ghép WAV 01 và mục TXT 1. Không upload cả thư mục; chọn từng loại qua ba ô tương ứng.
 
 ```sh
-npm run lint   # ESLint và TypeScript
-npm test       # Kiểm tra model, thời gian và dữ liệu
-npm run build  # Build giao diện
-npm start      # Chạy bản build
-npm run auto -- --config /duong-dan/auto-edit.config.json # Tự dựng và xuất
-npm run auto -- --batch /duong-dan/jobs.json --resume   # Chạy hàng loạt
+npm run build
+npm start
+npm run auto -- --config /duong-dan/auto-edit.config.json
+npm run auto -- --batch /duong-dan/jobs.json --resume
 ```
 
-Khi server đang chạy, `node scripts/smoke.mjs` kiểm tra API, nhập ảnh, xuất video thực tế và huỷ tác vụ. Script này tạo file kiểm tra trong `data/` và `test-results/` (không đưa vào Git).
+Tài nguyên/video xuất nằm trong `data/`; giữ thư mục này để mở lại dự án. Runtime/CLI vẫn đọc dự án cũ. Các bộ demo cũ đã dọn; `tests/` là kiểm tra mã nguồn, khác với dữ liệu `test/`.
 
-Ảnh/WAV/asset nhập và video xuất lưu trong `data/`. Công cụ dành cho **ảnh tĩnh thành video**, có nhân vật/vật thể, voice WAV và phụ đề theo TXT; chưa có video nguồn hay GPT. Chỉ dựng ảnh và asset không có voice thì không cần cài Python/model. Phần asset không thêm thư viện mới. v0.5 chỉ cập nhật code và tài liệu theo yêu cầu; chưa chạy kiểm tra, cài môi trường, server hoặc render.
+[Hướng dẫn](docs/HUONG-DAN.md) · [Thiết kế workspace](docs/THIET-KE.md) · [Kế hoạch triển khai](docs/KHONG-GIAN-DUNG-VIDEO.md) · [Cài voice bằng uv](docs/VOICE-VA-PHU-DE.md) · [Tài liệu](docs/README.md)

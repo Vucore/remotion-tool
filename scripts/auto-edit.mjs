@@ -18,7 +18,7 @@ import { compileAuto, hash } from "../dist/auto.mjs";
 import { parseAutoConfig } from "../dist/auto-config.mjs";
 import { imageInfo } from "./image-info.mjs";
 import { renderProject } from "./render-project.mjs";
-import { wavInfo } from "./wav-info.mjs";
+import { inspectVoice } from "./voice-input.mjs";
 import { prepareNarration } from "./narration.mjs";
 import { parseScript } from "../dist/narration.mjs";
 import { loadActorPacks } from "./actor-packs.mjs";
@@ -66,6 +66,7 @@ async function localResources(files) {
         ".otf": "font/otf",
         ".ttf": "font/ttf",
         ".wav": "audio/wav",
+        ".mp3": "audio/mpeg",
       }[extname(file)] || "application/octet-stream",
     );
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -195,22 +196,26 @@ export async function runAuto({
     const content = await readFile(scriptPath, "utf8");
     parseScript(content);
     const voiceDirectory = resolve(base, voices ?? config.narration.directory);
-    const wavs = (
+    const voiceFiles = (
       await readdir(voiceDirectory, { withFileTypes: true })
-    ).filter((e) => e.isFile() && /\.wav$/i.test(e.name));
-    if (!wavs.length || wavs.length > 300)
-      throw Error("Thư mục voice cần 1–300 WAV, không đọc thư mục con.");
+    ).filter((e) => e.isFile() && /\.(wav|mp3)$/i.test(e.name));
+    if (!voiceFiles.length || voiceFiles.length > 300)
+      throw Error("Thư mục voice cần 1–300 WAV/MP3, không đọc thư mục con.");
     const voiceAssets = [];
-    for (const entry of wavs) {
+    for (const entry of voiceFiles) {
       if (signal?.aborted) throw Error("Đã huỷ.");
       const path = join(voiceDirectory, entry.name);
       if ((await stat(path)).size > 100 * 1024 * 1024)
-        throw Error(`${entry.name}: WAV tối đa 100 MB.`);
-      const bytes = await readFile(path),
-        metadata = wavInfo(bytes),
+        throw Error(`${entry.name}: voice tối đa 100 MB.`);
+      onProgress(0, `Đang nhập voice · ${entry.name}`);
+      const inspected = await inspectVoice(await readFile(path), {
+        name: entry.name,
+        signal,
+      });
+      const { bytes, info: metadata, extension } = inspected,
         digest = createHash("sha256").update(bytes).digest("hex");
-      const src = `/media/${digest}.wav`,
-        stored = join(assetDirectory, `${digest}.wav`);
+      const src = `/media/${digest}.${extension}`,
+        stored = join(assetDirectory, `${digest}.${extension}`);
       await writeFile(stored, bytes);
       files.set(src, stored);
       voiceAssets.push({

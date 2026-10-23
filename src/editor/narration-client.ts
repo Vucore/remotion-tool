@@ -19,7 +19,7 @@ export async function buildWithNarration(
   };
   try {
     if (signal.aborted) throw Error("Đã huỷ căn phụ đề.");
-    onProgress("Đang kiểm tra ảnh, WAV và TXT…");
+    onProgress("Đang kiểm tra ảnh, voice và TXT…");
     const response = await fetch("/api/narration", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

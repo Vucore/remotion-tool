@@ -1,0 +1,30 @@
+export const TTS_LANGUAGES = {
+  ar: "العربية · Ả Rập",
+  da: "Dansk · Đan Mạch",
+  de: "Deutsch · Đức",
+  el: "Ελληνικά · Hy Lạp",
+  en: "English · Anh",
+  es: "Español · Tây Ban Nha",
+  fi: "Suomi · Phần Lan",
+  fr: "Français · Pháp",
+  he: "עברית · Hebrew",
+  hi: "हिन्दी · Hindi",
+  it: "Italiano · Ý",
+  ja: "日本語 · Nhật",
+  ko: "한국어 · Hàn",
+  ms: "Bahasa Melayu · Mã Lai",
+  nl: "Nederlands · Hà Lan",
+  no: "Norsk · Na Uy",
+  pl: "Polski · Ba Lan",
+  pt: "Português · Bồ Đào Nha",
+  ru: "Русский · Nga",
+  sv: "Svenska · Thụy Điển",
+  sw: "Kiswahili · Swahili",
+  tr: "Türkçe · Thổ Nhĩ Kỳ",
+  zh: "中文 · Trung",
+} as const;
+export const NARRATION_LANGUAGES = {
+  vi: "Tiếng Việt",
+  ...TTS_LANGUAGES,
+} as const;
+export type NarrationLanguage = keyof typeof NARRATION_LANGUAGES;
