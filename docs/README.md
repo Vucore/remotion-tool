@@ -9,6 +9,7 @@
 - [Kiến trúc](KIEN-TRUC.md)
 - [Cài voice bằng uv](VOICE-VA-PHU-DE.md)
 - [Hỗ trợ WAV/MP3 và giữ chất lượng nguồn](HO-TRO-MP3.md)
+- [Xử lý ảnh hàng loạt: xóa logo và upscale](XU-LY-ANH-HANG-LOAT.md)
 - [Lời đọc và phân vai nhiều giọng](LOI-DOC-NHIEU-GIONG.md)
 - [Tạo voice từ TXT bằng Chatterbox TTS](TICH-HOP-TTS.md)
 - [Xuất/dịch SRT và sidebar với dialog](PHU-DE-SRT-VA-GIAO-DIEN.md)

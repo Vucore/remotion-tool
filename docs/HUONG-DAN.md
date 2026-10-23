@@ -85,3 +85,7 @@ Mở địa chỉ công cụ in ra, mặc định `http://127.0.0.1:3210`. Dừn
 ### Lời đọc và nhiều giọng
 
 Mở **Lời đọc & giọng** để chỉnh lời theo cảnh, thêm người nói preset/clone, tách lượt và gán giọng cho từng lượt hoặc chọn tất cả để áp dụng. Model và thông số chung nằm trong mục thu gọn. [Hướng dẫn chi tiết](LOI-DOC-NHIEU-GIONG.md).
+
+### Xử lý ảnh trước khi dựng
+
+Mở **Xử lý ảnh**: chọn vùng xóa logo trực tiếp, xem thử, upscale 2×/4× và chạy toàn bộ ảnh. Có tự xử lý khi nhập mới, cache và khôi phục nguồn. Cài thư viện bằng `uv sync`; tải model upscale riêng khi cần. [Hướng dẫn và thông số](XU-LY-ANH-HANG-LOAT.md).

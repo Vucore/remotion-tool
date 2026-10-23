@@ -35,3 +35,5 @@ npm run auto -- --batch /duong-dan/jobs.json --resume
 Tài nguyên/video xuất nằm trong `data/`; giữ thư mục này để mở lại dự án. Runtime/CLI vẫn đọc dự án cũ. Các bộ demo cũ đã dọn; `tests/` là kiểm tra mã nguồn, khác với dữ liệu `test/`.
 
 [Hướng dẫn](docs/HUONG-DAN.md) · [Thiết kế workspace](docs/THIET-KE.md) · [Kế hoạch triển khai](docs/KHONG-GIAN-DUNG-VIDEO.md) · [Cài voice bằng uv](docs/VOICE-VA-PHU-DE.md) · [Tài liệu](docs/README.md)
+
+**Xử lý ảnh hàng loạt**: LaMa xóa vùng logo chọn bằng chuột + Real-ESRGAN upscale 2×/4×, xem trước/sau, cấu hình tự chạy ảnh mới và khôi phục nguồn. Dùng chung `.venv`; cần `uv sync` và tải trọng số upscale nếu dùng. [Hướng dẫn](docs/XU-LY-ANH-HANG-LOAT.md).

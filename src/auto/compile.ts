@@ -292,6 +292,9 @@ export function compileAuto(
     fps,
     background: config.output.background,
     assets: ordered,
+    ...(previous?.imageProcessing
+      ? { imageProcessing: structuredClone(previous.imageProcessing) }
+      : {}),
     scenes,
     fonts: previous?.fonts ?? [],
     actors: parseActorLibrary(actorLibrary),

@@ -14,6 +14,8 @@ import { wavEnvelope } from "./wav-info.mjs";
 import { inspectVoice, MAX_VOICE_BYTES } from "./voice-input.mjs";
 import { actorImages } from "../dist/actor-types.mjs";
 import { parseTtsSettings, ttsPlan, speechPlan } from "../dist/tts.mjs";
+import { processImages, imageRuntimeStatus } from "./image-processing.mjs";
+import { parseImageProcessing } from "../dist/image-processing.mjs";
 import { generateTts } from "./tts.mjs";
 import {
   projectSubtitles,
@@ -43,6 +45,7 @@ const jobs = new Map();
 const narrationJobs = new Map();
 const ttsJobs = new Map();
 const translationJobs = new Map();
+const imageJobs = new Map();
 async function buildTranslation(job, input) {
   try {
     job.result = await translateSubtitles(input, {
@@ -295,6 +298,76 @@ const server = createServer(async (req, res) => {
       !rendererAssetRequest
     ) {
       json(res, 403, { error: "Nguồn yêu cầu không hợp lệ." });
+      return;
+    }
+    if (url.pathname === "/api/images/status" && req.method === "GET") {
+      json(res, 200, await imageRuntimeStatus());
+      return;
+    }
+    if (url.pathname === "/api/images/process" && req.method === "POST") {
+      if ([...imageJobs.values()].some((job) => job.running)) {
+        json(res, 409, { error: "Một tác vụ ảnh đang chạy hoặc đang dừng." });
+        return;
+      }
+      const payload = JSON.parse((await body(req)).toString());
+      const project = parseProject(payload.project),
+        settings = parseImageProcessing(payload.settings);
+      if (!project.assets.length) throw Error("Thêm ảnh trước khi xử lý.");
+      if (!settings.removeLogo && !settings.upscale)
+        throw Error("Bật xóa logo hoặc upscale trước khi chạy.");
+      for (const [id, old] of imageJobs) if (!old.running) imageJobs.delete(id);
+      const job = {
+        id: randomUUID(),
+        status: "processing",
+        progress: 0,
+        message: "Đang chuẩn bị xử lý ảnh…",
+        running: true,
+        controller: new AbortController(),
+      };
+      imageJobs.set(job.id, job);
+      json(res, 202, publicNarration(job));
+      void (async () => {
+        try {
+          job.result = await processImages(project.assets, settings, {
+            signal: job.controller.signal,
+            onProgress: (progress, message) => {
+              job.progress = progress;
+              job.message = message;
+            },
+          });
+          if (!job.controller.signal.aborted) {
+            job.status = "done";
+            job.progress = 1;
+          }
+        } catch (error) {
+          if (job.status !== "cancelled") {
+            job.status = "error";
+            job.error = error.message;
+          }
+        } finally {
+          job.running = false;
+        }
+      })();
+      return;
+    }
+    const imageJobId = url.pathname.match(
+      /^\/api\/images\/process\/([a-f0-9-]{36})$/,
+    )?.[1];
+    if (imageJobId) {
+      const job = imageJobs.get(imageJobId);
+      if (!job) {
+        json(res, 404, { error: "Không tìm thấy tác vụ ảnh." });
+        return;
+      }
+      if (!["GET", "DELETE"].includes(req.method)) {
+        json(res, 405, { error: "Thao tác không hỗ trợ." });
+        return;
+      }
+      if (req.method === "DELETE" && job.running) {
+        job.status = "cancelled";
+        job.controller.abort();
+      }
+      json(res, 200, publicNarration(job));
       return;
     }
     if (url.pathname === "/api/health") {
@@ -728,6 +801,8 @@ server.on("error", (error) => {
 });
 for (const signal of ["SIGINT", "SIGTERM"])
   process.on(signal, () => {
+    for (const job of imageJobs.values())
+      if (job.running) job.controller.abort();
     for (const job of translationJobs.values())
       if (job.running) job.controller.abort();
     for (const job of ttsJobs.values()) if (job.running) job.controller.abort();

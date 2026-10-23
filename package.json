@@ -38,6 +38,7 @@
     "sync:effects": "node scripts/sync-effects.mjs",
     "auto": "node scripts/auto-edit.mjs",
     "preauto": "node scripts/build.mjs",
+    "setup:images": "node scripts/setup-images.mjs",
     "setup:python": "uv sync",
     "setup:voice": "node scripts/setup-voice.mjs"
   },

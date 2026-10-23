@@ -7,12 +7,14 @@ export function EditorDialog({
   onClose,
   children,
   wide = false,
+  className = "",
 }: {
   open: boolean;
   title: string;
   onClose: () => void;
   children: ReactNode;
   wide?: boolean;
+  className?: string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -23,7 +25,7 @@ export function EditorDialog({
   return (
     <dialog
       ref={dialog}
-      className={"editor-dialog" + (wide ? " is-wide" : "")}
+      className={"editor-dialog" + (wide ? " is-wide" : "") + " " + className}
       aria-label={title}
       onCancel={(e) => {
         e.preventDefault();

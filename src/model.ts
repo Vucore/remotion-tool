@@ -24,10 +24,15 @@ import { parseTtsSettings, type TtsSettings } from "./auto/tts";
 import { NARRATION_LANGUAGES, type NarrationLanguage } from "./auto/languages";
 import type { ActorDefinition, ActorInstance } from "./actors/types";
 import { parseActorLibrary, parseActorInstances } from "./actors/schema";
+import {
+  parseImageProcessing,
+  type ImageProcessingSettings,
+} from "./auto/image-processing";
 export type Motion = keyof typeof MOTIONS;
 export type Transition = keyof typeof TRANSITIONS;
 export type Filter = "none" | "warm" | "cool" | "mono" | "vintage";
 export type Asset = {
+  original?: { src: string; width: number; height: number };
   id: string;
   name: string;
   src: string;
@@ -169,6 +174,7 @@ export type Scene = {
   motionDuration: number | null;
 };
 export type Project = {
+  imageProcessing?: ImageProcessingSettings;
   actors?: ActorDefinition[];
   voiceover?: Voiceover;
   version: 1;
@@ -491,6 +497,20 @@ export function parseProject(value: unknown): Project {
       id: str(a.id),
       name: str(a.name),
       src,
+      ...(a.original
+        ? {
+            original: {
+              src: (() => {
+                const value = str(a.original.src, 200);
+                if (!/^\/media\/[a-zA-Z0-9_-]+\.(png|jpg|webp)$/.test(value))
+                  throw Error("Đường dẫn ảnh gốc không hợp lệ.");
+                return value;
+              })(),
+              width: number(a.original.width, 1, 30000),
+              height: number(a.original.height, 1, 30000),
+            },
+          }
+        : {}),
       width: number(a.width, 1, 30000),
       height: number(a.height, 1, 30000),
     };
@@ -784,6 +804,9 @@ export function parseProject(value: unknown): Project {
     scenes,
     fonts,
     ...(p.actors !== undefined ? { actors: actorLibrary } : {}),
+    ...(p.imageProcessing
+      ? { imageProcessing: parseImageProcessing(p.imageProcessing) }
+      : {}),
     ...(voiceover ? { voiceover } : {}),
   };
   if (p.automation !== undefined) {

@@ -6,6 +6,7 @@ import {
   timeline,
   totalFrames,
   type Project,
+  type Asset,
 } from "./model";
 import { Video } from "./Video";
 import { Icon } from "./icons";
@@ -41,6 +42,13 @@ import {
 } from "./auto/tts";
 import { NARRATION_LANGUAGES } from "./auto/languages";
 import { EditorDialog } from "./editor/EditorDialog";
+import { ImageProcessingPanel } from "./editor/ImageProcessingPanel";
+import { processProjectImages } from "./editor/image-processing-client";
+import {
+  defaultImageProcessing,
+  parseImageProcessing,
+  type ImageProcessingSettings,
+} from "./auto/image-processing";
 import { SubtitlePanel } from "./editor/SubtitlePanel";
 import { estimatedSubtitles } from "./auto/subtitles";
 
@@ -123,7 +131,7 @@ export function App() {
   const [workspace, setWorkspace] = useState<Workspace>(initial);
   const { project, options, dirty, job } = workspace;
   const [phase, setPhase] = useState<
-    "idle" | "importing" | "generating" | "building" | "starting"
+    "idle" | "importing" | "generating" | "building" | "starting" | "processing"
   >("idle");
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
@@ -141,8 +149,14 @@ export function App() {
   const [saved, setSaved] = useState(true);
   const [resetOpen, setResetOpen] = useState(false);
   const [resourceDialog, setResourceDialog] = useState<
-    "tts" | "actors" | "subtitles" | "help" | null
+    "tts" | "actors" | "subtitles" | "help" | "images" | null
   >(null);
+  const [imagePreview, setImagePreview] = useState<{
+    id: string;
+    src: string;
+    key: string;
+  } | null>(null);
+  const imageSettings = project.imageProcessing ?? defaultImageProcessing();
   const player = useRef<PlayerRef>(null);
   const imagesInput = useRef<HTMLInputElement>(null);
   const addImagesInput = useRef<HTMLInputElement>(null);
@@ -432,6 +446,92 @@ export function App() {
     setError("");
     setNotice("");
   }
+  function changeImageSettings(settings: ImageProcessingSettings) {
+    setWorkspace((w) => ({
+      ...w,
+      project: { ...w.project, imageProcessing: settings },
+      dirty: true,
+      job: null,
+    }));
+  }
+  async function processImages(assetId?: string) {
+    if (busy || operation.current || !project.assets.length) return;
+    operation.current = true;
+    setPhase("processing");
+    setError("");
+    setNotice("");
+    player.current?.pause();
+    const abort = new AbortController();
+    controller.current = abort;
+    try {
+      const settings = parseImageProcessing(imageSettings);
+      const assets = assetId
+        ? project.assets.filter((asset) => asset.id === assetId)
+        : project.assets;
+      const result = await processProjectImages(
+        { ...project, assets, scenes: [], automation: undefined },
+        settings,
+        abort.signal,
+        setProgress,
+      );
+      if (abort.signal.aborted) throw Error("Đã dừng xử lý ảnh.");
+      if (assetId) {
+        const asset = result.assets[0];
+        if (asset)
+          setImagePreview({
+            id: assetId,
+            src: asset.src,
+            key: JSON.stringify(imageSettings),
+          });
+      } else {
+        setWorkspace((w) => ({
+          ...w,
+          project: {
+            ...w.project,
+            assets: w.project.assets.map(
+              (asset) =>
+                result.assets.find((item) => item.id === asset.id) ?? asset,
+            ),
+          },
+          dirty: true,
+          job: null,
+        }));
+        setImagePreview(null);
+        setNotice(
+          `Đã cập nhật ${result.assets.length}/${assets.length} ảnh. Có thể khôi phục ảnh gốc trong Xử lý ảnh.`,
+        );
+      }
+      if (result.errors.length)
+        setError(
+          result.errors
+            .map((item) => `${item.name}: ${item.error}`)
+            .join(" · "),
+        );
+    } catch (error) {
+      setError(errorMessage(error));
+    } finally {
+      operation.current = false;
+      controller.current = null;
+      setPhase("idle");
+      setProgress("");
+    }
+  }
+  function restoreOriginalImages() {
+    setWorkspace((w) => ({
+      ...w,
+      project: {
+        ...w.project,
+        assets: w.project.assets.map((asset): Asset => {
+          const { original, ...rest } = asset;
+          return original ? { ...rest, ...original } : asset;
+        }),
+      },
+      dirty: true,
+      job: null,
+    }));
+    setImagePreview(null);
+    setNotice("Đã khôi phục ảnh gốc. Cấu hình vẫn giữ để dùng lần sau.");
+  }
   async function importFiles(
     files: File[],
     kind: ImportKind,
@@ -463,6 +563,55 @@ export function App() {
         dirty: true,
         job: null,
       }));
+      const processing = result.project.imageProcessing;
+      if (
+        kind === "images" &&
+        processing?.autoOnImport &&
+        (processing.removeLogo || processing.upscale)
+      ) {
+        const incoming = result.project.assets.filter(
+          (asset) =>
+            !appendImages || !project.assets.some((old) => old.id === asset.id),
+        );
+        const abort = new AbortController();
+        controller.current = abort;
+        setPhase("processing");
+        try {
+          const processed = await processProjectImages(
+            {
+              ...result.project,
+              assets: incoming,
+              scenes: [],
+              automation: undefined,
+            },
+            processing,
+            abort.signal,
+            setProgress,
+          );
+          if (abort.signal.aborted)
+            throw Error("Đã dừng xử lý; ảnh vừa nhập vẫn được giữ.");
+          result.project = {
+            ...result.project,
+            assets: result.project.assets.map(
+              (asset) =>
+                processed.assets.find((item) => item.id === asset.id) ?? asset,
+            ),
+          };
+          result.warnings.push(
+            ...processed.errors.map((item) => `${item.name}: ${item.error}`),
+          );
+          setWorkspace((w) => ({
+            ...w,
+            project: result.project,
+            dirty: true,
+            job: null,
+          }));
+        } catch (error) {
+          setError(`Đã nhập ảnh gốc. ${errorMessage(error)}`);
+        } finally {
+          controller.current = null;
+        }
+      }
       setWarnings(result.warnings);
       setFrame(0);
 
@@ -511,7 +660,18 @@ export function App() {
         if (data.storyPresetVersion !== 1)
           throw Error("Chọn tệp .khung-preset.json đã lưu từ Khung.");
         const next = parseStoryOptions({ ...data.options, name: options.name });
-        setWorkspace((w) => ({ ...w, options: next, dirty: true, job: null }));
+        setWorkspace((w) => ({
+          ...w,
+          options: next,
+          project: {
+            ...w.project,
+            ...(data.imageProcessing
+              ? { imageProcessing: parseImageProcessing(data.imageProcessing) }
+              : {}),
+          },
+          dirty: true,
+          job: null,
+        }));
         setNotice("Đã áp dụng mẫu. Bấm Tạo video để dựng bộ đầu vào hiện tại.");
       }
     } catch (e) {
@@ -645,6 +805,7 @@ export function App() {
   }
   async function cancel() {
     if (
+      phase === "processing" ||
       phase === "generating" ||
       phase === "building" ||
       phase === "starting"
@@ -822,6 +983,7 @@ export function App() {
                 try {
                   saveJson("mau-ke-chuyen.khung-preset.json", {
                     storyPresetVersion: 1,
+                    imageProcessing: project.imageProcessing,
                     options: parseStoryOptions({
                       ...options,
                       tts: { ...options.tts, dialogue: [] },
@@ -1113,6 +1275,17 @@ export function App() {
             <p className="empty-small">Chọn ảnh để bắt đầu</p>
           )}
           <div className="resource-tools" aria-label="Công cụ tài nguyên">
+            <button disabled={busy} onClick={() => setResourceDialog("images")}>
+              <Icon name="image" />
+              <span>
+                Xử lý ảnh
+                <small>
+                  Xóa logo · Upscale · Hàng loạt
+                  {imageSettings.autoOnImport ? " · Tự động" : ""}
+                </small>
+              </span>
+              <Icon name="next" />
+            </button>
             <button
               disabled={busy}
               onClick={() => setResourceDialog("subtitles")}
@@ -1392,6 +1565,30 @@ export function App() {
             )}
           </div>
         )}
+        {error && (
+          <p className="dialog-error" role="alert">
+            {error}
+          </p>
+        )}
+      </EditorDialog>
+      <EditorDialog
+        open={resourceDialog === "images"}
+        title="Xử lý ảnh · Xóa logo & Upscale"
+        className="image-processing-dialog"
+        wide
+        onClose={() => setResourceDialog(null)}
+      >
+        <ImageProcessingPanel
+          assets={project.assets}
+          settings={imageSettings}
+          busy={busy}
+          progress={progress}
+          preview={imagePreview}
+          onChange={changeImageSettings}
+          onRun={(assetId) => void processImages(assetId)}
+          onRestore={restoreOriginalImages}
+          onCancel={() => void cancel()}
+        />
         {error && (
           <p className="dialog-error" role="alert">
             {error}

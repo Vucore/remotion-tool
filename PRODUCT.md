@@ -29,3 +29,5 @@ Một cảnh = một ảnh + WAV + mục TXT cùng số. WAV quyết định th�
 Menu Tệp lưu/mở mẫu không cần người dùng viết JSON; giữ tương thích mẫu/dự án cũ. `data/` chứa tài nguyên người dùng; giữ nguyên. `test/` có 3 ảnh + 3 WAV tiếng Việt + TXT; `tests/` dùng kiểm tra mã nguồn. Kế hoạch và hướng dẫn trong `docs/`. Không cài môi trường hoặc render dài nếu không cần; kiểm tra tập trung vào thay đổi.
 
 Lời đọc & giọng gộp chỉnh TXT/nguồn voice/thiết lập TTS trong một dialog. Hồ sơ người nói preset/clone và phân vai từng lượt cho phép nhiều giọng nối tiếp trong một cảnh. Chọn lượt/cả cảnh/tất cả, gán hàng loạt, thêm/tách lượt, thu gọn thiết lập. Cache mỗi lượt, ghép WAV trung gian rồi mới mã hóa MP3; voice/cảnh tiếp tục qua căn phụ đề hiện có. Không tự nhận diện người nói hoặc trộn tiếng đồng thời.
+
+Xử lý ảnh gộp LaMa local (vùng chữ nhật kéo/thay đổi kích thước và điều chỉnh ratio/padding/feather/context) với Real-ESRGAN 2×/4×. Xem thử không đổi dự án, chạy toàn bộ, tự xử lý ảnh nhập mới, cache, hủy, khôi phục nguồn. Giữ ID/tên ảnh và metadata original; xử lý lại từ nguồn. Cần thư viện trong uv .venv và trọng số local; không tự tải model khi mở UI.

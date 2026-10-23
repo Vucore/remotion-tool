@@ -27,10 +27,11 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-import types
 from pathlib import Path
 from typing import Optional
-from urllib.request import urlretrieve
+from urllib.request import urlopen
+import os
+import uuid
 
 logger = logging.getLogger("image_upscaler")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -127,7 +128,7 @@ MODEL_CONFIGS = {
     ),
 }
 
-WEIGHTS_DIR = Path(__file__).parent / "weights"
+WEIGHTS_DIR = Path(__file__).parent / ".cache" / "models" / "realesrgan"
 
 
 def get_device() -> str:
@@ -142,10 +143,34 @@ def _ensure_weights(scale: int) -> Path:
     cfg = MODEL_CONFIGS[scale]
     WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
     path = WEIGHTS_DIR / f"{cfg['name']}.pth"
+    legacy = Path(__file__).parent / "weights" / path.name
+    if not path.exists() and legacy.exists():
+        return legacy
     if not path.exists():
-        logger.info("Đang tải model %s (~64-67MB, chỉ tải 1 lần)...", cfg["name"])
-        urlretrieve(cfg["url"], path)
-        logger.info("Đã tải xong: %s", path)
+        raise FileNotFoundError(f"Thiếu {path.name}. Chạy npm run setup:images -- --scale {scale} để tải model.")
+    return path
+
+
+def download_weights(scale):
+    cfg = MODEL_CONFIGS[scale]
+    WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
+    path = WEIGHTS_DIR / f"{cfg['name']}.pth"
+    if path.exists():
+        return path
+    temporary = path.with_suffix(f".{uuid.uuid4().hex}.tmp")
+    try:
+        with urlopen(cfg["url"], timeout=30) as response, temporary.open("wb") as target:
+            size = 0
+            while chunk := response.read(1024*1024):
+                size += len(chunk)
+                if size > 120*1024*1024:
+                    raise RuntimeError("Trọng số tải về vượt giới hạn 120 MB.")
+                target.write(chunk)
+        if size < 1_000_000:
+            raise RuntimeError("File model tải về không hợp lệ.")
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
     return path
 
 
@@ -245,6 +270,12 @@ def _enhance_image(
         img_bgr = img if img.ndim == 3 else np.stack([img] * 3, axis=-1)
 
     h, w, _ = img_bgr.shape
+    # x2 RRDB uses pixel_unshuffle: the input and all tile origins must be even.
+    pad_h, pad_w = (2-h%2)%2, (2-w%2)%2
+    if pad_h or pad_w:
+        img_bgr = cv2.copyMakeBorder(img_bgr, 0, pad_h, 0, pad_w, cv2.BORDER_REPLICATE)
+    if tile:
+        tile = max(64, int(tile)//2*2)
     img_tensor = (
         torch.from_numpy(np.transpose(img_bgr[:, :, [2, 1, 0]], (2, 0, 1)))
         .float()
@@ -263,7 +294,7 @@ def _enhance_image(
     out_np = (
         out_tensor.squeeze(0).clamp(0, 1).mul(255).byte().permute(1, 2, 0).cpu().numpy()
     )
-    out_bgr = out_np[:, :, [2, 1, 0]]
+    out_bgr = out_np[:h*scale, :w*scale, [2, 1, 0]]
 
     if has_alpha:
         alpha_resized = cv2.resize(
@@ -287,7 +318,8 @@ def _save_image(output_path: str, img: np.ndarray, quality: int = 95) -> None:
     elif suffix == ".png":
         params = [cv2.IMWRITE_PNG_COMPRESSION, 4]
 
-    cv2.imwrite(output_path, img, params)
+    if not cv2.imwrite(output_path, img, params):
+        raise RuntimeError("Không ghi được ảnh upscale.")
 
 
 def upscale_image(
@@ -334,7 +366,8 @@ def upscale_image(
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
-    img = cv2.imread(str(in_path), cv2.IMREAD_UNCHANGED)
+    from delete_logo import read_image
+    img = read_image(in_path)
     if img is None:
         raise ValueError(f"Không đọc được ảnh (định dạng lỗi?): {input_path}")
 

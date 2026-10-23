@@ -3057,3 +3057,175 @@ button svg {
     flex-basis: 100%;
   }
 }
+
+.image-processing-toggles,
+.image-processing-actions,
+.image-processing-view-switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.image-processing-toggles {
+  gap: 20px;
+}
+.image-processing-toggles label,
+.image-auto-import {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  min-height: 40px;
+}
+.image-processing-panel input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  accent-color: #147b65;
+}
+.image-processing-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 230px;
+  gap: 22px;
+  align-items: start;
+  margin-block: 18px;
+}
+.image-processing-layout label {
+  font-size: 12px;
+}
+.image-processing-image-select,
+.image-processing-settings label:not(.image-auto-import) {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.image-processing-panel select,
+.image-processing-panel input[type="number"] {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  font-size: 13px;
+}
+.image-processing-panel .button {
+  min-height: 38px;
+  white-space: normal;
+  font-size: 12px;
+}
+.image-processing-view-switch {
+  margin-top: 12px;
+}
+.image-processing-view-switch [aria-pressed="true"] {
+  background: #e9f2e6;
+  border-color: #147b65;
+  color: #204b32;
+}
+.image-region-stage {
+  position: relative;
+  margin-inline: auto;
+  touch-action: none;
+  user-select: none;
+  background: #edf2e8;
+  outline: 1px solid #d5dfd0;
+}
+.image-region-stage > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+.image-region-box {
+  position: absolute;
+  outline: 2px solid #fff;
+  border: 2px solid #12644f;
+  background: repeating-linear-gradient(
+    135deg,
+    #11745a44 0px,
+    #11745a44 4px,
+    #ffffff33 4px,
+    #ffffff33 8px
+  );
+  cursor: move;
+  min-width: 2px;
+  min-height: 2px;
+}
+.image-region-box:focus-visible {
+  outline: 3px solid #c83e28;
+}
+.image-region-handle {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border: 2px solid #12644f;
+  border-radius: 3px;
+  cursor: nwse-resize;
+}
+.image-region-padding {
+  position: absolute;
+  outline: 1px dashed #ba381e;
+  pointer-events: none;
+}
+.image-region-readout {
+  font-size: 12px;
+  color: #344b3c;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.6;
+}
+.image-region-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 10px;
+}
+.image-processing-settings h3 {
+  font-size: 14px;
+  margin: 0 0 14px;
+}
+.image-processing-settings small {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #4d6748;
+}
+.image-processing-settings details {
+  margin-block: 18px;
+}
+.image-auto-import {
+  margin-top: 20px;
+  align-items: flex-start;
+  line-height: 1.6;
+}
+.image-runtime-help {
+  padding: 14px 0;
+  margin-block: 16px;
+  border-block: 1px solid #d5dfd0;
+  color: #344b3c;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.image-runtime-help p {
+  margin-block: 8px;
+}
+.image-runtime-help code {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 650px) {
+  .image-processing-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .image-processing-panel .button {
+    min-height: 42px;
+  }
+}
+.editor-dialog.image-processing-dialog {
+  width: min(1060px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+}
+@media (max-width: 650px) {
+  .editor-dialog.image-processing-dialog {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 24px);
+  }
+}
