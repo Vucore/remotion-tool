@@ -14,13 +14,13 @@ def emit(value):
 def main():
     try:
         import cv2
-        from delete_logo import read_image, inpaint_array, get_session
+        from scripts.images.delete_logo import read_image, inpaint_array, get_session
         request = json.load(sys.stdin)
         settings = request["settings"]
         if settings["removeLogo"]:
             get_session()  # Fail early before writing any outputs.
         if settings["upscale"]:
-            from image_upscaler import _get_model, _enhance_image, get_device, _MODEL_CACHE
+            from scripts.images.image_upscaler import _get_model, _enhance_image, get_device, _MODEL_CACHE
             device = get_device() if settings["device"] == "auto" else settings["device"]
             try:
                 _get_model(settings["scale"], device)

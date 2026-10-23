@@ -15,7 +15,7 @@ const child = spawn(
   python,
   [
     "-c",
-    "from image_upscaler import download_weights; import sys; print(download_weights(int(sys.argv[1])))",
+    "from scripts.images.image_upscaler import download_weights; import sys; print(download_weights(int(sys.argv[1])))",
     args[1],
   ],
   { cwd: root, stdio: "inherit" },

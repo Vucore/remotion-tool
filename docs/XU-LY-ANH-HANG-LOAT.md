@@ -21,7 +21,7 @@ npm run setup:images -- --scale 4
 
 `uv sync` dùng `.venv` chung với Whisper và deep-translator. `pyproject.toml` và `uv.lock` đã cập nhật cho OpenCV headless, ONNX Runtime, Pillow, NumPy và Torch. Không cần torchvision/basicsr/facexlib. Lệnh setup chỉ tải trọng số của hệ số đã chọn, không tự cài thư viện hoặc tạo venv khác.
 
-- LaMa dùng file có sẵn **`lama_fp32.onnx` tại gốc dự án** (208.044.816 byte). Không tải lại khi import module.
+- LaMa dùng file có sẵn **`.cache/models/lama/lama_fp32.onnx`** (208.044.816 byte). Không tải lại khi import module.
 - Real-ESRGAN: `.cache/models/realesrgan/RealESRGAN_x2plus.pth` và `RealESRGAN_x4plus.pth`. Nếu đã có trong `weights/`, vẫn dùng được. Không tự tải model khi bấm xử lý; thiếu model có hướng dẫn trong UI.
 - LaMa chạy ONNX Runtime CPU. Upscaler ưu tiên CUDA → MPS → CPU. Chế độ Tự động có fallback CPU khi thiết bị tăng tốc gặp lỗi; ép thiết bị sẽ báo lỗi thay vì âm thầm đổi.
 
@@ -47,7 +47,7 @@ npm run setup:images -- --scale 4
 - Vùng chọn là một hình chữ nhật dùng chung tỷ lệ, không tự nhận diện logo và chưa có vùng riêng cho từng ảnh. Với ảnh khác bố cục, xem nhiều ảnh trong dropdown trước khi áp dụng.
 - Cache `.cache/images/`: theo byte ảnh gốc, cấu hình, phiên bản thuật toán và SHA-256 trọng số. Kết quả `data/uploads/<sha256>.png`. Cache xem thử được dùng lại khi chạy toàn bộ.
 - Một Python worker cho cả batch, giữ model trong bộ nhớ. Kết quả tạm ở thư mục hệ thống `khung-images-*`, dọn cả khi lỗi/hủy. Có tiến độ và nút Dừng; hủy không thay ảnh trong dự án. Cache/kết quả thành công trước đó có thể còn trên đĩa để dùng lại.
-- Model `.onnx` đã được Git theo dõi từ commit người dùng; quy tắc ignore mới không tự gỡ file đã theo dõi. Không thay/xóa model nguồn trong lượt này.
+- Hai engine Python nằm tại `scripts/images/delete_logo.py` và `scripts/images/image_upscaler.py`. Model LaMa được chuyển vào `.cache/models/lama/`, được Git bỏ qua. Không thay nội dung model.
 
 ## Kiểm tra và trạng thái thực tế
 

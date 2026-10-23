@@ -12,14 +12,14 @@ Cài đặt:
     uv pip install torch torchvision
 
 Dùng như module:
-    from image_upscaler import upscale_image, upscale_folder
+    from scripts.images.image_upscaler import upscale_image, upscale_folder
 
     upscale_image("scene_01.png", "scene_01_2k.png", scale=2)
     upscale_folder("keyframes/", "keyframes_2k/", scale=2)
 
 Dùng như CLI:
-    python image_upscaler.py scene_01.png -o scene_01_2k.png
-    python image_upscaler.py keyframes/ -o keyframes_2k/ --scale 2
+    python -m scripts.images.image_upscaler scene_01.png -o scene_01_2k.png
+    python -m scripts.images.image_upscaler keyframes/ -o keyframes_2k/ --scale 2
 """
 
 from __future__ import annotations
@@ -128,7 +128,7 @@ MODEL_CONFIGS = {
     ),
 }
 
-WEIGHTS_DIR = Path(__file__).parent / ".cache" / "models" / "realesrgan"
+WEIGHTS_DIR = Path(__file__).resolve().parents[2] / ".cache" / "models" / "realesrgan"
 
 
 def get_device() -> str:
@@ -143,7 +143,7 @@ def _ensure_weights(scale: int) -> Path:
     cfg = MODEL_CONFIGS[scale]
     WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
     path = WEIGHTS_DIR / f"{cfg['name']}.pth"
-    legacy = Path(__file__).parent / "weights" / path.name
+    legacy = Path(__file__).resolve().parents[2] / "weights" / path.name
     if not path.exists() and legacy.exists():
         return legacy
     if not path.exists():
@@ -366,7 +366,7 @@ def upscale_image(
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
-    from delete_logo import read_image
+    from scripts.images.delete_logo import read_image
     img = read_image(in_path)
     if img is None:
         raise ValueError(f"Không đọc được ảnh (định dạng lỗi?): {input_path}")

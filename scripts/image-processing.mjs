@@ -36,7 +36,7 @@ export async function imageRuntimeStatus() {
   const weights = (scale) =>
     join(root, ".cache/models/realesrgan", `RealESRGAN_x${scale}plus.pth`);
   const models = {
-    lama: await exists(join(root, "lama_fp32.onnx")),
+    lama: await exists(join(root, ".cache/models/lama/lama_fp32.onnx")),
     upscale2:
       (await exists(weights(2))) ||
       (await exists(join(root, "weights/RealESRGAN_x2plus.pth"))),
@@ -202,9 +202,11 @@ export async function processImages(
     await mkdir(assetDirectory, { recursive: true });
     const signature = modelSignature ?? {
       lama: config.removeLogo
-        ? await hashFile(join(root, "lama_fp32.onnx")).catch(() => {
-            throw Error("Thiếu lama_fp32.onnx trong thư mục dự án.");
-          })
+        ? await hashFile(join(root, ".cache/models/lama/lama_fp32.onnx")).catch(
+            () => {
+              throw Error("Thiếu .cache/models/lama/lama_fp32.onnx.");
+            },
+          )
         : null,
       upscale: config.upscale
         ? await hashFile(

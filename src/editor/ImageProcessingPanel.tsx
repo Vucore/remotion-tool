@@ -505,7 +505,7 @@ export function ImageProcessingPanel({
             )}
             {settings.removeLogo && !status.lama && (
               <p>
-                Đặt <code>lama_fp32.onnx</code> vào thư mục dự án.
+                Đặt model ở <code>.cache/models/lama/lama_fp32.onnx</code>.
               </p>
             )}
             {settings.upscale &&

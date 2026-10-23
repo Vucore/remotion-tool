@@ -2,8 +2,8 @@
 from pathlib import Path
 import math
 
-ROOT = Path(__file__).resolve().parent
-MODEL_PATH = ROOT / "lama_fp32.onnx"
+ROOT = Path(__file__).resolve().parents[2]
+MODEL_PATH = ROOT / ".cache" / "models" / "lama" / "lama_fp32.onnx"
 _SESSION = None
 
 
@@ -12,7 +12,7 @@ def get_session(model_path=None):
     import onnxruntime as ort
     path = Path(model_path or MODEL_PATH)
     if not path.is_file():
-        raise FileNotFoundError(f"Thiếu model LaMa: {path}. Đặt lama_fp32.onnx ở thư mục dự án.")
+        raise FileNotFoundError(f"Thiếu model LaMa: {path}. Đặt model ở .cache/models/lama/lama_fp32.onnx.")
     if _SESSION is None:
         options = ort.SessionOptions()
         options.intra_op_num_threads = 2

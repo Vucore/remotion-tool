@@ -41,7 +41,7 @@ test("logo region matches percent controls, clips padding and validates bounds",
     "python3",
     [
       "-c",
-      "from delete_logo import region_pixels; assert region_pixels({'x':.883,'y':.8,'width':.052,'height':.085},1000,1000,4)==(879,796,939,889)",
+      "from scripts.images.delete_logo import region_pixels; assert region_pixels({'x':.883,'y':.8,'width':.052,'height':.085},1000,1000,4)==(879,796,939,889)",
     ],
     { encoding: "utf8" },
   );
