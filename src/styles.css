@@ -2738,3 +2738,322 @@ button svg {
   white-space: nowrap;
   padding: 3px;
 }
+
+.tts-number .tts-parameter-help {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #4d6748;
+}
+.tts-advanced > .button {
+  margin-bottom: 16px;
+}
+.tts-advanced .tts-number {
+  margin-block: 16px;
+}
+.subtitle-target-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+.subtitle-search {
+  width: 100%;
+  min-height: 40px;
+  margin-block: 10px;
+}
+.subtitle-targets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-height: 240px;
+  overflow-y: auto;
+  border-block: 1px solid #d5dfd0;
+  margin-bottom: 12px;
+}
+.subtitle-target {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.subtitle-target:hover,
+.subtitle-target:focus-within {
+  background: #eff4eb;
+}
+.subtitle-target input,
+.subtitle-bilingual input {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  accent-color: #147b65;
+}
+.subtitle-target > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.subtitle-target small {
+  color: #4d6748;
+  font-size: 11px;
+}
+.subtitle-bilingual {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  font-size: 13px;
+  min-height: 44px;
+}
+.subtitle-preview-language {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+  margin-block: 16px;
+}
+.subtitle-preview-language select {
+  min-height: 40px;
+  max-width: 100%;
+}
+@media (max-width: 600px) {
+  .subtitle-targets {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.narration-topbar,
+.narration-section-heading,
+.narration-selection,
+.narration-scene-heading,
+.narration-turn-heading,
+.narration-turn-actions,
+.narration-bottom,
+.narration-operation {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.narration-topbar,
+.narration-section-heading {
+  justify-content: space-between;
+}
+.narration-topbar {
+  margin-bottom: 14px;
+}
+.narration-layout {
+  display: grid;
+  grid-template-columns: minmax(200px, 250px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.narration-layout.is-upload {
+  grid-template-columns: minmax(0, 1fr);
+}
+.narration-panel h3 {
+  font-size: 15px;
+  margin: 0;
+}
+.narration-panel .button {
+  min-height: 36px;
+  font-size: 12px;
+  white-space: normal;
+}
+.narration-panel label {
+  font-size: 13px;
+}
+.narration-panel input:not([type="checkbox"]),
+.narration-panel select,
+.narration-panel textarea {
+  min-height: 38px;
+  max-width: 100%;
+  font-size: 13px;
+}
+.narration-panel input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  accent-color: #147b65;
+  flex-shrink: 0;
+}
+.narration-speaker-list {
+  display: grid;
+  gap: 4px;
+  margin-block: 12px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.narration-speaker-list button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  text-align: left;
+  min-height: 44px;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #344b3c;
+}
+.narration-speaker-list button[aria-pressed="true"] {
+  border-color: #147b65;
+  background: #edf4ed;
+}
+.narration-speaker-list button > span {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.narration-speaker-list small {
+  color: #4d6748;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.narration-speaker-editor {
+  display: grid;
+  gap: 12px;
+  padding-block: 16px;
+  border-top: 1px solid #d5dfd0;
+}
+.narration-speaker-editor label {
+  display: grid;
+  gap: 6px;
+}
+.narration-speaker-editor input,
+.narration-speaker-editor select {
+  width: 100%;
+}
+.narration-selection {
+  padding-block: 12px;
+  position: sticky;
+  top: -1px;
+  background: #fff;
+  z-index: 1;
+  border-bottom: 1px solid #d5dfd0;
+  font-size: 12px;
+}
+.narration-selection label,
+.narration-scene-heading label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.narration-selection > span {
+  color: #4d6748;
+}
+.narration-scene {
+  margin-block: 18px 26px;
+}
+.narration-scene-heading {
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+.narration-scene-heading img {
+  width: 44px;
+  height: 36px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+.narration-scene-heading small {
+  margin-left: auto;
+  color: #4d6748;
+  font-weight: 400;
+}
+.narration-turn {
+  padding: 12px;
+  border: 1px solid #d5dfd0;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+.narration-turn[data-selected="true"] {
+  border-color: #147b65;
+  background: #f5f8f2;
+}
+.narration-turn-heading {
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.narration-turn-heading select {
+  flex: 1;
+  min-width: 0;
+}
+.narration-turn textarea {
+  width: 100%;
+  resize: vertical;
+  line-height: 1.6;
+}
+.narration-turn-actions {
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+.narration-settings {
+  margin-block: 20px;
+}
+.narration-bottom {
+  justify-content: space-between;
+  border-top: 1px solid #d5dfd0;
+  padding-top: 14px;
+  margin-top: 18px;
+  font-size: 12px;
+  color: #4d6748;
+}
+.narration-bottom > span {
+  flex: 1;
+  min-width: 140px;
+}
+.narration-panel audio {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin-block: 8px;
+}
+.narration-upload {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+  margin-bottom: 18px;
+  color: #4d6748;
+}
+@media (max-width: 650px) {
+  .narration-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .narration-speaker-list {
+    max-height: 150px;
+  }
+  .narration-panel .button {
+    min-height: 40px;
+  }
+  .narration-topbar .voice-source-switch {
+    width: 100%;
+  }
+  .narration-turn {
+    padding: 10px;
+  }
+}
+.narration-topbar .voice-source-switch {
+  flex: 0 1 360px;
+  margin-bottom: 0;
+}
+.narration-topbar .voice-source-switch > button {
+  min-height: 38px;
+  font-size: 12px;
+}
+.narration-speakers > .button {
+  width: 100%;
+  margin-top: 12px;
+}
+.narration-selection select {
+  flex: 1;
+  min-width: 120px;
+}
+@media (max-width: 650px) {
+  .narration-topbar .voice-source-switch {
+    flex-basis: 100%;
+  }
+}

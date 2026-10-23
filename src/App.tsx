@@ -28,14 +28,16 @@ import {
 } from "./auto/story";
 import { buildWithNarration } from "./editor/narration-client";
 import { importStoryFiles, type ImportKind } from "./editor/story-import";
-import { TtsPanel } from "./editor/TtsPanel";
+import { NarrationPanel } from "./editor/NarrationPanel";
 import { createTtsVoices } from "./editor/tts-client";
 import {
   defaultTtsSettings,
   parseTtsSettings,
   ttsInputKey,
   ttsPlan,
+  speechPlan,
   type TtsSettings,
+  type SceneDialogue,
 } from "./auto/tts";
 import { NARRATION_LANGUAGES } from "./auto/languages";
 import { EditorDialog } from "./editor/EditorDialog";
@@ -139,13 +141,12 @@ export function App() {
   const [saved, setSaved] = useState(true);
   const [resetOpen, setResetOpen] = useState(false);
   const [resourceDialog, setResourceDialog] = useState<
-    "tts" | "script" | "actors" | "subtitles" | "help" | null
+    "tts" | "actors" | "subtitles" | "help" | null
   >(null);
   const player = useRef<PlayerRef>(null);
   const imagesInput = useRef<HTMLInputElement>(null);
   const addImagesInput = useRef<HTMLInputElement>(null);
   const voicesInput = useRef<HTMLInputElement>(null);
-  const voiceSourceHeading = useRef<HTMLDivElement>(null);
   const scriptInput = useRef<HTMLInputElement>(null);
   const actorsInput = useRef<HTMLInputElement>(null);
   const projectInput = useRef<HTMLInputElement>(null);
@@ -206,8 +207,7 @@ export function App() {
       if (options.tts.enabled) {
         const tts = parseTtsSettings(options.tts);
         ttsPlan(project.voiceover?.script ?? "", project.assets);
-        if (tts.voiceMode === "reference" && !tts.reference)
-          throw Error("Chọn file giọng mẫu để tạo voice.");
+        speechPlan(project.voiceover?.script ?? "", tts);
       }
       return { rows: storyInputs(previewSource), error: "" };
     } catch (e) {
@@ -350,7 +350,7 @@ export function App() {
     setError("");
     setNotice("");
   }
-  async function uploadTtsReference(file: File) {
+  async function uploadTtsReference(file: File, speakerId = "default") {
     if (busy || operation.current) return;
     operation.current = true;
     setPhase("importing");
@@ -374,7 +374,21 @@ export function App() {
       const result = await response.json();
       if (!response.ok)
         throw Error(result.error || "Không nhập được giọng mẫu.");
-      changeTtsSettings({ reference: { src: result.src, name: file.name } });
+      setWorkspace((w) => {
+        const reference = { src: result.src, name: file.name };
+        const tts =
+          speakerId === "default"
+            ? { ...w.options.tts, reference }
+            : {
+                ...w.options.tts,
+                speakers: w.options.tts.speakers.map((speaker) =>
+                  speaker.id === speakerId
+                    ? { ...speaker, reference }
+                    : speaker,
+                ),
+              };
+        return { ...w, options: { ...w.options, tts }, dirty: true, job: null };
+      });
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -443,7 +457,9 @@ export function App() {
         options:
           kind === "voices"
             ? { ...w.options, tts: { ...w.options.tts, enabled: false } }
-            : w.options,
+            : kind === "script"
+              ? { ...w.options, tts: { ...w.options.tts, dialogue: [] } }
+              : w.options,
         dirty: true,
         job: null,
       }));
@@ -806,7 +822,10 @@ export function App() {
                 try {
                   saveJson("mau-ke-chuyen.khung-preset.json", {
                     storyPresetVersion: 1,
-                    options: parseStoryOptions(options),
+                    options: parseStoryOptions({
+                      ...options,
+                      tts: { ...options.tts, dialogue: [] },
+                    }),
                   });
                 } catch (e) {
                   setError(errorMessage(e));
@@ -1029,63 +1048,24 @@ export function App() {
               onDrop={(files) => void importFiles(files, "script")}
               onClear={() => clearInput("script")}
             />
-            <div className="voice-source-heading" ref={voiceSourceHeading}>
-              <strong>Voice</strong>
-              <span>Chọn nguồn lời đọc</span>
-            </div>
-            <div
-              className="voice-source-switch"
-              role="group"
-              aria-label="Nguồn voice"
-            >
-              <button
-                type="button"
-                aria-pressed={!options.tts.enabled}
-                onClick={() => changeTtsSettings({ enabled: false })}
-              >
-                <Icon name="folder" />
-                Tải voice
-              </button>
-              <button
-                type="button"
-                aria-pressed={options.tts.enabled}
-                onClick={() => changeTtsSettings({ enabled: true })}
-              >
-                <Icon name="text" />
-                Tạo từ TXT
-              </button>
-            </div>
-            {options.tts.enabled ? (
+            <div>
               <button
                 className="resource-config"
                 onClick={() => setResourceDialog("tts")}
               >
                 <Icon name="voice" />
                 <span>
-                  <strong>Chatterbox TTS</strong>
+                  <strong>Lời đọc & giọng</strong>
                   <small>
-                    {options.tts.model === "turbo"
-                      ? "Turbo · en"
-                      : `Multilingual · ${options.tts.languageId}`}{" "}
-                    · {options.tts.outputFormat.toUpperCase()} ·{" "}
-                    {ttsReady ? `${voiceCount} voice` : "Chưa tạo"}
+                    {options.tts.enabled
+                      ? `${options.tts.speakers.length + 1} người nói · ${ttsReady ? `${voiceCount} voice sẵn sàng` : "Tạo từ TXT"}`
+                      : `WAV / MP3 · ${voiceCount} file`}{" "}
+                    · Chỉnh lời và phân vai
                   </small>
                 </span>
                 <Icon name="settings" />
               </button>
-            ) : (
-              <StoryInput
-                title="Voice"
-                icon="voice"
-                hint="WAV · MP3"
-                summary={voiceCount ? voiceCount + " voice" : "Tuỳ chọn"}
-                selected={voiceCount > 0}
-                busy={busy}
-                onChoose={() => voicesInput.current?.click()}
-                onDrop={(files) => void importFiles(files, "voices")}
-                onClear={() => clearInput("voices")}
-              />
-            )}
+            </div>
           </fieldset>
           {project.assets.length > 0 && validation.error && (
             <p className="media-validation">
@@ -1141,14 +1121,6 @@ export function App() {
               <span>
                 Phụ đề & SRT<small>Xuất · dịch · song ngữ</small>
               </span>
-              <Icon name="next" />
-            </button>
-            <button
-              disabled={busy || !hasScript}
-              onClick={() => setResourceDialog("script")}
-            >
-              <Icon name="text" />
-              <span>Sửa lời đọc</span>
               <Icon name="next" />
             </button>
             <button disabled={busy} onClick={() => setResourceDialog("actors")}>
@@ -1355,36 +1327,70 @@ export function App() {
         }}
         onVoice={() => {
           setMobilePanel("media");
-          if (options.tts.enabled)
-            voiceSourceHeading.current?.scrollIntoView({ block: "start" });
-          else if (!voiceCount) voicesInput.current?.click();
+          setResourceDialog("tts");
         }}
         onText={() => {
           setMobilePanel("media");
-          scriptInput.current?.click();
+          setResourceDialog("tts");
         }}
       />
       <EditorDialog
         open={resourceDialog === "tts"}
-        title="Giọng đọc · Chatterbox TTS"
+        title="Lời đọc & giọng"
+        wide
         onClose={() => setResourceDialog(null)}
       >
-        <fieldset disabled={busy}>
-          <TtsPanel
-            settings={options.tts}
-            busy={busy}
-            ready={ttsReady}
-            voices={ttsReady ? (project.voiceover?.assets ?? []) : []}
-            canGenerate={hasScript && !validation.error}
-            onChange={changeTtsSettings}
-            onReference={(file) => void uploadTtsReference(file)}
-            onGenerate={() => void run(false, false, true)}
-          />
-        </fieldset>
+        <NarrationPanel
+          script={project.voiceover?.script ?? ""}
+          settings={options.tts}
+          images={project.assets}
+          busy={busy}
+          ready={ttsReady}
+          voices={project.voiceover?.assets ?? []}
+          canGenerate={hasScript && !validation.error}
+          onChange={changeTtsSettings}
+          onDocument={(script: string, dialogue: SceneDialogue[]) => {
+            setWorkspace((w) => ({
+              ...w,
+              project: {
+                ...w.project,
+                voiceover: {
+                  ...w.project.voiceover,
+                  assets: w.project.voiceover?.assets ?? [],
+                  script,
+                  scriptName: w.project.voiceover?.scriptName || "script.txt",
+                },
+              },
+              options: { ...w.options, tts: { ...w.options.tts, dialogue } },
+              dirty: true,
+              job: null,
+            }));
+            setError("");
+          }}
+          onReference={(file, speakerId) =>
+            void uploadTtsReference(file, speakerId)
+          }
+          onGenerate={() => void run(false, false, true)}
+          onImportScript={() => {
+            setResourceDialog(null);
+            scriptInput.current?.click();
+          }}
+          onUploadVoices={() => {
+            setResourceDialog(null);
+            voicesInput.current?.click();
+          }}
+        />
         {busy && (
-          <p className="dialog-help" role="status">
-            {progress}
-          </p>
+          <div className="narration-operation">
+            <p className="dialog-help" role="status">
+              {progress}
+            </p>
+            {phase === "generating" && (
+              <button className="button" onClick={() => void cancel()}>
+                Dừng tạo voice
+              </button>
+            )}
+          </div>
         )}
         {error && (
           <p className="dialog-error" role="alert">
@@ -1417,41 +1423,6 @@ export function App() {
           onAlign={() => {
             setResourceDialog(null);
             void run(false, true);
-          }}
-        />
-      </EditorDialog>
-      <EditorDialog
-        open={resourceDialog === "script"}
-        title="Lời đọc TXT"
-        wide
-        onClose={() => setResourceDialog(null)}
-      >
-        <p className="dialog-help">
-          Mỗi mục tương ứng một cảnh. Giữ số 1., 2., 3.…; đổi lời đọc sẽ cần cập
-          nhật voice TTS và căn lại phụ đề.
-        </p>
-        <textarea
-          className="script-dialog-input"
-          aria-label="Lời đọc TXT"
-          rows={14}
-          disabled={busy}
-          value={project.voiceover?.script ?? ""}
-          onChange={(e) => {
-            const script = e.target.value;
-            setWorkspace((w) => ({
-              ...w,
-              project: {
-                ...w.project,
-                voiceover: {
-                  ...w.project.voiceover,
-                  assets: w.project.voiceover?.assets ?? [],
-                  script,
-                  scriptName: w.project.voiceover?.scriptName || "script.txt",
-                },
-              },
-              dirty: true,
-              job: null,
-            }));
           }}
         />
       </EditorDialog>

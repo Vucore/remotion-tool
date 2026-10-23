@@ -1,7 +1,18 @@
 import { fileOrder, parseScript } from "./narration";
 import { TTS_LANGUAGES } from "./languages";
 
+export type TtsSpeaker = {
+  id: string;
+  name: string;
+  voiceMode: "preset" | "reference";
+  voice: string;
+  reference: { src: string; name: string } | null;
+};
+export type SpeechTurn = { text: string; speakerId: string };
+export type SceneDialogue = { order: number; turns: SpeechTurn[] };
 export type TtsSettings = {
+  speakers: TtsSpeaker[];
+  dialogue: SceneDialogue[];
   enabled: boolean;
   baseUrl: string;
   model: "turbo" | "multilingual";
@@ -22,6 +33,8 @@ export type TtsSettings = {
 };
 
 export const defaultTtsSettings = (): TtsSettings => ({
+  speakers: [],
+  dialogue: [],
   enabled: false,
   baseUrl: "https://emsimv10--chatterbox-multi-tts-web.modal.run",
   model: "turbo",
@@ -123,7 +136,79 @@ export function parseTtsSettings(input: unknown): TtsSettings {
     value.topK > 1000000
   )
     throw Error("TTS: top_k cần là số nguyên 1–1000000.");
+  if (
+    !Array.isArray(value.speakers) ||
+    value.speakers.length > 50 ||
+    !Array.isArray(value.dialogue) ||
+    value.dialogue.length > 300
+  )
+    throw Error("TTS: tối đa 50 người nói và 300 cảnh phân vai.");
+  const ids = new Set<string>();
+  const speakers: TtsSpeaker[] = value.speakers.map((speaker) => {
+    if (
+      !speaker ||
+      typeof speaker.id !== "string" ||
+      !/^[a-zA-Z0-9_-]{1,80}$/.test(speaker.id) ||
+      speaker.id === "default" ||
+      ids.has(speaker.id) ||
+      typeof speaker.name !== "string" ||
+      !speaker.name.trim() ||
+      speaker.name.length > 100
+    )
+      throw Error("TTS: tên hoặc mã người nói không hợp lệ/bị trùng.");
+    ids.add(speaker.id);
+    const parsed = parseTtsSettings({
+      ...defaultTtsSettings(),
+      voiceMode: speaker.voiceMode,
+      voice: speaker.voice,
+      reference: speaker.reference,
+    });
+    return {
+      id: speaker.id,
+      name: speaker.name.trim(),
+      voiceMode: parsed.voiceMode,
+      voice: parsed.voice,
+      reference: parsed.reference,
+    };
+  });
+  const orders = new Set<number>();
+  let totalTurns = 0;
+  const dialogue: SceneDialogue[] = value.dialogue.map((scene) => {
+    if (
+      !scene ||
+      !Number.isInteger(scene.order) ||
+      scene.order < 1 ||
+      scene.order > 300 ||
+      orders.has(scene.order) ||
+      !Array.isArray(scene.turns) ||
+      !scene.turns.length ||
+      scene.turns.length > 100
+    )
+      throw Error(
+        "TTS: cảnh phân vai cần 1–100 lượt nói, không trùng số cảnh.",
+      );
+    orders.add(scene.order);
+    totalTurns += scene.turns.length;
+    return {
+      order: scene.order,
+      turns: scene.turns.map((turn) => {
+        if (
+          !turn ||
+          typeof turn.text !== "string" ||
+          turn.text.length > 12000 ||
+          typeof turn.speakerId !== "string" ||
+          (turn.speakerId !== "default" && !ids.has(turn.speakerId))
+        )
+          throw Error("TTS: lượt nói hoặc người nói không hợp lệ.");
+        return { text: turn.text, speakerId: turn.speakerId };
+      }),
+    };
+  });
+  if (totalTurns > 3000)
+    throw Error("TTS: tối đa 3.000 lượt nói trong một dự án.");
   return {
+    speakers,
+    dialogue,
     enabled: value.enabled,
     baseUrl: endpoint.origin,
     model: choice(value.model, ["turbo", "multilingual"], "model"),
@@ -203,15 +288,81 @@ export function ttsPlan(script: string, images: { name: string }[]) {
   return sections;
 }
 
+export const normalizedSpeech = (text: string) =>
+  text.normalize("NFC").replace(/\s+/g, " ").trim();
+export function sceneTurns(
+  section: { order: number; text: string },
+  settings: TtsSettings,
+): SpeechTurn[] {
+  const configured = settings.dialogue.find(
+    (scene) => scene.order === section.order,
+  );
+  if (!configured) return [{ text: section.text, speakerId: "default" }];
+  if (
+    normalizedSpeech(configured.turns.map((turn) => turn.text).join("\n")) !==
+    normalizedSpeech(section.text)
+  )
+    throw Error(
+      `Cảnh ${section.order}: phân vai không khớp TXT. Mở Lời đọc & giọng để cập nhật.`,
+    );
+  return configured.turns;
+}
+export function speakerSettings(
+  settings: TtsSettings,
+  speakerId: string,
+): TtsSettings {
+  if (speakerId === "default")
+    return { ...settings, speakers: [], dialogue: [] };
+  const speaker = settings.speakers.find((item) => item.id === speakerId);
+  if (!speaker) throw Error("Không tìm thấy người nói. Hãy gán lại giọng.");
+  return {
+    ...settings,
+    voiceMode: speaker.voiceMode,
+    voice: speaker.voice,
+    reference: speaker.reference,
+    speakers: [],
+    dialogue: [],
+  };
+}
+export function speechPlan(script: string, settings: TtsSettings) {
+  const sections = parseScript(script);
+  for (const scene of settings.dialogue)
+    if (!sections.some((section) => section.order === scene.order))
+      throw Error(`Phân vai chứa cảnh ${scene.order} không có trong TXT.`);
+  return sections.map((section) => ({
+    ...section,
+    turns: sceneTurns(section, settings).map((turn) => {
+      const options = speakerSettings(settings, turn.speakerId);
+      if (!spokenTtsText(turn.text, settings.model).trim())
+        throw Error(
+          `Cảnh ${section.order}: lượt nói đang trống. Nhập lời hoặc xóa lượt.`,
+        );
+      if (options.voiceMode === "reference" && !options.reference)
+        throw Error(
+          `Cảnh ${section.order}: chọn file clone cho ${settings.speakers.find((s) => s.id === turn.speakerId)?.name ?? "giọng mặc định"}.`,
+        );
+      return { ...turn, options };
+    }),
+  }));
+}
+
 // A local freshness marker, not a security hash. Server cache uses SHA-256.
 export function ttsInputKey(script: string, settings: TtsSettings) {
   const s = parseTtsSettings(settings);
-  const data = JSON.stringify({
-    parameters: ttsParameters(s),
-    baseUrl: s.baseUrl,
-    reference: s.voiceMode === "reference" ? (s.reference?.src ?? "") : "",
-    sections: parseScript(script),
-  });
+  const data = JSON.stringify(
+    speechPlan(script, s).map((section) => ({
+      order: section.order,
+      turns: section.turns.map((turn) => ({
+        text: turn.text,
+        parameters: ttsParameters(turn.options),
+        baseUrl: s.baseUrl,
+        reference:
+          turn.options.voiceMode === "reference"
+            ? (turn.options.reference?.src ?? "")
+            : "",
+      })),
+    })),
+  );
   let hash = 0xcbf29ce484222325n;
   for (let i = 0; i < data.length; i++)
     hash = BigInt.asUintN(

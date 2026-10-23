@@ -81,3 +81,7 @@ npm run setup:voice
 ```
 
 Mở địa chỉ công cụ in ra, mặc định `http://127.0.0.1:3210`. Dừng bằng Ctrl+C. [Cài voice chi tiết](VOICE-VA-PHU-DE.md).
+
+### Lời đọc và nhiều giọng
+
+Mở **Lời đọc & giọng** để chỉnh lời theo cảnh, thêm người nói preset/clone, tách lượt và gán giọng cho từng lượt hoặc chọn tất cả để áp dụng. Model và thông số chung nằm trong mục thu gọn. [Hướng dẫn chi tiết](LOI-DOC-NHIEU-GIONG.md).

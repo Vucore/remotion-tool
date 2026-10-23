@@ -1,5 +1,5 @@
 // RIFF/WAVE only: calculate the duration from complete sample frames, never file size estimates.
-export function wavInfo(buffer) {
+export function wavInfo(buffer, { minimumDuration = 0.5 } = {}) {
   if (
     !Buffer.isBuffer(buffer) ||
     buffer.length < 44 ||
@@ -64,8 +64,10 @@ export function wavInfo(buffer) {
       "WAV: chỉ nhận PCM 8/16/24/32-bit hoặc float 32/64-bit, mono/stereo, 8–192 kHz.",
     );
   const duration = dataBytes / blockAlign / sampleRate;
-  if (duration < 0.5 || duration > 300)
-    throw Error("Mỗi WAV cần dài từ 0,5 đến 300 giây.");
+  if (duration < minimumDuration || duration > 300)
+    throw Error(
+      `Mỗi WAV cần dài từ ${String(minimumDuration).replace(".", ",")} đến 300 giây.`,
+    );
   return { duration, sampleRate, channels, bits, codec, dataOffset, dataBytes };
 }
 

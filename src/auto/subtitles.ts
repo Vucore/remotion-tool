@@ -174,3 +174,5 @@ export function bilingualCues(
     text: cue.text + "\n" + translated[i].text,
   }));
 }
+
+export { subtitleZip } from "./subtitle-zip";

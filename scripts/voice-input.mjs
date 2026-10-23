@@ -98,7 +98,10 @@ export async function runVoiceFfmpeg(
   });
 }
 
-export async function inspectVoice(bytes, { name, signal } = {}) {
+export async function inspectVoice(
+  bytes,
+  { name, signal, minimumDuration = 0.5 } = {},
+) {
   if (signal?.aborted) throw aborted();
   if (!Buffer.isBuffer(bytes) || !bytes.length)
     throw Error("File voice trống hoặc không hợp lệ.");
@@ -110,7 +113,12 @@ export async function inspectVoice(bytes, { name, signal } = {}) {
       : undefined;
   if (!format) throw Error("Voice chỉ nhận WAV hoặc MP3.");
   if (format === "wav")
-    return { bytes, decodedWav: bytes, info: wavInfo(bytes), extension: "wav" };
+    return {
+      bytes,
+      decodedWav: bytes,
+      info: wavInfo(bytes, { minimumDuration }),
+      extension: "wav",
+    };
 
   const temporary = await mkdtemp(join(tmpdir(), "khung-voice-"));
   try {
@@ -162,7 +170,7 @@ export async function inspectVoice(bytes, { name, signal } = {}) {
     return {
       bytes,
       decodedWav: decoded,
-      info: wavInfo(decoded),
+      info: wavInfo(decoded, { minimumDuration }),
       extension: "mp3",
     };
   } finally {

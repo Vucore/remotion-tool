@@ -1,3 +1,5 @@
+> Cập nhật: lời đọc và giọng đã gộp vào cửa sổ **Lời đọc & giọng**, hỗ trợ nhiều người nói trong một cảnh. Xem [hướng dẫn phân vai](LOI-DOC-NHIEU-GIONG.md).
+
 # Tạo voice từ TXT bằng Chatterbox
 
 ## Kế hoạch triển khai
@@ -64,3 +66,9 @@ Tạo voice là bước cloud; căn phụ đề vẫn là bước local cần `n
 - API giả lập kiểm tra payload hai model, 23 ngôn ngữ, clone giọng, WAV/MP3 giữ nguyên bytes, ghép số, đưa vào bản dựng/phụ đề, cache, tiếp tục sau lỗi, hủy, timeout và phản hồi sai định dạng.
 - Kiểm tra giao diện desktop và viewport điện thoại 390px: chuyển nguồn voice, model/ngôn ngữ/định dạng, giọng mẫu, mở/đóng nâng cao, chặn thao tác khi thiếu mẫu. Ảnh trong `docs/images/tts-*.png`.
 - Không gọi API Modal thật, không phát sinh lượt GPU thử, không cài thêm thư viện/model và chưa đo chất lượng giọng/timing thực tế.
+
+## Hướng dẫn thông số trong giao diện
+
+Mở **Thông số giọng đọc** để xem khoảng giá trị, mặc định và ý nghĩa tăng/giảm ngay dưới từng ô. Có giải thích temperature, repetition penalty, top P/K, seed, biểu cảm, CFG, min P và cân bằng âm lượng. Nút **Khôi phục thông số mặc định** chỉ đặt lại các thông số này, giữ model, ngôn ngữ, giọng mẫu và kết nối. Nên thay từng thông số rồi tạo/nghe lại; các con số không phải điểm chất lượng.
+
+Gợi ý CFG và biểu cảm đối chiếu [hướng dẫn Chatterbox](https://github.com/resemble-ai/chatterbox#original-chatterbox-tips); kết quả thực tế còn phụ thuộc phiên bản model trên API Modal.

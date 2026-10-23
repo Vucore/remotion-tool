@@ -13,7 +13,7 @@ import { prepareNarration } from "./narration.mjs";
 import { wavEnvelope } from "./wav-info.mjs";
 import { inspectVoice, MAX_VOICE_BYTES } from "./voice-input.mjs";
 import { actorImages } from "../dist/actor-types.mjs";
-import { parseTtsSettings, ttsPlan } from "../dist/tts.mjs";
+import { parseTtsSettings, ttsPlan, speechPlan } from "../dist/tts.mjs";
 import { generateTts } from "./tts.mjs";
 import {
   projectSubtitles,
@@ -383,8 +383,7 @@ const server = createServer(async (req, res) => {
         settings = parseTtsSettings(payload.settings);
       const script = project.voiceover?.script ?? "";
       ttsPlan(script, project.assets);
-      if (settings.voiceMode === "reference" && !settings.reference)
-        throw Error("Chọn file giọng mẫu WAV/MP3 trước khi tạo voice.");
+      speechPlan(script, settings);
       for (const [id, previous] of ttsJobs)
         if (!previous.running) ttsJobs.delete(id);
       const job = {

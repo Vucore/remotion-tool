@@ -409,3 +409,191 @@ test("Turbo emotion tags go to TTS but are removed from generated captions, uplo
       "Hello [laugh] there.",
     );
   }));
+
+test("speaker assignments persist, validate script matching and only used voices affect freshness", async () => {
+  const { speechPlan } = await import("../dist/tts.mjs");
+  const multi = settings({
+    speakers: [
+      {
+        id: "mom",
+        name: "Mother",
+        voiceMode: "preset",
+        voice: "Lucy",
+        reference: null,
+      },
+    ],
+    dialogue: [
+      {
+        order: 1,
+        turns: [
+          { speakerId: "default", text: "Hello." },
+          { speakerId: "mom", text: "Good morning." },
+        ],
+      },
+    ],
+  });
+  const text = "1. Hello.\n\nGood morning.";
+  const parsed = parseTtsSettings(JSON.parse(JSON.stringify(multi)));
+  assert.equal(speechPlan(text, parsed)[0].turns[1].options.voice, "Lucy");
+  const key = ttsInputKey(text, parsed);
+  assert.equal(
+    key,
+    ttsInputKey(text, {
+      ...parsed,
+      speakers: [{ ...parsed.speakers[0], name: "Renamed" }],
+    }),
+  );
+  assert.notEqual(
+    key,
+    ttsInputKey(text, {
+      ...parsed,
+      speakers: [{ ...parsed.speakers[0], voice: "Jack" }],
+    }),
+  );
+  assert.throws(() => speechPlan("1. Different text.", parsed), /không khớp/);
+  assert.throws(
+    () => parseTtsSettings({ ...multi, speakers: [] }),
+    /người nói/,
+  );
+  assert.throws(
+    () =>
+      speechPlan(text, {
+        ...parsed,
+        speakers: [{ ...parsed.speakers[0], voiceMode: "reference" }],
+      }),
+    /file clone/,
+  );
+  assert.throws(
+    () =>
+      speechPlan(text, {
+        ...parsed,
+        dialogue: [
+          ...parsed.dialogue,
+          { order: 2, turns: [{ speakerId: "default", text: "Extra" }] },
+        ],
+      }),
+    /không có trong TXT/,
+  );
+});
+
+test("multi-speaker scene uses ordered turns, actual clone files, one scene voice and per-turn cache", async () =>
+  withStorage(async (storage) => {
+    const wav = await fixture();
+    await writeFile(join(storage.assetDirectory, "mom.wav"), wav);
+    const multi = settings({
+      speakers: [
+        {
+          id: "mom",
+          name: "Mother",
+          voiceMode: "reference",
+          voice: "",
+          reference: { src: "/media/mom.wav", name: "mom.wav" },
+        },
+      ],
+      dialogue: [
+        {
+          order: 1,
+          turns: [
+            { speakerId: "default", text: "Hello." },
+            { speakerId: "mom", text: "Good morning." },
+          ],
+        },
+      ],
+    });
+    const text = "1. Hello.\n\nGood morning.";
+    const calls = [];
+    const fetchImpl = async (_, { body }) => {
+      calls.push(body.get("text"));
+      if (body.get("text") === "Good morning.")
+        assert.deepEqual(
+          Buffer.from(await body.get("voice_file").arrayBuffer()),
+          wav,
+        );
+      return new Response(wav);
+    };
+    const result = await generateTts(
+      { script: text, images: images.slice(1), settings: multi },
+      { ...storage, fetchImpl },
+    );
+    assert.deepEqual(calls, ["Hello.", "Good morning."]);
+    assert.equal(result.assets.length, 1);
+    assert.ok(Math.abs(result.assets[0].duration - 21.9778334) < 0.01);
+    const p = parseProject({
+      ...project({ script: text, scriptName: "script.txt", ...result }),
+      assets: images.slice(1),
+    });
+    assert.equal(p.voiceover.tts.dialogue[0].turns[1].speakerId, "mom");
+    assert.equal(
+      pairNarration(p.assets, p.voiceover)[0].text,
+      "Hello.\n\nGood morning.",
+    );
+    await generateTts(
+      { script: text, images: images.slice(1), settings: multi },
+      { ...storage, fetchImpl },
+    );
+    assert.equal(calls.length, 2);
+    await generateTts(
+      {
+        script: text.replace("Hello.", "Hey!"),
+        images: images.slice(1),
+        settings: {
+          ...multi,
+          dialogue: [
+            {
+              order: 1,
+              turns: [
+                { speakerId: "default", text: "Hey!" },
+                { speakerId: "mom", text: "Good morning." },
+              ],
+            },
+          ],
+        },
+      },
+      { ...storage, fetchImpl },
+    );
+    assert.equal(calls.length, 3);
+    const mp3 = await generateTts(
+      {
+        script: text,
+        images: images.slice(1),
+        settings: { ...multi, outputFormat: "mp3" },
+      },
+      { ...storage, fetchImpl },
+    );
+    assert.ok(mp3.assets[0].src.endsWith(".mp3"));
+    assert.equal(calls.length, 3); // WAV turn cache reused; only scene output is encoded.
+  }));
+
+test("short generated turns can be joined and padded to a valid scene without weakening upload validation", async () =>
+  withStorage(async (storage) => {
+    const wav = Buffer.alloc(44 + 24000 * 0.2 * 2);
+    wav.write("RIFF", 0);
+    wav.writeUInt32LE(wav.length - 8, 4);
+    wav.write("WAVEfmt ", 8);
+    wav.writeUInt32LE(16, 16);
+    wav.writeUInt16LE(1, 20);
+    wav.writeUInt16LE(1, 22);
+    wav.writeUInt32LE(24000, 24);
+    wav.writeUInt32LE(48000, 28);
+    wav.writeUInt16LE(2, 32);
+    wav.writeUInt16LE(16, 34);
+    wav.write("data", 36);
+    wav.writeUInt32LE(wav.length - 44, 40);
+    const multi = settings({
+      dialogue: [
+        {
+          order: 1,
+          turns: [
+            { speakerId: "default", text: "Yes." },
+            { speakerId: "default", text: "No." },
+          ],
+        },
+      ],
+    });
+    const result = await generateTts(
+      { script: "1. Yes.\nNo.", images: images.slice(1), settings: multi },
+      { ...storage, fetchImpl: async () => new Response(wav) },
+    );
+    assert.equal(result.assets.length, 1);
+    assert.ok(Math.abs(result.assets[0].duration - 0.5) < 0.002);
+  }));
