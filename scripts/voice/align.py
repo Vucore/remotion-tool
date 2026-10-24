@@ -31,7 +31,7 @@ def main():
         import stable_whisper
         import torch
         from scipy.signal import resample_poly
-        torch.set_num_threads(min(4, os.cpu_count() or 1))
+        torch.set_num_threads(min(2, os.cpu_count() or 1))
         model_dir = Path(args.model_dir)
         model_dir.mkdir(parents=True, exist_ok=True)
         if not args.download and not (model_dir / (args.model + ".pt")).is_file():

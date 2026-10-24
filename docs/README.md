@@ -7,6 +7,8 @@
 - [Kế hoạch không gian dựng, timeline ba hàng và thiết lập nhanh](KHONG-GIAN-DUNG-VIDEO.md)
 - [Mở rộng animation, gallery demo và layout có thanh kéo](MO-RONG-THIET-LAP-VA-LAYOUT.md)
 - [Kiến trúc](KIEN-TRUC.md)
+- [Kế hoạch tối ưu hiệu năng: dự án lớn và xuất video nền](TOI-UU-HIEU-NANG.md)
+- [Triển khai hiệu năng, cách chạy và kiểm chứng](HIEU-NANG-TRIEN-KHAI.md)
 - [Cài voice bằng uv](VOICE-VA-PHU-DE.md)
 - [Hỗ trợ WAV/MP3 và giữ chất lượng nguồn](HO-TRO-MP3.md)
 - [Xử lý ảnh hàng loạt: xóa logo và upscale](XU-LY-ANH-HANG-LOAT.md)
@@ -20,4 +22,4 @@
 - [Kiểm tra và giới hạn](KIEM-TRA.md)
 - [Dọn tệp cũ và bộ mẫu](DON-DEP-VA-BO-MAU.md)
 
-Tài liệu phản ánh luồng hiện tại. Đã bỏ các đề xuất, kế hoạch và demo video cũ không còn dùng. `test/` là dữ liệu mẫu; `tests/` là kiểm tra mã nguồn.
+Các tài liệu đề xuất/kế hoạch ghi rõ trạng thái triển khai; hướng dẫn sử dụng phản ánh luồng hiện tại. `test/` là dữ liệu mẫu; `tests/` là kiểm tra mã nguồn.

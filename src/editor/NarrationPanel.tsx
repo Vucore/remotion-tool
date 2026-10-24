@@ -1,4 +1,19 @@
-import { useRef, useState } from "react";
+import { proxySource } from "./performance";
+import {
+  useRef,
+  useState,
+  useMemo,
+  useEffect,
+  useCallback,
+  type RefObject,
+} from "react";
+import {
+  narrationDocument,
+  NarrationDraft,
+  type NarrationRow,
+} from "./narration-document";
+import { VirtualList } from "./VirtualList";
+import { BufferedTextarea } from "./BufferedTextarea";
 import { parseScript } from "../auto/narration";
 import {
   normalizedSpeech,
@@ -10,7 +25,7 @@ import type { Asset, VoiceAsset } from "../model";
 import { TtsPanel } from "./TtsPanel";
 import { Icon } from "../icons";
 
-type Row = { id: string; order: number; text: string; speakerId: string };
+type Row = NarrationRow;
 function readRows(script: string, settings: TtsSettings) {
   try {
     return parseScript(script).flatMap((section) => {
@@ -47,6 +62,7 @@ export function NarrationPanel({
   onGenerate,
   onImportScript,
   onUploadVoices,
+  flushRef,
 }: {
   script: string;
   settings: TtsSettings;
@@ -61,6 +77,7 @@ export function NarrationPanel({
   onGenerate: () => void;
   onImportScript: () => void;
   onUploadVoices: () => void;
+  flushRef?: RefObject<(() => void) | null>;
 }) {
   const [rows, setRows] = useState<Row[]>(() => readRows(script, settings));
   const [selected, setSelected] = useState<string[]>([]);
@@ -71,15 +88,33 @@ export function NarrationPanel({
   const [rawText, setRawText] = useState(script);
   const [localError, setLocalError] = useState("");
   const reference = useRef<HTMLInputElement>(null);
-  const staleAssignments = settings.dialogue.some(
-    (scene) =>
-      normalizedSpeech(scene.turns.map((turn) => turn.text).join("\n")) !==
-      normalizedSpeech(
-        rows
-          .filter((row) => row.order === scene.order)
-          .map((row) => row.text)
-          .join("\n"),
+  const grouped = useMemo(() => {
+    const map = new Map<number, Row[]>();
+    const speakers = new Map<string, number>();
+    for (const row of rows) {
+      let scene = map.get(row.order);
+      if (!scene) {
+        scene = [];
+        map.set(row.order, scene);
+      }
+      scene.push(row);
+      speakers.set(row.speakerId, (speakers.get(row.speakerId) ?? 0) + 1);
+    }
+    return { scenes: map, speakers };
+  }, [rows]);
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
+  const staleAssignments = useMemo(
+    () =>
+      settings.dialogue.some(
+        (scene) =>
+          normalizedSpeech(scene.turns.map((turn) => turn.text).join("\n")) !==
+          normalizedSpeech(
+            (grouped.scenes.get(scene.order) ?? [])
+              .map((row) => row.text)
+              .join("\n"),
+          ),
       ),
+    [settings.dialogue, grouped],
   );
   const active = settings.speakers.find((speaker) => speaker.id === speakerId);
   const speaker = active ?? {
@@ -89,31 +124,58 @@ export function NarrationPanel({
     voice: settings.voice,
     reference: settings.reference,
   };
-  const choices = [
-    { id: "default", name: "Người kể chuyện" },
-    ...settings.speakers,
-  ];
-  const selectedRows = rows.filter((row) => selected.includes(row.id));
-  const sceneOrders = [...new Set(rows.map((row) => row.order))];
+  const choices = useMemo(
+    () => [{ id: "default", name: "Người kể chuyện" }, ...settings.speakers],
+    [settings.speakers],
+  );
+  const selectedRows = useMemo(
+    () => rows.filter((row) => selectedSet.has(row.id)),
+    [rows, selectedSet],
+  );
+  const sceneOrders = useMemo(() => [...grouped.scenes.keys()], [grouped]);
   const audio = voices.find((voice) => voice.id === voiceId) ?? voices[0];
-  function commit(next: Row[]) {
-    setRows(next);
-    const orders = [...new Set(next.map((row) => row.order))].sort(
-      (a, b) => a - b,
+  const rowsRef = useRef(rows),
+    documentRef = useRef(onDocument),
+    generateRef = useRef(onGenerate);
+  rowsRef.current = rows;
+  documentRef.current = onDocument;
+  generateRef.current = onGenerate;
+  const latestScript = useRef(script);
+  const draft = useRef<NarrationDraft | null>(null);
+  if (!draft.current)
+    draft.current = new NarrationDraft(
+      () => rowsRef.current,
+      (next) => {
+        rowsRef.current = next;
+        setRows(next);
+        const document = narrationDocument(next);
+        latestScript.current = document.text;
+        documentRef.current(document.text, document.dialogue);
+      },
     );
-    const dialogue = orders.map((order) => ({
-      order,
-      turns: next
-        .filter((row) => row.order === order)
-        .map(({ text, speakerId }) => ({ text, speakerId })),
-    }));
-    const text = dialogue
-      .map(
-        (scene) =>
-          `${scene.order}. ${scene.turns.map((turn) => turn.text).join("\n\n")}`,
-      )
-      .join("\n\n");
-    onDocument(text, dialogue);
+  const buffered = draft.current;
+  const onDraft = useCallback(
+    (id: string, text: string) => buffered.set(id, text),
+    [buffered],
+  );
+  const cursors = useRef<Record<string, number>>({});
+  const onCursor = useCallback((id: string, position: number) => {
+    cursors.current[id] = position;
+  }, []);
+  useEffect(() => {
+    if (flushRef) flushRef.current = buffered.flush;
+    const flush = () => {
+      if (document.visibilityState === "hidden") buffered.flush();
+    };
+    document.addEventListener("visibilitychange", flush);
+    return () => {
+      buffered.flush();
+      if (flushRef) flushRef.current = null;
+      document.removeEventListener("visibilitychange", flush);
+    };
+  }, [buffered, flushRef]);
+  function commit(next: Row[]) {
+    buffered.commit(next);
   }
   function patchSpeaker(patch: Partial<TtsSpeaker>) {
     if (speakerId === "default") onChange(patch);
@@ -125,6 +187,9 @@ export function NarrationPanel({
       });
   }
   function split(row: Row, position: number) {
+    buffered.flush();
+    const current = rowsRef.current;
+    row = current.find((item) => item.id === row.id) ?? row;
     if (rows.filter((item) => item.order === row.order).length >= 100) {
       setLocalError("Mỗi cảnh tối đa 100 lượt nói.");
       return;
@@ -136,7 +201,7 @@ export function NarrationPanel({
       return;
     }
     commit(
-      rows.flatMap((item) =>
+      current.flatMap((item) =>
         item.id === row.id
           ? [
               { ...item, text: left },
@@ -147,7 +212,38 @@ export function NarrationPanel({
     );
     setLocalError("");
   }
-  const cursors = useRef<Record<string, number>>({});
+  const imageMap = useMemo(
+    () =>
+      new Map(
+        images.map((image) => [Number(image.name.match(/\d+/)?.[0]), image]),
+      ),
+    [images],
+  );
+  type Item =
+    | { kind: "header"; order: number }
+    | { kind: "add"; order: number }
+    | { kind: "turn"; order: number; row: Row; index: number };
+  const listItems = useMemo(
+    () =>
+      sceneOrders.flatMap((order) => [
+        {
+          key: `header:${order}`,
+          value: { kind: "header", order } as Item,
+          estimate: 64,
+        },
+        ...grouped.scenes.get(order)!.map((row, index) => ({
+          key: row.id,
+          value: { kind: "turn", order, row, index } as Item,
+          estimate: 205,
+        })),
+        {
+          key: `add:${order}`,
+          value: { kind: "add", order } as Item,
+          estimate: 70,
+        },
+      ]),
+    [sceneOrders, grouped],
+  );
   return (
     <div className="narration-panel">
       <fieldset disabled={busy}>
@@ -179,14 +275,26 @@ export function NarrationPanel({
               Dùng WAV / MP3
             </button>
           </div>
-          <button className="button" onClick={onImportScript}>
+          <button
+            className="button"
+            onClick={() => {
+              buffered.flush();
+              onImportScript();
+            }}
+          >
             <Icon name="folder" />
             Nhập TXT
           </button>
         </div>
         {!settings.enabled && (
           <div className="narration-upload">
-            <button className="button" onClick={onUploadVoices}>
+            <button
+              className="button"
+              onClick={() => {
+                buffered.flush();
+                onUploadVoices();
+              }}
+            >
               Chọn WAV / MP3
             </button>
             <span>
@@ -255,10 +363,7 @@ export function NarrationPanel({
                   >
                     <Icon name="voice" />
                     <span>{choice.name || "Chưa đặt tên"}</span>
-                    <small>
-                      {rows.filter((row) => row.speakerId === choice.id).length}{" "}
-                      lượt
-                    </small>
+                    <small>{grouped.speakers.get(choice.id) ?? 0} lượt</small>
                   </button>
                 ))}
               </div>
@@ -337,7 +442,8 @@ export function NarrationPanel({
                     <button
                       className="button"
                       onClick={() => {
-                        const next = rows.map((row) =>
+                        buffered.flush();
+                        const next = rowsRef.current.map((row) =>
                           row.speakerId === speakerId
                             ? { ...row, speakerId: "default" }
                             : row,
@@ -371,7 +477,7 @@ export function NarrationPanel({
                 onClick={() =>
                   commit(
                     rows.map((row) =>
-                      selected.includes(row.id) ? { ...row, speakerId } : row,
+                      selectedSet.has(row.id) ? { ...row, speakerId } : row,
                     ),
                   )
                 }
@@ -393,7 +499,9 @@ export function NarrationPanel({
                         ...settings,
                         dialogue: [],
                       });
+                      rowsRef.current = next;
                       setRows(next);
+                      latestScript.current = rawText;
                       setSelected([]);
                       onDocument(rawText, []);
                       setRaw(false);
@@ -404,7 +512,8 @@ export function NarrationPanel({
                       );
                     }
                   } else {
-                    setRawText(script);
+                    buffered.flush();
+                    setRawText(latestScript.current);
                     setRaw(true);
                   }
                 }}
@@ -486,7 +595,7 @@ export function NarrationPanel({
                         onClick={() =>
                           commit(
                             rows.map((row) =>
-                              selected.includes(row.id)
+                              selectedSet.has(row.id)
                                 ? { ...row, speakerId }
                                 : row,
                             ),
@@ -503,152 +612,158 @@ export function NarrationPanel({
                     Nhập TXT hoặc bấm Sửa TXT toàn bộ để bắt đầu.
                   </p>
                 )}
-                {sceneOrders.map((order) => {
-                  const scene = rows.filter((row) => row.order === order);
-                  const image = images.find(
-                    (item) => Number(item.name.match(/\d+/)?.[0]) === order,
-                  );
-                  return (
-                    <section key={order} className="narration-scene">
-                      <div className="narration-scene-heading">
-                        {image && <img src={image.src} alt="" />}
-                        <label>
-                          <input
-                            type="checkbox"
-                            aria-label={`Chọn cả cảnh ${order}`}
-                            checked={scene.every((row) =>
-                              selected.includes(row.id),
-                            )}
-                            onChange={(e) =>
-                              setSelected((previous) =>
-                                e.target.checked
-                                  ? [
-                                      ...new Set([
-                                        ...previous,
-                                        ...scene.map((row) => row.id),
-                                      ]),
-                                    ]
-                                  : previous.filter(
-                                      (id) =>
-                                        !scene.some((row) => row.id === id),
-                                    ),
-                              )
-                            }
-                          />
-                          Cảnh {order}
-                        </label>
-                        <small>{scene.length} lượt nói</small>
-                      </div>
-                      {scene.map((row, index) => (
+                <VirtualList
+                  entries={listItems}
+                  label="Các lượt nói"
+                  renderItem={(item) => {
+                    const order = item.order,
+                      scene = grouped.scenes.get(order)!;
+                    if (item.kind === "header") {
+                      const image = imageMap.get(order);
+                      return (
                         <div
-                          className="narration-turn"
-                          key={row.id}
-                          data-selected={selected.includes(row.id)}
+                          className="narration-scene-heading"
+                          style={{ paddingTop: 18 }}
                         >
-                          <div className="narration-turn-heading">
+                          {image && (
+                            <img
+                              src={proxySource(image.src, 384)}
+                              alt=""
+                              loading="lazy"
+                              decoding="async"
+                            />
+                          )}
+                          <label>
                             <input
                               type="checkbox"
-                              aria-label={`Chọn cảnh ${order} lượt ${index + 1}`}
-                              checked={selected.includes(row.id)}
+                              aria-label={`Chọn cả cảnh ${order}`}
+                              checked={scene.every((row) =>
+                                selectedSet.has(row.id),
+                              )}
                               onChange={(e) =>
                                 setSelected((previous) =>
                                   e.target.checked
-                                    ? [...previous, row.id]
-                                    : previous.filter((id) => id !== row.id),
+                                    ? [
+                                        ...new Set([
+                                          ...previous,
+                                          ...scene.map((row) => row.id),
+                                        ]),
+                                      ]
+                                    : previous.filter(
+                                        (id) =>
+                                          !scene.some((row) => row.id === id),
+                                      ),
                                 )
                               }
                             />
-                            <span>Lượt {index + 1}</span>
-                            {settings.enabled && (
-                              <select
-                                aria-label={`Người nói cảnh ${order} lượt ${index + 1}`}
-                                value={row.speakerId}
-                                onChange={(e) =>
-                                  commit(
-                                    rows.map((item) =>
-                                      item.id === row.id
-                                        ? { ...item, speakerId: e.target.value }
-                                        : item,
-                                    ),
-                                  )
-                                }
-                              >
-                                {choices.map((choice) => (
-                                  <option value={choice.id} key={choice.id}>
-                                    {choice.name || "Chưa đặt tên"}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
-                          </div>
-                          <textarea
-                            aria-label={`Lời cảnh ${order} lượt ${index + 1}`}
-                            rows={3}
-                            value={row.text}
+                            Cảnh {order}
+                          </label>
+                          <small>{scene.length} lượt nói</small>
+                        </div>
+                      );
+                    }
+                    if (item.kind === "add")
+                      return (
+                        <div style={{ paddingBottom: 26 }}>
+                          <button
+                            className="button"
+                            disabled={scene.length >= 100}
+                            onClick={() => {
+                              const last = rows.reduce(
+                                (last, row, index) =>
+                                  row.order === order ? index : last,
+                                -1,
+                              );
+                              const next = [...rows];
+                              next.splice(last + 1, 0, {
+                                id: crypto.randomUUID(),
+                                order,
+                                text: "",
+                                speakerId,
+                              });
+                              commit(next);
+                            }}
+                          >
+                            Thêm lượt nói
+                          </button>
+                        </div>
+                      );
+                    const { row, index } = item;
+                    return (
+                      <div
+                        className="narration-turn"
+                        data-selected={selectedSet.has(row.id)}
+                      >
+                        <div className="narration-turn-heading">
+                          <input
+                            type="checkbox"
+                            aria-label={`Chọn cảnh ${order} lượt ${index + 1}`}
+                            checked={selectedSet.has(row.id)}
                             onChange={(e) =>
-                              commit(
-                                rows.map((item) =>
-                                  item.id === row.id
-                                    ? { ...item, text: e.target.value }
-                                    : item,
-                                ),
+                              setSelected((previous) =>
+                                e.target.checked
+                                  ? [...previous, row.id]
+                                  : previous.filter((id) => id !== row.id),
                               )
                             }
-                            onSelect={(e) => {
-                              cursors.current[row.id] =
-                                e.currentTarget.selectionStart;
-                            }}
                           />
-                          <div className="narration-turn-actions">
-                            <button
-                              className="button"
-                              onClick={() =>
-                                split(row, cursors.current[row.id] ?? 0)
+                          <span>Lượt {index + 1}</span>
+                          {settings.enabled && (
+                            <select
+                              aria-label={`Người nói cảnh ${order} lượt ${index + 1}`}
+                              value={row.speakerId}
+                              onChange={(e) =>
+                                commit(
+                                  rows.map((item) =>
+                                    item.id === row.id
+                                      ? { ...item, speakerId: e.target.value }
+                                      : item,
+                                  ),
+                                )
                               }
                             >
-                              Tách tại con trỏ
-                            </button>
-                            <button
-                              className="button"
-                              disabled={scene.length <= 1}
-                              onClick={() => {
-                                commit(
-                                  rows.filter((item) => item.id !== row.id),
-                                );
-                                setSelected((previous) =>
-                                  previous.filter((id) => id !== row.id),
-                                );
-                              }}
-                            >
-                              Xóa lượt
-                            </button>
-                          </div>
+                              {choices.map((choice) => (
+                                <option value={choice.id} key={choice.id}>
+                                  {choice.name || "Chưa đặt tên"}
+                                </option>
+                              ))}
+                            </select>
+                          )}
                         </div>
-                      ))}
-                      <button
-                        className="button"
-                        disabled={scene.length >= 100}
-                        onClick={() => {
-                          const last = rows.reduce(
-                            (last, row, index) =>
-                              row.order === order ? index : last,
-                            -1,
-                          );
-                          const next = [...rows];
-                          next.splice(last + 1, 0, {
-                            id: crypto.randomUUID(),
-                            order,
-                            text: "",
-                            speakerId,
-                          });
-                          commit(next);
-                        }}
-                      >
-                        Thêm lượt nói
-                      </button>
-                    </section>
-                  );
-                })}
+                        <BufferedTextarea
+                          id={row.id}
+                          text={row.text}
+                          label={`Lời cảnh ${order} lượt ${index + 1}`}
+                          onDraft={onDraft}
+                          onFlush={buffered.flush}
+                          onCursor={onCursor}
+                        />
+                        <div className="narration-turn-actions">
+                          <button
+                            className="button"
+                            onClick={() =>
+                              split(row, cursors.current[row.id] ?? 0)
+                            }
+                          >
+                            Tách tại con trỏ
+                          </button>
+                          <button
+                            className="button"
+                            disabled={scene.length <= 1}
+                            onClick={() => {
+                              commit(rows.filter((item) => item.id !== row.id));
+                              setSelected((previous) =>
+                                previous.filter((id) => id !== row.id),
+                              );
+                            }}
+                          >
+                            Xóa lượt
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
               </>
             )}
           </section>
@@ -693,7 +808,10 @@ export function NarrationPanel({
               disabled={
                 !canGenerate || raw || staleAssignments || ready || !rows.length
               }
-              onClick={onGenerate}
+              onClick={() => {
+                buffered.flush();
+                setTimeout(() => generateRef.current(), 0);
+              }}
             >
               <Icon name="voice" />
               {ready ? "Voice đã cập nhật" : "Tạo / cập nhật voice"}

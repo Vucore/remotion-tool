@@ -1,3 +1,4 @@
+import { PreviewQuality } from "./preview-quality";
 import {
   AbsoluteFill,
   CanvasImage,
@@ -21,6 +22,7 @@ import { Overlays } from "./Overlays";
 import { FontLoader } from "./FontLoader";
 import { useMemo } from "react";
 import { Audio } from "@remotion/media";
+import { proxySource, lastAt } from "./editor/performance";
 import { SceneActors } from "./actors/ActorView";
 const filterStyles = {
   none: "",
@@ -35,12 +37,16 @@ const SceneView = ({
   item,
   nextOverlap,
   placementMode,
+  previewQuality,
+  asset,
 }: {
   scene: Scene;
   project: Project;
   item: ReturnType<typeof timeline>[number];
   nextOverlap: number;
   placementMode?: boolean;
+  previewQuality?: "light" | "full";
+  asset?: Project["assets"][number];
 }) => {
   const frame = useCurrentFrame(),
     { fps } = useVideoConfig();
@@ -61,7 +67,11 @@ const SceneView = ({
     frame / fps,
     item.duration / fps,
   );
-  const asset = project.assets.find((a) => a.id === scene.assetId);
+  const imageSrc =
+    asset && previewQuality
+      ? proxySource(asset.src, previewQuality === "light" ? 960 : 1440)
+      : asset?.src;
+  const outputScale = previewQuality === "light" ? 0.5 : 1;
   const imageStyle = {
     width: "100%",
     height: "100%",
@@ -96,19 +106,19 @@ const SceneView = ({
           {asset &&
             (effects.length ? (
               <CanvasImage
-                src={asset.src}
+                src={imageSrc!}
                 width={project.width}
                 height={project.height}
                 fit={scene.fit}
                 effects={effects}
                 effectsOutputSize={{
-                  width: project.width,
-                  height: project.height,
+                  width: Math.round(project.width * outputScale),
+                  height: Math.round(project.height * outputScale),
                 }}
                 style={imageStyle}
               />
             ) : (
-              <Img src={asset.src} style={imageStyle} />
+              <Img src={imageSrc!} style={imageStyle} />
             ))}
         </AbsoluteFill>
         <SceneActors
@@ -150,9 +160,11 @@ const SceneView = ({
 export const Video = ({
   project,
   placementMode = false,
+  previewQuality,
 }: {
   project: Project;
   placementMode?: boolean;
+  previewQuality?: "light" | "full";
 }) => {
   const usedFonts = useMemo(
     () =>
@@ -163,14 +175,33 @@ export const Video = ({
       ),
     [project.fonts, project.scenes],
   );
-  const items = timeline(project),
+  const items = useMemo(() => timeline(project), [project]);
+  const assets = useMemo(
+    () => new Map(project.assets.map((a) => [a.id, a])),
+    [project.assets],
+  );
+  const voices = useMemo(
+    () => new Map(project.voiceover?.assets.map((v) => [v.id, v]) ?? []),
+    [project.voiceover],
+  );
+  const frame = useCurrentFrame(),
     { fps } = useVideoConfig();
+  const index = lastAt(items, frame);
+  // Preserve outgoing transition and next-scene premount, without mounting the full movie.
+  const windowItems = items
+    .slice(Math.max(0, index - 1), lastAt(items, frame + fps) + 1)
+    .filter(
+      (item) =>
+        item.from <= frame + fps && item.from + item.visualDuration > frame,
+    );
+
   return (
+    <PreviewQuality.Provider value={previewQuality ?? "full"}>
     <AbsoluteFill
       style={{ background: project.background, overflow: "hidden" }}
     >
       <FontLoader fonts={usedFonts} />
-      {items.map((item, index) => (
+      {windowItems.map((item) => (
         <Sequence
           key={item.scene.id}
           from={item.from}
@@ -181,15 +212,15 @@ export const Video = ({
             scene={item.scene}
             project={project}
             item={item}
-            nextOverlap={items[index + 1]?.overlap ?? 0}
+            nextOverlap={items[items.indexOf(item) + 1]?.overlap ?? 0}
+            asset={assets.get(item.scene.assetId)}
+            previewQuality={previewQuality}
             placementMode={placementMode}
           />
         </Sequence>
       ))}
-      {items.map((item) => {
-        const voice = project.voiceover?.assets.find(
-          (v) => v.id === item.scene.voice?.assetId,
-        );
+      {windowItems.map((item) => {
+        const voice = voices.get(item.scene.voice?.assetId ?? "");
         return (
           <Sequence
             key={`voice-${item.scene.id}`}
@@ -218,5 +249,6 @@ export const Video = ({
         );
       })}
     </AbsoluteFill>
+    </PreviewQuality.Provider>
   );
 };

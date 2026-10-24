@@ -1,29 +1,31 @@
+import { imageInfo } from "./image-info.mjs";
 import { createServer } from "node:http";
-import { createReadStream } from "node:fs";
-import { access, mkdir, stat, writeFile } from "node:fs/promises";
+import { createReadStream, createWriteStream } from "node:fs";
+import { pipeline } from "node:stream/promises";
+import { Transform } from "node:stream";
+import { access, mkdir, stat, writeFile, rm } from "node:fs/promises";
 import { resolve, extname, join } from "node:path";
-import { randomUUID } from "node:crypto";
-import { makeCancelSignal } from "@remotion/renderer";
-import { renderProject } from "./render-project.mjs";
+import { randomUUID, createHash } from "node:crypto";
+import { ExportJobs } from "./export-jobs.mjs";
+import { heavyTasks } from "./resource-queue.mjs";
+import {
+  imageProxy,
+  imageMetadata,
+  pruneProxies,
+  stopMediaHelpers,
+} from "./media-proxy.mjs";
+import { analyzeVoice } from "./voice-analysis.mjs";
 import { parseProject } from "../dist/model.mjs";
 import { parseAutoConfig } from "../dist/auto-config.mjs";
-import { compileAuto } from "../dist/auto.mjs";
 import { pairNarration } from "../dist/narration.mjs";
-import { prepareNarration } from "./narration.mjs";
-import { wavEnvelope } from "./wav-info.mjs";
-import { inspectVoice, MAX_VOICE_BYTES } from "./voice-input.mjs";
+import { narrationTask } from "./narration-task.mjs";
+import { MAX_VOICE_BYTES } from "./voice-input.mjs";
 import { actorImages } from "../dist/actor-types.mjs";
 import { parseTtsSettings, ttsPlan, speechPlan } from "../dist/tts.mjs";
 import { processImages, imageRuntimeStatus } from "./image-processing.mjs";
 import { parseImageProcessing } from "../dist/image-processing.mjs";
 import { generateTts } from "./tts.mjs";
-import {
-  projectSubtitles,
-  subtitleFilename,
-  toSrt,
-  validateCues,
-  languageCode,
-} from "../dist/subtitles.mjs";
+import { validateCues, languageCode } from "../dist/subtitles.mjs";
 import {
   translateSubtitles,
   translationLanguages,
@@ -41,11 +43,15 @@ await Promise.all([
   mkdir(fontsDir, { recursive: true }),
   mkdir(join(root, ".cache"), { recursive: true }),
 ]);
-const jobs = new Map();
+const exportQueue = new ExportJobs(root, origin);
+await exportQueue.initialize();
+void pruneProxies().catch(() => {});
+const jobs = exportQueue.jobs;
 const narrationJobs = new Map();
 const ttsJobs = new Map();
 const translationJobs = new Map();
 const imageJobs = new Map();
+const voiceControllers = new Set();
 async function buildTranslation(job, input) {
   try {
     job.result = await translateSubtitles(input, {
@@ -70,13 +76,17 @@ async function buildTranslation(job, input) {
 }
 async function buildTts(job, input) {
   try {
-    const result = await generateTts(input, {
-      signal: job.controller.signal,
-      onProgress: (progress, message) => {
-        job.progress = progress;
-        job.message = message;
-      },
-    });
+    const result = await heavyTasks.run(
+      () =>
+        generateTts(input, {
+          signal: job.controller.signal,
+          onProgress: (progress, message) => {
+            job.progress = progress;
+            job.message = message;
+          },
+        }),
+      job.controller.signal,
+    );
     if (job.controller.signal.aborted) return;
     job.result = result;
     job.status = "done";
@@ -100,20 +110,20 @@ const publicNarration = (job) => ({
 });
 async function buildNarration(job, config, project, keep) {
   try {
-    const prepared = await prepareNarration(
-      config,
-      project.assets,
-      project.voiceover,
-      {
-        signal: job.controller.signal,
-        onProgress: (progress, message) => {
-          job.progress = progress;
-          job.message = message;
-        },
-      },
+    job.message = "Đang chờ tài nguyên căn phụ đề…";
+    job.result = await heavyTasks.run(
+      () =>
+        narrationTask(
+          { config, project, keep },
+          job.controller.signal,
+          (progress, message) => {
+            job.progress = progress;
+            job.message = message;
+          },
+        ),
+      job.controller.signal,
     );
     if (job.controller.signal.aborted) return;
-    job.result = compileAuto(config, project.assets, project, keep, prepared);
     job.status = "done";
     job.progress = 1;
   } catch (error) {
@@ -132,17 +142,24 @@ const json = (res, code, body) => {
   });
   res.end(JSON.stringify(body));
 };
-const publicJob = (job) => ({
-  id: job.id,
-  status: job.status,
-  progress: job.progress,
-  error: job.error,
-  url: job.url,
-  filename: job.filename,
-  ...(job.status === "done" && job.subtitleUrl
-    ? { subtitleUrl: job.subtitleUrl, subtitleFilename: job.subtitleFilename }
-    : {}),
-});
+const publicJob = (job) => exportQueue.public(job);
+async function streamUpload(req, destination, limit, signal) {
+  let size = 0;
+  const limiter = new Transform({
+    transform(chunk, encoding, callback) {
+      size += chunk.length;
+      callback(
+        size > limit
+          ? Object.assign(Error("Voice tối đa 100 MB mỗi file."), {
+              status: 413,
+            })
+          : null,
+        chunk,
+      );
+    },
+  });
+  await pipeline(req, limiter, createWriteStream(destination), { signal });
+}
 async function body(req, limit = 16 * 1024 * 1024) {
   const chunks = [];
   let size = 0;
@@ -196,7 +213,10 @@ async function serveFile(req, res, path, attachment = false) {
   const headers = {
     "Content-Type": mime[extname(path)] || "application/octet-stream",
     "X-Content-Type-Options": "nosniff",
-    "Cache-Control": "no-cache",
+    "Cache-Control":
+      path.includes("/data/uploads/") || path.includes("/.cache/proxies/")
+        ? "private, max-age=31536000, immutable"
+        : "no-cache",
     "Accept-Ranges": "bytes",
   };
   if (req.headers.origin) {
@@ -231,48 +251,6 @@ async function serveFile(req, res, path, attachment = false) {
     createReadStream(path).pipe(res);
   }
 }
-async function render(job, project, quality) {
-  try {
-    await renderProject(project, {
-      origin,
-      output: join(exportsDir, `${job.id}.mp4`),
-      quality,
-      cancelSignal: job.cancelSignal,
-      cancelled: () => job.status === "cancelled",
-      ports: { composition: 3231, render: 3232 },
-      onProgress: (progress, status) => {
-        if (job.status !== "cancelled") {
-          job.progress = progress;
-          job.status = status;
-        }
-      },
-    });
-    if (job.status !== "cancelled") {
-      const cues = projectSubtitles(project);
-      if (cues.length) {
-        await writeFile(join(exportsDir, `${job.id}.srt`), toSrt(cues), "utf8");
-        job.subtitleUrl = `/exports/${job.id}.srt`;
-        job.subtitleFilename = subtitleFilename(
-          job.filename,
-          project.automation?.config.narration.language ??
-            project.voiceover?.uploadLanguage ??
-            "vi",
-        );
-      }
-      job.status = "done";
-      job.progress = 1;
-      job.url = `/exports/${job.id}.mp4`;
-    }
-  } catch (error) {
-    if (job.status !== "cancelled") {
-      job.status = "error";
-      job.error = `Không xuất được video: ${error.message}`;
-      console.error(error);
-    }
-  } finally {
-    job.running = false;
-  }
-}
 const server = createServer(async (req, res) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   try {
@@ -298,6 +276,26 @@ const server = createServer(async (req, res) => {
       !rendererAssetRequest
     ) {
       json(res, 403, { error: "Nguồn yêu cầu không hợp lệ." });
+      return;
+    }
+    if (url.pathname === "/api/proxy" && ["GET", "HEAD"].includes(req.method)) {
+      const src = url.searchParams.get("src") || "";
+      const size = Number(url.searchParams.get("size") || 384);
+      if (![384, 960, 1440].includes(size))
+        throw Error("Kích thước preview không hợp lệ.");
+      try {
+        await serveFile(req, res, await imageProxy(src, size));
+      } catch {
+        await serveFile(
+          req,
+          res,
+          join(
+            uploads,
+            src.match(/^\/media\/([a-zA-Z0-9_-]+\.(?:png|jpg|webp))$/)?.[1] ||
+              "missing",
+          ),
+        );
+      }
       return;
     }
     if (url.pathname === "/api/images/status" && req.method === "GET") {
@@ -328,13 +326,18 @@ const server = createServer(async (req, res) => {
       json(res, 202, publicNarration(job));
       void (async () => {
         try {
-          job.result = await processImages(project.assets, settings, {
-            signal: job.controller.signal,
-            onProgress: (progress, message) => {
-              job.progress = progress;
-              job.message = message;
-            },
-          });
+          job.message = "Đang chờ tài nguyên xử lý ảnh…";
+          job.result = await heavyTasks.run(
+            () =>
+              processImages(project.assets, settings, {
+                signal: job.controller.signal,
+                onProgress: (progress, message) => {
+                  job.progress = progress;
+                  job.message = message;
+                },
+              }),
+            job.controller.signal,
+          );
           if (!job.controller.signal.aborted) {
             job.status = "done";
             job.progress = 1;
@@ -498,6 +501,7 @@ const server = createServer(async (req, res) => {
       const closed = () => {
         if (!res.writableEnded) abort();
       };
+      voiceControllers.add(controller);
       req.once("aborted", abort);
       res.once("close", closed);
       try {
@@ -505,18 +509,26 @@ const server = createServer(async (req, res) => {
           0,
           500,
         );
-        const input = await body(req, MAX_VOICE_BYTES);
-        const { bytes, decodedWav, info, extension } = await inspectVoice(
-          input,
-          {
-            name,
-            signal: controller.signal,
-          },
-        );
-        const envelope = wavEnvelope(decodedWav, info),
-          voiceId = randomUUID();
-        if (controller.signal.aborted) return;
-        await writeFile(join(uploads, `${voiceId}.${extension}`), bytes);
+        const extension = name.match(/\.(wav|mp3)$/i)?.[1].toLowerCase();
+        if (!extension) throw Error("Voice chỉ nhận WAV hoặc MP3.");
+        const voiceId = randomUUID(),
+          destination = join(uploads, `${voiceId}.${extension}`);
+        let uploaded = false;
+        let result;
+        try {
+          await streamUpload(
+            req,
+            destination,
+            MAX_VOICE_BYTES,
+            controller.signal,
+          );
+          result = await analyzeVoice(destination, name, controller.signal);
+          if (controller.signal.aborted) return;
+          uploaded = true;
+        } finally {
+          if (!uploaded) await rm(destination, { force: true });
+        }
+        const { envelope, info } = result;
         json(res, 201, {
           id: voiceId,
           name,
@@ -525,6 +537,7 @@ const server = createServer(async (req, res) => {
           envelope,
         });
       } finally {
+        voiceControllers.delete(controller);
         req.removeListener("aborted", abort);
         res.removeListener("close", closed);
       }
@@ -600,9 +613,25 @@ const server = createServer(async (req, res) => {
         json(res, 415, { error: "Chỉ nhận ảnh PNG, JPG và WebP hợp lệ." });
         return;
       }
-      const filename = `${randomUUID()}.${ext}`;
-      await writeFile(join(uploads, filename), buffer);
-      json(res, 201, { src: `/media/${filename}` });
+      const filename = `${createHash("sha256").update(buffer).digest("hex")}.${ext}`;
+      const dimensions = imageInfo(buffer);
+      if (dimensions.width * dimensions.height > 40_000_000)
+        throw Error("Ảnh tối đa 40 megapixel.");
+      await writeFile(join(uploads, filename), buffer, { flag: "wx" }).catch(
+        (error) => {
+          if (error.code !== "EEXIST") throw error;
+        },
+      );
+      const src = `/media/${filename}`;
+      let metadata = dimensions;
+      if (ext !== "png") {
+        try {
+          metadata = { ...dimensions, ...(await imageMetadata(src)) };
+        } catch {
+          metadata = { ...dimensions, width: 0, height: 0 };
+        } // Let the browser read EXIF orientation if Pillow is unavailable.
+      }
+      json(res, 201, { src, ...metadata });
       return;
     }
     if (url.pathname === "/api/fonts" && req.method === "POST") {
@@ -635,13 +664,10 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (url.pathname === "/api/exports" && req.method === "POST") {
-      if ([...jobs.values()].some((j) => j.running)) {
-        json(res, 409, {
-          error:
-            "Một tác vụ xuất đang chạy hoặc đang dừng. Đợi vài giây rồi thử lại.",
-        });
-        return;
-      }
+      if ([...jobs.values()].filter((job) => job.running).length >= 5)
+        throw Error(
+          "Hàng đợi đã có 5 video. Chờ hoàn tất hoặc hủy một tác vụ.",
+        );
       const payload = JSON.parse((await body(req)).toString());
       const project = parseProject(payload.project);
       if (!project.scenes.length)
@@ -698,24 +724,31 @@ const server = createServer(async (req, res) => {
           );
         }
       }
-      const job = {
-        id: randomUUID(),
-        filename: Array.from(
-          String(payload.filename || "khung-video.mp4").replace(
-            /[\r\n"\\/\x00-\x1f]/g,
-            "-",
-          ),
-        )
-          .slice(-180)
-          .join(""),
-        status: "preparing",
-        progress: 0,
-        running: true,
-        ...makeCancelSignal(),
-      };
-      jobs.set(job.id, job);
+      const filename = Array.from(
+        String(payload.filename || "khung-video.mp4").replace(
+          /[\r\n"\\/\x00-\x1f]/g,
+          "-",
+        ),
+      )
+        .slice(-180)
+        .join("");
+      const job = await exportQueue.create(project, {
+        filename,
+        quality: payload.quality,
+        mode: payload.mode,
+      });
       json(res, 202, publicJob(job));
-      void render(job, project, payload.quality);
+      return;
+    }
+    if (url.pathname === "/api/exports" && req.method === "GET") {
+      json(res, 200, [...jobs.values()].map(publicJob).reverse());
+      return;
+    }
+    const retryId = url.pathname.match(
+      /^\/api\/exports\/([a-f0-9-]{36})\/retry$/,
+    )?.[1];
+    if (retryId && req.method === "POST") {
+      json(res, 202, publicJob(await exportQueue.retry(retryId)));
       return;
     }
     const jobId = url.pathname.match(/^\/api\/exports\/([a-f0-9-]{36})$/)?.[1];
@@ -727,10 +760,9 @@ const server = createServer(async (req, res) => {
       }
       if (
         req.method === "DELETE" &&
-        ["preparing", "rendering"].includes(job.status)
+        ["queued", "preparing", "rendering"].includes(job.status)
       ) {
-        job.status = "cancelled";
-        job.cancel();
+        await exportQueue.cancel(job);
       }
       json(res, 200, publicJob(job));
       return;
@@ -776,10 +808,12 @@ const server = createServer(async (req, res) => {
     if (url.pathname === "/") {
       res.setHeader(
         "Content-Security-Policy",
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self'; media-src 'self' blob:; frame-ancestors 'none'",
+        "default-src 'self'; worker-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self'; media-src 'self' blob:; frame-ancestors 'none'",
       );
       await serveFile(req, res, join(root, "index.html"));
-    } else if (/^\/(app\.(js|css)(\.map)?)$/.test(url.pathname))
+    } else if (
+      /^\/((app|project-worker|utility-worker)\.(js|css)(\.map)?)$/.test(url.pathname)
+    )
       await serveFile(req, res, join(root, "dist", relative));
     else await serveFile(req, res, staticPath);
   } catch (error) {
@@ -800,7 +834,7 @@ server.on("error", (error) => {
   process.exit(1);
 });
 for (const signal of ["SIGINT", "SIGTERM"])
-  process.on(signal, () => {
+  process.on(signal, async () => {
     for (const job of imageJobs.values())
       if (job.running) job.controller.abort();
     for (const job of translationJobs.values())
@@ -808,8 +842,24 @@ for (const signal of ["SIGINT", "SIGTERM"])
     for (const job of ttsJobs.values()) if (job.running) job.controller.abort();
     for (const job of narrationJobs.values())
       if (job.running) job.controller.abort();
-    for (const job of jobs.values())
-      if (["preparing", "rendering"].includes(job.status)) job.cancel();
+    for (const controller of voiceControllers) controller.abort();
+    stopMediaHelpers();
+    await exportQueue.close();
     server.close();
-    process.exit(0);
+    // Export workers finish graceful cancellation or their 5s process-group deadline.
+    const timer = setInterval(() => {
+      if (
+        !voiceControllers.size &&
+        ![
+          ...jobs.values(),
+          ...imageJobs.values(),
+          ...ttsJobs.values(),
+          ...narrationJobs.values(),
+          ...translationJobs.values(),
+        ].some((job) => job.running)
+      ) {
+        clearInterval(timer);
+        process.exit(0);
+      }
+    }, 100);
   });

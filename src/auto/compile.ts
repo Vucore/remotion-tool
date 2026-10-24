@@ -60,6 +60,8 @@ export type AutoReport = {
   warnings: string[];
   files: string[];
 };
+export type SceneCompileCache = Map<string, { key: string; scene: Scene }>;
+
 export function compileAuto(
   input: unknown,
   assets: Asset[],
@@ -67,6 +69,7 @@ export function compileAuto(
   keepLocks = true,
   narration?: { input: Voiceover; alignments: VoiceAlignment[] },
   actorLibrary: ActorDefinition[] = previous?.actors ?? [],
+  sceneCache?: SceneCompileCache,
 ): { project: Project; report: AutoReport } {
   const config = parseAutoConfig(input),
     fps = config.output.fps;
@@ -103,6 +106,25 @@ export function compileAuto(
   const warnings: string[] = [];
   const fixed = new Set<string>();
   let previousMotion: Scene["motion"] | undefined;
+  const commonKey = sceneCache
+    ? JSON.stringify([
+        config.seed,
+        fps,
+        config.framing,
+        config.motion,
+        config.transition,
+        config.look,
+        config.text.preset,
+        config.text.style,
+        config.timing,
+      ])
+    : "";
+  if (sceneCache) {
+    const ids = new Set(
+      ordered.map((asset) => `auto-${hash(asset.name.normalize("NFC"))}`),
+    );
+    for (const id of sceneCache.keys()) if (!ids.has(id)) sceneCache.delete(id);
+  }
   const scenes = ordered.map((asset, index) => {
     const sceneId = `auto-${hash(asset.name.normalize("NFC"))}`;
     const old = previous?.scenes.find((s) => s.id === sceneId);
@@ -119,6 +141,25 @@ export function compileAuto(
       config.look.scene.duration !== undefined
     )
       fixed.add(sceneId);
+    const caption = pairs
+      ? ""
+      : (override?.text ?? captionFor(config, asset.name));
+    const cacheKey = sceneCache
+      ? JSON.stringify([
+          commonKey,
+          asset.id,
+          sceneId,
+          index,
+          previousMotion,
+          override,
+          caption,
+        ])
+      : "";
+    const cached = sceneCache?.get(sceneId);
+    if (cached?.key === cacheKey) {
+      previousMotion = cached.scene.motion;
+      return structuredClone(cached.scene);
+    }
     let motion = config.motion.presets[index % config.motion.presets.length];
     if (config.motion.policy === "seeded") {
       const candidates = config.motion.presets.filter(
@@ -185,9 +226,6 @@ export function compileAuto(
       kind: layer.kind,
       id: layer.id,
     }));
-    const caption = pairs
-      ? ""
-      : (override?.text ?? captionFor(config, asset.name));
     if (caption)
       scene.texts = [
         {
@@ -208,6 +246,8 @@ export function compileAuto(
       layers.forEach((layer, i) => {
         layer.id = `${sceneId}-${kind}-${i}`;
       });
+    if (sceneCache)
+      sceneCache.set(sceneId, { key: cacheKey, scene: structuredClone(scene) });
     return scene;
   });
   // Manually duplicated or split scenes can be retained explicitly as well.

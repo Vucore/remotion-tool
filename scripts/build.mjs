@@ -46,11 +46,23 @@ export async function buildApp(watch = false) {
     target: "node22",
     logLevel: "warning",
   });
+  const workerConfig = {
+    ...config,
+    entryPoints: {
+      "project-worker": "src/editor/project-worker.ts",
+      "utility-worker": "src/editor/utility-worker.ts",
+    },
+    outfile: undefined,
+    outdir: "dist",
+  };
   if (watch) {
+    const workerContext = await context(workerConfig);
+    await workerContext.watch();
     const ctx = await context(config);
     await ctx.watch();
     return ctx;
   }
+  await build(workerConfig);
   await build(config);
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

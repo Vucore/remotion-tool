@@ -165,9 +165,16 @@ export function TextAtFrame({
   frame: number;
   fps: number;
 }) {
-  const cue = source.captions?.find(
-    (c) => (frame * 1000) / fps >= c.startMs && (frame * 1000) / fps < c.endMs,
-  );
+  const cueTime = (frame * 1000) / fps;
+  let low = 0,
+    high = source.captions?.length ?? 0;
+  while (low < high) {
+    const mid = (low + high) >>> 1;
+    if (source.captions![mid].startMs <= cueTime) low = mid + 1;
+    else high = mid;
+  }
+  const candidate = source.captions?.[low - 1];
+  const cue = candidate && cueTime < candidate.endMs ? candidate : undefined;
   if (source.captions && !cue) return null;
   const text = cue
     ? {

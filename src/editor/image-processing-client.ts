@@ -1,3 +1,4 @@
+import { leanProject } from "./project-client";
 import type { Asset, Project } from "../model";
 import type { ImageProcessingSettings } from "../auto/image-processing";
 export type ImageProcessResult = {
@@ -25,7 +26,7 @@ export async function processProjectImages(
     const response = await fetch("/api/images/process", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ project, settings }),
+      body: JSON.stringify({ project: leanProject(project), settings }),
     });
     let job = await response.json();
     if (!response.ok) throw Error(job.error || "Không bắt đầu được xử lý ảnh.");

@@ -1,4 +1,4 @@
-import { bundle } from "@remotion/bundler";
+import { renderBundle } from "./render-bundle.mjs";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { join, resolve } from "node:path";
 import { mapActorImages } from "../dist/actor-types.mjs";
@@ -15,15 +15,14 @@ export async function renderProject(
     cancelled = () => false,
     onProgress = () => {},
     ports = {},
+    concurrency = 1,
+    mediaCacheSizeInBytes = 256 * 1024 ** 2,
   },
 ) {
   if (!bundlePromise)
-    bundlePromise = bundle({
-      entryPoint: join(root, "src/remotion.tsx"),
-      publicDir: join(root, "public"),
-      outDir: join(root, ".cache", `remotion-${process.pid}`),
-      onProgress: (value) => onProgress((value / 100) * 0.12, "preparing"),
-    }).catch((error) => {
+    bundlePromise = renderBundle(root, (value) =>
+      onProgress((value / 100) * 0.12, "preparing"),
+    ).catch((error) => {
       bundlePromise = undefined;
       throw error;
     });
@@ -69,7 +68,8 @@ export async function renderProject(
     crf: quality === "high" ? 18 : 23,
     pixelFormat: "yuv420p",
     outputLocation: output,
-    concurrency: 2,
+    concurrency,
+    mediaCacheSizeInBytes,
     cancelSignal,
     port: ports.render,
     chromiumOptions: { gl: "angle" },

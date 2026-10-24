@@ -1,3 +1,4 @@
+import { leanProject } from "./project-client";
 import { parseProject, type Project } from "../model";
 import { parseTtsSettings, type TtsSettings } from "../auto/tts";
 
@@ -20,7 +21,7 @@ export async function createTtsVoices(
     const response = await fetch("/api/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ project, settings }),
+      body: JSON.stringify({ project: leanProject(project), settings }),
     });
     let job = await response.json();
     if (!response.ok)

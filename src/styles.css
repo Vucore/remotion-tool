@@ -3229,3 +3229,16 @@ button svg {
     max-height: calc(100dvh - 24px);
   }
 }
+
+.preview-performance-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 6px 16px; font-size: 12px; color: var(--muted, #637065); }
+.preview-performance-controls label { display: flex; align-items: center; gap: 5px; }
+.preview-performance-controls select { font: inherit; border: 1px solid #d5ded2; background: white; border-radius: 6px; padding: 3px; max-width: 170px; }
+.timeline-wave { pointer-events: none; }
+
+.export-history > article { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 16px 0; border-bottom: 1px solid #d5ded2; }
+.export-history small { display: block; margin-top: 5px; color: #637065; }
+.export-history p { font-size: 13px; }
+.export-history-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 600px) { .export-history > article { align-items: start; flex-direction: column; } }
+
+.preview-workspace { grid-template-rows: 42px auto minmax(0, 1fr) 32px; }

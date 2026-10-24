@@ -1,5 +1,5 @@
 import { parseAutoConfig, type AutoConfig } from "./config";
-import { compareNames, compileAuto } from "./compile";
+import { compareNames, compileAuto, type SceneCompileCache } from "./compile";
 import {
   MOTIONS,
   TRANSITIONS,
@@ -845,6 +845,7 @@ export function captionStyle(o: StoryOptions): Partial<TextLayer> {
 export function previewStory(
   source: Project,
   input: StoryOptions,
+  sceneCache?: SceneCompileCache,
 ): { project: Project; estimated: boolean; error?: string } {
   if (!source.assets.length)
     return {
@@ -906,7 +907,15 @@ export function previewStory(
             ),
       },
     }));
-    const result = compileAuto(config, source.assets, source, false).project;
+    const result = compileAuto(
+      config,
+      source.assets,
+      source,
+      false,
+      undefined,
+      source.actors ?? [],
+      sceneCache,
+    ).project;
     result.voiceover = source.voiceover;
     let estimated = false;
     for (const scene of result.scenes) {

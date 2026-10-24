@@ -1,5 +1,7 @@
+import { proxySource } from "../editor/performance";
+import { usePreviewQuality } from "../preview-quality";
 import { AbsoluteFill, Img, useCurrentFrame, useVideoConfig } from "remotion";
-import type { CSSProperties } from "react";
+import { useMemo, type CSSProperties } from "react";
 import type { Project, Scene } from "../model";
 import {
   actorHash,
@@ -21,15 +23,24 @@ export function SceneActors({
   scene: Scene;
   placementMode?: boolean;
 }) {
+  const actorMap = useMemo(
+    () => new Map(project.actors?.map((actor) => [actor.id, actor]) ?? []),
+    [project.actors],
+  );
+  const voiceMap = useMemo(
+    () =>
+      new Map(
+        project.voiceover?.assets.map((voice) => [voice.id, voice]) ?? [],
+      ),
+    [project.voiceover?.assets],
+  );
   const frame = useCurrentFrame(),
     { fps } = useVideoConfig();
   const time = Math.min(
     Math.max(0, frame / fps),
     Math.max(0, scene.duration - 1 / fps),
   );
-  const voice = project.voiceover?.assets.find(
-    (v) => v.id === scene.voice?.assetId,
-  );
+  const voice = voiceMap.get(scene.voice?.assetId ?? "");
   const envelope = voice?.envelope;
   const rawLevel =
     envelope && frame / fps < (voice?.duration ?? 0)
@@ -43,7 +54,7 @@ export function SceneActors({
   return (
     <AbsoluteFill style={{ pointerEvents: "none", overflow: "hidden" }}>
       {(scene.actors ?? []).map((instance) => {
-        const actor = project.actors?.find((a) => a.id === instance.actorId);
+        const actor = actorMap.get(instance.actorId);
         return actor ? (
           <ActorView
             key={instance.id}
@@ -78,6 +89,7 @@ export function ActorView({
   width: number;
   height: number;
 }) {
+  const light = usePreviewQuality() === "light";
   if (time < instance.from || time >= (instance.to ?? Infinity)) return null;
   const localTime = time - instance.from;
   const action = instance.actions.find((a) => time >= a.start && time < a.end);
@@ -166,7 +178,7 @@ export function ActorView({
       >
         {actor.kind === "cutout" ? (
           <Img
-            src={actor.image.src}
+            src={light ? proxySource(actor.image.src, 960) : actor.image.src}
             style={{ width: "100%", height: "100%", objectFit: "contain" }}
           />
         ) : actor.kind === "rig" ? (
@@ -207,6 +219,7 @@ function Rig({
   progress: number;
   intensity: number;
 }) {
+  const light = usePreviewQuality() === "light";
   const pulse = Math.sin(progress * Math.PI),
     parts = actor.parts;
   const blinking =
@@ -231,7 +244,7 @@ function Rig({
   const draw = (part: RigPart, layer: RigLayer, angle = 0) => (
     <Img
       key={part}
-      src={layer.image.src}
+      src={light ? proxySource(layer.image.src, 384) : layer.image.src}
       style={{
         position: "absolute",
         left: `${layer.x}%`,
@@ -334,6 +347,7 @@ function SpriteFrame({
   elapsed: number;
   span?: number;
 }) {
+  const light = usePreviewQuality() === "light";
   const cursor = Math.max(
       0,
       Math.floor(span ? (elapsed / span) * clip.count : elapsed * clip.fps),
@@ -342,7 +356,11 @@ function SpriteFrame({
   if (clip.images.length > 1)
     return (
       <Img
-        src={clip.images[index].src}
+        src={
+          light
+            ? proxySource(clip.images[index].src, 960)
+            : clip.images[index].src
+        }
         style={{ width: "100%", height: "100%", objectFit: "contain" }}
       />
     );
@@ -358,7 +376,7 @@ function SpriteFrame({
       }}
     >
       <Img
-        src={clip.images[0].src}
+        src={light ? proxySource(clip.images[0].src, 1440) : clip.images[0].src}
         style={{
           position: "absolute",
           maxWidth: "none",

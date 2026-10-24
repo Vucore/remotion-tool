@@ -1,3 +1,4 @@
+import { setPriority } from "node:os";
 import { spawn } from "node:child_process";
 import {
   access,
@@ -62,6 +63,11 @@ export async function runAlignment(
         ],
         { cwd: root, stdio: ["ignore", "pipe", "pipe"] },
       );
+      try {
+        setPriority(child.pid, 10);
+      } catch {
+        /* OS dependent. */
+      }
       const results = new Map();
       let pending = "",
         stderr = "",

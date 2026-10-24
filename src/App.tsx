@@ -1,28 +1,23 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Player, type PlayerRef } from "@remotion/player";
 import {
-  emptyProject,
-  parseProject,
-  timeline,
-  totalFrames,
-  type Project,
-  type Asset,
-} from "./model";
-import { Video } from "./Video";
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type SetStateAction,
+} from "react";
+import { Player, type PlayerRef } from "@remotion/player";
+import { emptyProject, timeline, type Project, type Asset } from "./model";
+import { PreviewVideo } from "./editor/PreviewVideo";
 import { Icon } from "./icons";
 import { StoryInput } from "./editor/StoryInput";
 import { Timeline } from "./editor/Timeline";
 import { useWorkspaceLayout } from "./editor/WorkspaceLayout";
 import { QuickSettings, type SettingsTab } from "./editor/QuickSettings";
-import { compileAuto } from "./auto/compile";
 import {
   defaultStoryOptions,
   finishStory,
-  optionsFromProject,
-  parseStoryOptions,
   storyConfig,
-  storyInputs,
-  previewStory,
   type StoryOptions,
   type SceneStoryOverride,
   sceneStoryOptions,
@@ -32,11 +27,9 @@ import { importStoryFiles, type ImportKind } from "./editor/story-import";
 import { NarrationPanel } from "./editor/NarrationPanel";
 import { createTtsVoices } from "./editor/tts-client";
 import {
-  defaultTtsSettings,
   parseTtsSettings,
-  ttsInputKey,
   ttsPlan,
-  speechPlan,
+  ttsInputKey,
   type TtsSettings,
   type SceneDialogue,
 } from "./auto/tts";
@@ -50,11 +43,22 @@ import {
   type ImageProcessingSettings,
 } from "./auto/image-processing";
 import { SubtitlePanel } from "./editor/SubtitlePanel";
-import { estimatedSubtitles } from "./auto/subtitles";
+import { PlaybackClock, lastAt, proxySource } from "./editor/performance";
+import { useStoryPreview } from "./editor/useStoryPreview";
+import {
+  readWorkspace,
+  writeWorkspace,
+  readEditorFile,
+  jsonBlob,
+} from "./editor/workspace-storage";
+import { ExportPanel } from "./editor/ExportPanel";
+import { leanProject } from "./editor/project-client";
 
 type Job = {
   id: string;
-  status: "preparing" | "rendering" | "done" | "error" | "cancelled";
+  status: "queued" | "preparing" | "rendering" | "done" | "error" | "cancelled";
+  createdAt?: string;
+  mode?: string;
   progress: number;
   error?: string;
   url?: string;
@@ -67,52 +71,8 @@ type Workspace = {
   dirty: boolean;
   job: Job | null;
 };
-const STORAGE = "khung-story-workspace-v1";
-function initial(): Workspace {
-  try {
-    const raw = localStorage.getItem(STORAGE);
-    if (raw) {
-      const saved = JSON.parse(raw);
-      let tts = defaultTtsSettings();
-      try {
-        tts = parseTtsSettings(saved.options?.tts);
-      } catch {
-        /* Keep the project even if a draft API setting is incomplete. */
-      }
-      return {
-        project: parseProject(saved.project),
-        options: parseStoryOptions({ ...saved.options, tts }),
-        dirty: saved.dirty !== false,
-        job:
-          saved.job?.id && /^[a-f0-9-]{36}$/.test(saved.job.id)
-            ? saved.job
-            : null,
-      };
-    }
-    const legacy = localStorage.getItem("khung-editor-project-v1");
-    if (legacy) {
-      const project = parseProject(JSON.parse(legacy));
-      return {
-        project,
-        options: optionsFromProject(project),
-        dirty: !project.scenes.length,
-        job: null,
-      };
-    }
-  } catch {
-    /* A damaged cache must not prevent opening the application. */
-  }
-  return {
-    project: emptyProject(),
-    options: defaultStoryOptions(),
-    dirty: true,
-    job: null,
-  };
-}
-function saveJson(filename: string, value: unknown) {
-  const url = URL.createObjectURL(
-    new Blob([JSON.stringify(value, null, 2)], { type: "application/json" }),
-  );
+async function saveJson(filename: string, value: unknown, preset = false) {
+  const url = URL.createObjectURL(await jsonBlob(value, preset));
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
@@ -124,11 +84,31 @@ const errorMessage = (error: unknown) =>
     ? error.message
     : "Không hoàn tất được thao tác. Hãy thử lại.";
 const running = (job: Job | null) =>
-  Boolean(job && ["preparing", "rendering"].includes(job.status));
+  Boolean(job && ["queued", "preparing", "rendering"].includes(job.status));
 
 export function App() {
   const layout = useWorkspaceLayout();
-  const [workspace, setWorkspace] = useState<Workspace>(initial);
+  const [workspace, rawSetWorkspace] = useState<Workspace>(() => ({
+    project: emptyProject(),
+    options: defaultStoryOptions(),
+    dirty: true,
+    job: null,
+  }));
+  const [hydrated, setHydrated] = useState(false);
+  const [storageReady, setStorageReady] = useState(false);
+  const [exportMode, setExportMode] = useState<"editing" | "fast">("editing");
+  const [previewQuality, setPreviewQuality] = useState<
+    "auto" | "light" | "full"
+  >("auto");
+  const clock = useRef(new PlaybackClock()).current;
+  const setWorkspace = useCallback((action: SetStateAction<Workspace>) => {
+    rawSetWorkspace((previous) => {
+      const next = typeof action === "function" ? action(previous) : action;
+      return running(previous.job) && !next.job
+        ? { ...next, job: previous.job }
+        : next;
+    });
+  }, []);
   const { project, options, dirty, job } = workspace;
   const [phase, setPhase] = useState<
     "idle" | "importing" | "generating" | "building" | "starting" | "processing"
@@ -149,13 +129,14 @@ export function App() {
   const [saved, setSaved] = useState(true);
   const [resetOpen, setResetOpen] = useState(false);
   const [resourceDialog, setResourceDialog] = useState<
-    "tts" | "actors" | "subtitles" | "help" | "images" | null
+    "tts" | "actors" | "subtitles" | "help" | "images" | "exports" | null
   >(null);
   const [imagePreview, setImagePreview] = useState<{
     id: string;
     src: string;
     key: string;
   } | null>(null);
+  const narrationFlush = useRef<(() => void) | null>(null);
   const imageSettings = project.imageProcessing ?? defaultImageProcessing();
   const player = useRef<PlayerRef>(null);
   const imagesInput = useRef<HTMLInputElement>(null);
@@ -169,74 +150,39 @@ export function App() {
   const operation = useRef(false);
   const resetDialog = useRef<HTMLDialogElement>(null);
   const mounted = useRef(true);
-  const busy = phase !== "idle" || running(job);
+  const busy = !hydrated || phase !== "idle";
   const exportId = job?.id;
   const exportActive = running(job);
   const hasScenes = project.scenes.length > 0;
-  const ttsReady = useMemo(() => {
-    if (!options.tts.enabled || !project.voiceover?.assets.length) return false;
-    try {
-      return (
-        project.voiceover.ttsKey ===
-        ttsInputKey(project.voiceover.script, options.tts)
-      );
-    } catch {
-      return false;
-    }
-  }, [project.voiceover, options.tts]);
-  const ttsPending = options.tts.enabled && !ttsReady;
-  const previewSource = useMemo(
-    () =>
-      ttsPending
-        ? {
-            ...project,
-            scenes: [],
-            automation: undefined,
-            voiceover: {
-              ...project.voiceover!,
-              assets: [],
-              script: project.voiceover?.script ?? "",
-              scriptName: project.voiceover?.scriptName ?? "",
-            },
-          }
-        : project,
-    [project, ttsPending],
-  );
-  const preview = useMemo<ReturnType<typeof previewStory>>(
-    () =>
-      dirty || !hasScenes || ttsPending
-        ? previewStory(previewSource, options)
-        : { project, estimated: estimatedSubtitles(project) },
-    [project, previewSource, options, dirty, hasScenes, ttsPending],
-  );
+  const preview = useStoryPreview(project, options, dirty || !hasScenes);
+  const ttsReady = preview.ttsReady ?? false;
+  const validation = {
+    error: preview.pending ? "" : (preview.validation?.error ?? ""),
+  };
   const previewProject = preview.project;
   const previewHasScenes = previewProject.scenes.length > 0;
-  const duration = totalFrames(previewProject);
   const previewItems = useMemo(
     () => timeline(previewProject),
     [previewProject],
   );
-  const validation = useMemo(() => {
-    try {
-      if (options.tts.enabled) {
-        const tts = parseTtsSettings(options.tts);
-        ttsPlan(project.voiceover?.script ?? "", project.assets);
-        speechPlan(project.voiceover?.script ?? "", tts);
-      }
-      return { rows: storyInputs(previewSource), error: "" };
-    } catch (e) {
-      return { rows: [], error: errorMessage(e) };
-    }
-  }, [project, previewSource, options.tts]);
+  const duration = Math.max(1, previewItems.at(-1)?.end ?? 1);
+  const assetMap = useMemo(
+    () => new Map(project.assets.map((asset) => [asset.id, asset])),
+    [project.assets],
+  );
+  const assetItems = useMemo(
+    () => new Map(previewItems.map((item) => [item.scene.assetId, item])),
+    [previewItems],
+  );
   const voiceCount = project.voiceover?.assets.length ?? 0;
   const hasScript = Boolean(project.voiceover?.script.trim());
-  const canRun = !busy && !validation.error && project.assets.length > 0;
-  const activeScene = [...previewItems].reverse().find((i) => frame >= i.from)
-    ?.scene.id;
-  const activeAsset = project.assets.find(
-    (a) =>
-      a.id === previewProject.scenes.find((s) => s.id === activeScene)?.assetId,
-  );
+  const canRun =
+    !busy && !preview.pending && !validation.error && project.assets.length > 0;
+  const activeItem = previewItems[lastAt(previewItems, frame)];
+  const activeScene = activeItem?.scene.id;
+  const activeAsset = activeItem
+    ? assetMap.get(activeItem.scene.assetId)
+    : undefined;
   const sceneScope =
     settingsScope === "scene" &&
     settingsTab !== "overlay" &&
@@ -253,19 +199,53 @@ export function App() {
     };
   }, []);
   useEffect(() => {
+    let disposed = false;
+    void readWorkspace()
+      .then((saved) => {
+        if (disposed) return;
+        if (saved) setWorkspace(saved as Workspace);
+        setStorageReady(true);
+      })
+      .catch(() => {
+        if (!disposed)
+          setNotice(
+            "Chưa mở được bản nháp. Bản cũ được giữ; đóng tab editor khác rồi tải lại, hoặc mở dự án từ tệp.",
+          );
+      })
+      .finally(() => {
+        if (!disposed) setHydrated(true);
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [setWorkspace]);
+  useEffect(() => {
+    if (!hydrated || !storageReady) return;
     setSaved(false);
-    const timeout = setTimeout(() => {
-      try {
-        localStorage.setItem(STORAGE, JSON.stringify(workspace));
-        setSaved(true);
-      } catch {
-        setNotice(
-          "Trình duyệt hết dung lượng lưu. Dùng Lưu dự án ở mục Tệp để giữ bản dựng.",
-        );
-      }
-    }, 400);
-    return () => clearTimeout(timeout);
-  }, [workspace]);
+    let disposed = false;
+    const save = () =>
+      void writeWorkspace(workspace).then(
+        () => {
+          if (!disposed) setSaved(true);
+        },
+        () => {
+          if (!disposed)
+            setNotice(
+              "Chưa lưu được bản nháp. Dùng Lưu dự án để giữ bản dựng.",
+            );
+        },
+      );
+    const timeout = setTimeout(save, 600);
+    const flush = () => {
+      if (document.visibilityState === "hidden") save();
+    };
+    document.addEventListener("visibilitychange", flush);
+    return () => {
+      disposed = true;
+      clearTimeout(timeout);
+      document.removeEventListener("visibilitychange", flush);
+    };
+  }, [workspace, hydrated, storageReady]);
   useEffect(() => {
     if (resetOpen) resetDialog.current?.showModal();
     else resetDialog.current?.close();
@@ -273,10 +253,20 @@ export function App() {
   useEffect(() => {
     const p = player.current;
     if (!p) return;
-    const update = ({ detail }: { detail: { frame: number } }) =>
-      setFrame(detail.frame);
+    let currentScene = -1;
+    const update = ({ detail }: { detail: { frame: number } }) => {
+      clock.set(detail.frame);
+      const scene = lastAt(previewItems, detail.frame);
+      if (scene !== currentScene || !p.isPlaying()) {
+        currentScene = scene;
+        setFrame(detail.frame);
+      }
+    };
     const onPlay = () => setPlaying(true),
-      onPause = () => setPlaying(false);
+      onPause = () => {
+        setPlaying(false);
+        setFrame(clock.get());
+      };
     p.addEventListener("play", onPlay);
     p.addEventListener("pause", onPause);
     p.addEventListener("ended", onPause);
@@ -287,7 +277,7 @@ export function App() {
       p.removeEventListener("pause", onPause);
       p.removeEventListener("ended", onPause);
     };
-  }, [previewProject]);
+  }, [previewProject, previewItems, clock]);
   useEffect(() => {
     if (!exportId || !exportActive) return;
     let disposed = false,
@@ -323,7 +313,8 @@ export function App() {
         setWorkspace((w) =>
           w.job?.id === exportId ? { ...w, job: result } : w,
         );
-        if (!["preparing", "rendering"].includes(result.status)) return;
+        if (!["queued", "preparing", "rendering"].includes(result.status))
+          return;
       } catch {
         if (disposed) return;
         setConnectionLost(true);
@@ -336,7 +327,7 @@ export function App() {
       abort.abort();
       clearTimeout(timer);
     };
-  }, [exportId, exportActive]);
+  }, [exportId, exportActive, setWorkspace]);
 
   function changeOptions(patch: Partial<StoryOptions>) {
     setWorkspace((w) => ({
@@ -543,6 +534,8 @@ export function App() {
     setError("");
     setNotice("");
     player.current?.pause();
+    const importAbort = new AbortController();
+    controller.current = importAbort;
     try {
       const result = await importStoryFiles(
         files,
@@ -550,6 +543,17 @@ export function App() {
         kind,
         setProgress,
         appendImages,
+        (partial) =>
+          setWorkspace((w) => ({
+            ...w,
+            project: partial,
+            dirty: true,
+            options:
+              kind === "voices"
+                ? { ...w.options, tts: { ...w.options.tts, enabled: false } }
+                : w.options,
+          })),
+        importAbort.signal,
       );
       setWorkspace((w) => ({
         ...w,
@@ -566,6 +570,7 @@ export function App() {
       const processing = result.project.imageProcessing;
       if (
         kind === "images" &&
+        !importAbort.signal.aborted &&
         processing?.autoOnImport &&
         (processing.removeLogo || processing.upscale)
       ) {
@@ -613,6 +618,7 @@ export function App() {
         }
       }
       setWarnings(result.warnings);
+      clock.set(0);
       setFrame(0);
 
       setNotice(
@@ -629,6 +635,7 @@ export function App() {
       setError(errorMessage(e));
     } finally {
       operation.current = false;
+      controller.current = null;
       setPhase("idle");
       setProgress("");
     }
@@ -641,14 +648,15 @@ export function App() {
     setError("");
     try {
       if (file.size > 10_000_000) throw Error("Tệp dự án/mẫu tối đa 10 MB.");
-      const data = JSON.parse(await file.text());
+      const data = await readEditorFile(file, type, options.name);
       if (type === "project") {
-        const next = parseProject(data);
+        const next = data.project;
         player.current?.pause();
+        clock.set(0);
         setFrame(0);
         setWorkspace({
           project: next,
-          options: optionsFromProject(next),
+          options: data.options,
           dirty: !next.scenes.length,
           job: null,
         });
@@ -657,16 +665,14 @@ export function App() {
           "Đã mở dự án. Xuất video sẽ giữ bản dựng này; Dựng lại sẽ áp dụng mẫu hiện tại.",
         );
       } else {
-        if (data.storyPresetVersion !== 1)
-          throw Error("Chọn tệp .khung-preset.json đã lưu từ Khung.");
-        const next = parseStoryOptions({ ...data.options, name: options.name });
+        const next = data.options;
         setWorkspace((w) => ({
           ...w,
           options: next,
           project: {
             ...w.project,
             ...(data.imageProcessing
-              ? { imageProcessing: parseImageProcessing(data.imageProcessing) }
+              ? { imageProcessing: data.imageProcessing }
               : {}),
           },
           dirty: true,
@@ -707,7 +713,12 @@ export function App() {
           ...options,
           tts,
         };
-        if (!ttsReady) {
+        if (
+          !(
+            next.voiceover?.assets.length &&
+            next.voiceover.ttsKey === ttsInputKey(next.voiceover.script, tts)
+          )
+        ) {
           setPhase("generating");
           next = await createTtsVoices(project, tts, abort.signal, setProgress);
           next.voiceover!.uploadLanguage = options.language;
@@ -720,6 +731,7 @@ export function App() {
             dirty: true,
             job: null,
           }));
+          clock.set(0);
           setFrame(0);
           player.current?.seekTo(0);
         }
@@ -732,6 +744,7 @@ export function App() {
         setPhase("building");
         setProgress("Đang kiểm tra và ghép đầu vào…");
         const config = storyConfig(next, buildOptions);
+        const originalVoices = next.voiceover?.assets;
         const result = config.narration.enabled
           ? await buildWithNarration(
               next,
@@ -740,9 +753,28 @@ export function App() {
               abort.signal,
               setProgress,
             )
-          : compileAuto(config, next.assets, next, false);
+          : await preview.worker.current!.build(
+              next,
+              buildOptions,
+              abort.signal,
+            );
         if (abort.signal.aborted) throw Error("Đã dừng dựng video.");
-        next = finishStory(result.project, next, buildOptions, config);
+        next = {
+          ...(config.narration.enabled
+            ? finishStory(result.project, next, buildOptions, config)
+            : result.project),
+        };
+        next.voiceover = next.voiceover
+          ? {
+              ...next.voiceover,
+              assets: next.voiceover.assets.map((v) => ({
+                ...v,
+                envelope:
+                  originalVoices?.find((old) => old.id === v.id)?.envelope ??
+                  v.envelope,
+              })),
+            }
+          : undefined;
         if (next.voiceover?.tts) next.voiceover.tts = buildOptions.tts;
         setWarnings(result.report.warnings);
         setWorkspace((w) => ({
@@ -752,6 +784,7 @@ export function App() {
           dirty: false,
           job: null,
         }));
+        clock.set(0);
         setFrame(0);
         player.current?.seekTo(0);
       }
@@ -764,7 +797,8 @@ export function App() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            project: next,
+            project: leanProject(next),
+            mode: exportMode,
             quality: options.quality,
             filename: options.name.trim() + ".mp4",
           }),
@@ -805,6 +839,7 @@ export function App() {
   }
   async function cancel() {
     if (
+      phase === "importing" ||
       phase === "processing" ||
       phase === "generating" ||
       phase === "building" ||
@@ -831,9 +866,10 @@ export function App() {
     (f: number) => {
       const next = Math.max(0, Math.min(duration - 1, Math.round(f)));
       player.current?.seekTo(next);
+      clock.set(next);
       setFrame(next);
     },
-    [duration],
+    [duration, clock],
   );
   useEffect(() => {
     if (frame >= duration) seek(duration - 1);
@@ -874,6 +910,7 @@ export function App() {
       dirty: true,
       job: null,
     }));
+    clock.set(0);
     setFrame(0);
     setError("");
     setNotice("");
@@ -883,11 +920,13 @@ export function App() {
     ? "Mất kết nối server. Đang kết nối lại…"
     : phase !== "idle"
       ? progress
-      : job?.status === "preparing"
-        ? "Đang chuẩn bị khung hình…"
-        : job?.status === "rendering"
-          ? "Đang xuất MP4 · " + Math.round(job.progress * 100) + "%"
-          : "";
+      : job?.status === "queued"
+        ? "Đang chờ tài nguyên để xuất…"
+        : job?.status === "preparing"
+          ? "Đang chuẩn bị khung hình…"
+          : job?.status === "rendering"
+            ? "Đang xuất MP4 · " + Math.round(job.progress * 100) + "%"
+            : "";
 
   return (
     <div className="editor-app" ref={layout.root} style={layout.style}>
@@ -964,7 +1003,10 @@ export function App() {
             <button
               disabled={busy || dirty || !hasScenes}
               onClick={() =>
-                saveJson((project.name || "video") + ".khung.json", project)
+                void saveJson(
+                  (project.name || "video") + ".khung.json",
+                  project,
+                ).catch((error) => setError(errorMessage(error)))
               }
             >
               <Icon name="save" />
@@ -981,14 +1023,18 @@ export function App() {
               disabled={busy}
               onClick={() => {
                 try {
-                  saveJson("mau-ke-chuyen.khung-preset.json", {
-                    storyPresetVersion: 1,
-                    imageProcessing: project.imageProcessing,
-                    options: parseStoryOptions({
-                      ...options,
-                      tts: { ...options.tts, dialogue: [] },
-                    }),
-                  });
+                  void saveJson(
+                    "mau-ke-chuyen.khung-preset.json",
+                    {
+                      storyPresetVersion: 1,
+                      imageProcessing: project.imageProcessing,
+                      options: {
+                        ...options,
+                        tts: { ...options.tts, dialogue: [] },
+                      },
+                    },
+                    true,
+                  ).catch((error) => setError(errorMessage(error)));
                 } catch (e) {
                   setError(errorMessage(e));
                 }
@@ -1068,14 +1114,22 @@ export function App() {
             )}
           </div>
         </details>
+        <button
+          className="icon-button"
+          aria-label="Các video đã xuất"
+          title="Các video đã xuất"
+          onClick={() => setResourceDialog("exports")}
+        >
+          <Icon name="clock" />
+        </button>
         {busy ? (
           <button
             className="button export-button"
             onClick={() => void cancel()}
-            disabled={phase === "importing"}
+            disabled={!hydrated}
           >
             <Icon name="close" />
-            {phase === "importing" ? "Đang nhập" : "Dừng"}
+            {"Dừng"}
           </button>
         ) : (
           <button
@@ -1084,11 +1138,22 @@ export function App() {
             onClick={() => void run(true)}
           >
             <Icon name="download" />
-            Xuất video
+            {running(job) ? "Xếp hàng xuất" : "Xuất video"}
+          </button>
+        )}
+        {!busy && running(job) && (
+          <button
+            className="icon-button"
+            aria-label="Hủy bản xuất đang theo dõi"
+            title="Hủy bản xuất đang theo dõi"
+            onClick={() => void cancel()}
+          >
+            <Icon name="close" />
           </button>
         )}
       </header>
       {(busy ||
+        running(job) ||
         error ||
         job?.status === "error" ||
         notice ||
@@ -1101,10 +1166,15 @@ export function App() {
           }
           role={error || job?.status === "error" ? "alert" : "status"}
         >
-          {busy ? (
+          {busy || running(job) ? (
             <>
               <span className="working-indicator" />
-              <span>{statusText}</span>
+              <span>
+                {statusText}
+                {running(job) && phase === "idle" && job?.createdAt
+                  ? ` · Bản lúc ${new Date(job.createdAt).toLocaleTimeString("vi")}; bạn có thể tiếp tục chỉnh sửa`
+                  : ""}
+              </span>
               {running(job) && (
                 <progress
                   max={1}
@@ -1249,10 +1319,8 @@ export function App() {
           </div>
           <div className="media-gallery">
             {project.assets.map((asset, i) => {
-              const scene = previewProject.scenes.find(
-                (s) => s.assetId === asset.id,
-              );
-              const item = previewItems.find((t) => t.scene.id === scene?.id);
+              const item = assetItems.get(asset.id);
+              const scene = item?.scene;
               return (
                 <button
                   key={asset.id}
@@ -1264,7 +1332,12 @@ export function App() {
                     setMobilePanel("preview");
                   }}
                 >
-                  <img src={asset.src} alt="" loading="lazy" />
+                  <img
+                    src={proxySource(asset.src, 384)}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                  />
                   <span>{asset.name}</span>
                   <small>{i + 1}</small>
                 </button>
@@ -1334,12 +1407,14 @@ export function App() {
                 ? "Phụ đề ước tính"
                 : previewHasScenes
                   ? "Xem thử"
-                  : "Chưa có ảnh"}
+                  : preview.pending
+                    ? "Đang chuẩn bị"
+                    : "Chưa có ảnh"}
             </span>
             {(voiceCount > 0 || options.tts.enabled) && hasScript && (
               <button
                 className="align-button"
-                disabled={busy || !!validation.error}
+                disabled={busy || preview.pending || !!validation.error}
                 onClick={() => void run(false, true)}
               >
                 <Icon name="text" />
@@ -1347,13 +1422,48 @@ export function App() {
               </button>
             )}
           </div>
+          <div className="preview-performance-controls">
+            <label>
+              Preview{" "}
+              <select
+                aria-label="Chất lượng preview"
+                value={previewQuality}
+                onChange={(e) =>
+                  setPreviewQuality(e.target.value as typeof previewQuality)
+                }
+              >
+                <option value="auto">Tự động</option>
+                <option value="light">Tiết kiệm</option>
+                <option value="full">Chi tiết</option>
+              </select>
+            </label>
+            <label>
+              Xuất{" "}
+              <select
+                aria-label="Ưu tiên xuất video"
+                value={exportMode}
+                onChange={(e) =>
+                  setExportMode(e.target.value as typeof exportMode)
+                }
+              >
+                <option value="editing">Ưu tiên chỉnh sửa</option>
+                <option value="fast">Xuất nhanh</option>
+              </select>
+            </label>
+            {preview.pending && <small role="status">Đang cập nhật…</small>}
+            {preview.error && <small role="alert">{preview.error}</small>}
+          </div>
           <div className="preview-canvas">
             {previewHasScenes ? (
               <Player
                 ref={player}
                 key={previewProject.width + "x" + previewProject.height}
-                component={Video}
-                inputProps={{ project: previewProject }}
+                component={PreviewVideo}
+                inputProps={{
+                  project: previewProject,
+                  previewQuality,
+                  playing,
+                }}
                 durationInFrames={Math.max(1, duration)}
                 compositionWidth={previewProject.width}
                 compositionHeight={previewProject.height}
@@ -1478,7 +1588,9 @@ export function App() {
       <Timeline
         project={previewProject}
         frame={frame}
+        clock={clock}
         playing={playing}
+        loading={preview.pending && !previewHasScenes}
         estimated={preview.estimated}
         busy={busy}
         onSeek={seek}
@@ -1508,19 +1620,33 @@ export function App() {
         }}
       />
       <EditorDialog
+        open={resourceDialog === "exports"}
+        title="Các video đã xuất"
+        onClose={() => setResourceDialog(null)}
+        wide
+      >
+        <ExportPanel
+          onTrack={(next) => setWorkspace((w) => ({ ...w, job: next }))}
+        />
+      </EditorDialog>
+      <EditorDialog
         open={resourceDialog === "tts"}
         title="Lời đọc & giọng"
         wide
-        onClose={() => setResourceDialog(null)}
+        onClose={() => {
+          narrationFlush.current?.();
+          setResourceDialog(null);
+        }}
       >
         <NarrationPanel
+          flushRef={narrationFlush}
           script={project.voiceover?.script ?? ""}
           settings={options.tts}
           images={project.assets}
           busy={busy}
           ready={ttsReady}
           voices={project.voiceover?.assets ?? []}
-          canGenerate={hasScript && !validation.error}
+          canGenerate={hasScript && !preview.pending && !validation.error}
           onChange={changeTtsSettings}
           onDocument={(script: string, dialogue: SceneDialogue[]) => {
             setWorkspace((w) => ({
@@ -1780,6 +1906,7 @@ export function App() {
               setError("");
               setNotice("");
               setWarnings([]);
+              clock.set(0);
               setFrame(0);
               setResetOpen(false);
             }}

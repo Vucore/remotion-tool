@@ -1,3 +1,4 @@
+import { setPriority } from "node:os";
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
@@ -82,6 +83,11 @@ export function runImageWorker(
       cwd: root,
       stdio: ["pipe", "pipe", "pipe"],
     });
+    try {
+      setPriority(child.pid, 10);
+    } catch {
+      /* OS dependent. */
+    }
     let buffer = "",
       failure,
       force;

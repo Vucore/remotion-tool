@@ -10,6 +10,8 @@ export async function importStoryFiles(
   kind: ImportKind,
   progress: (text: string) => void,
   appendImages = false,
+  onPartial?: (project: Project) => void,
+  signal?: AbortSignal,
 ) {
   files = files.filter(
     (f) =>
@@ -61,51 +63,108 @@ export async function importStoryFiles(
   }
   const assets: Asset[] = [],
     voices: VoiceAsset[] = [];
-  let done = 0;
-  if (kind === "images")
-    for (const file of files) {
-      progress("Đang nhập ảnh " + ++done + "/" + files.length + "…");
-      if (file.size > 25 * 1024 * 1024)
-        throw Error(file.name + ": ảnh tối đa 25 MB.");
-      const response = await fetch("/api/uploads", {
-        method: "POST",
-        headers: { "Content-Type": file.type || "application/octet-stream" },
-        body: file,
-      });
-      const result = await response.json();
-      if (!response.ok) throw Error(file.name + ": " + result.error);
-      const image = new Image();
-      image.src = result.src;
-      await image.decode();
-      if (image.naturalWidth > 30000 || image.naturalHeight > 30000)
-        throw Error(file.name + ": ảnh tối đa 30.000px.");
-      assets.push({
-        id: id(),
-        name: file.name,
-        src: result.src,
-        width: image.naturalWidth,
-        height: image.naturalHeight,
-      });
+  const warnings: string[] = [];
+  let done = 0,
+    cursor = 0;
+  const snapshot = (): Project => ({
+    ...previous,
+    scenes: [],
+    automation: undefined,
+    assets:
+      kind === "images"
+        ? [...(appendImages ? previous.assets : []), ...assets.filter(Boolean)]
+        : previous.assets,
+    voiceover: {
+      ...(kind !== "voices" ? previous.voiceover : {}),
+      assets:
+        kind === "voices"
+          ? voices.filter(Boolean)
+          : (previous.voiceover?.assets ?? []),
+      script: previous.voiceover?.script ?? "",
+      scriptName: previous.voiceover?.scriptName ?? "",
+    },
+  });
+  let lastPublish = 0;
+  const publish = (force = false) => {
+    if (!(kind === "images" ? assets : voices).some(Boolean)) return;
+    if (force || performance.now() - lastPublish > 500) {
+      lastPublish = performance.now();
+      onPartial?.(snapshot());
     }
-  if (kind === "voices")
-    for (const file of files) {
-      progress("Đang nhập voice " + ++done + "/" + files.length + "…");
-      if (file.size > 100 * 1024 * 1024)
-        throw Error(file.name + ": voice tối đa 100 MB.");
-      const isMp3 = /\.mp3$/i.test(file.name);
-      if (isMp3) progress("Đang đọc MP3 " + done + "/" + files.length + "…");
-      const response = await fetch(
-        "/api/voices?name=" + encodeURIComponent(file.name),
-        {
-          method: "POST",
-          headers: { "Content-Type": isMp3 ? "audio/mpeg" : "audio/wav" },
-          body: file,
-        },
-      );
-      const result = await response.json();
-      if (!response.ok) throw Error(file.name + ": " + result.error);
-      voices.push(result);
-    }
+  };
+  if (kind === "images" || kind === "voices") {
+    const consume = async () => {
+      while (cursor < files.length && !signal?.aborted) {
+        const index = cursor++,
+          file = files[index];
+        try {
+          const isImage = kind === "images",
+            isMp3 = /\.mp3$/i.test(file.name);
+          if (file.size > (isImage ? 25 : 100) * 1024 * 1024)
+            throw Error(isImage ? "Ảnh tối đa 25 MB." : "Voice tối đa 100 MB.");
+          const response = await fetch(
+            isImage
+              ? "/api/uploads"
+              : "/api/voices?name=" + encodeURIComponent(file.name),
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": isImage
+                  ? file.type || "application/octet-stream"
+                  : isMp3
+                    ? "audio/mpeg"
+                    : "audio/wav",
+              },
+              body: file,
+              signal,
+            },
+          );
+          const result = await response.json();
+          if (!response.ok) throw Error(result.error);
+          if (isImage) {
+            let width = result.width,
+              height = result.height;
+            if (!width || !height) {
+              const image = new Image();
+              image.src = result.src;
+              await image.decode();
+              width = image.naturalWidth;
+              height = image.naturalHeight;
+            }
+            if (width > 30000 || height > 30000 || width * height > 40_000_000)
+              throw Error("Ảnh tối đa 40 megapixel / 30.000px.");
+            assets[index] = {
+              id: id(),
+              name: file.name,
+              src: result.src,
+              width,
+              height,
+            };
+          } else voices[index] = result;
+        } catch (error) {
+          if (!signal?.aborted)
+            warnings.push(
+              file.name +
+                ": " +
+                (error instanceof Error ? error.message : String(error)),
+            );
+        } finally {
+          progress(
+            `Đã nhập ${++done}/${files.length} ${kind === "images" ? "ảnh" : "voice"}…`,
+          );
+          publish();
+        }
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(2, files.length) }, consume),
+    );
+    publish(true);
+    if (signal?.aborted)
+      warnings.push("Đã dừng nhập; các file đã nhận được giữ lại.");
+    if (!(kind === "images" ? assets : voices).filter(Boolean).length)
+      throw Error(warnings.join(" · ") || "Đã dừng nhập file.");
+  }
   if (kind === "characters") progress("Đang nhận diện bộ nhân vật…");
   const packs =
     kind === "characters"
@@ -115,18 +174,21 @@ export async function importStoryFiles(
     ...previous,
     assets:
       kind === "images"
-        ? [...(appendImages ? previous.assets : []), ...assets]
+        ? [...(appendImages ? previous.assets : []), ...assets.filter(Boolean)]
         : previous.assets,
     scenes: [],
     actors: packs?.actors ?? previous.actors,
     voiceover: {
       ...(kind !== "voices" ? previous.voiceover : {}),
-      assets: kind === "voices" ? voices : (previous.voiceover?.assets ?? []),
+      assets:
+        kind === "voices"
+          ? voices.filter(Boolean)
+          : (previous.voiceover?.assets ?? []),
       script: kind === "script" ? script : (previous.voiceover?.script ?? ""),
       scriptName:
         kind === "script" ? scriptName : (previous.voiceover?.scriptName ?? ""),
     },
     automation: undefined,
   };
-  return { project: next, warnings: packs?.warnings ?? [] };
+  return { project: next, warnings: [...warnings, ...(packs?.warnings ?? [])] };
 }

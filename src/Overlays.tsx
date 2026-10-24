@@ -1,5 +1,7 @@
+import { overlayParticles, overlayStarPoints } from "./overlay-particles";
+import { usePreviewQuality } from "./preview-quality";
 import { useCurrentFrame, useVideoConfig } from "remotion";
-import { hash, starPolygon } from "./animation";
+import { hash } from "./animation";
 import type { OverlaySpec } from "./model";
 export function Overlays({
   layers,
@@ -8,6 +10,7 @@ export function Overlays({
   layers: OverlaySpec[];
   sceneFrames: number;
 }) {
+  const light = usePreviewQuality() === "light";
   const frame = useCurrentFrame(),
     { fps, width, height } = useVideoConfig();
   return (
@@ -111,12 +114,6 @@ export function Overlays({
               }}
             />
           );
-        const count =
-          layer.kind === "smoke"
-            ? 12
-            : layer.kind === "grain"
-              ? 180
-              : Math.round(30 + opacity * 100);
         return (
           <svg
             key={layer.id}
@@ -125,12 +122,8 @@ export function Overlays({
             height="100%"
             style={base}
           >
-            {Array.from({ length: count }, (_, i) => {
-              const seed = layer.seed * 313 + i * 7,
-                r = hash(seed),
-                z = hash(seed + 1),
-                a = hash(seed + 2),
-                size = (1 + a * 6) * s * u;
+            {overlayParticles(layer, light).map(({ i, seed, r, z, a }) => {
+              const size = (1 + a * 6) * s * u;
               let x = r * width,
                 y =
                   ((z + t * layer.speed * 0.08) % 1.15) * height -
@@ -272,10 +265,7 @@ export function Overlays({
                   return (
                     <polygon
                       key={i}
-                      points={starPolygon()
-                        .split(",")
-                        .map((p) => p.split("%").join(""))
-                        .join(" ")}
+                      points={overlayStarPoints}
                       fill={color}
                       transform={`translate(${x - size} ${z * height - size}) scale(${size / 50})`}
                       opacity={

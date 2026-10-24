@@ -20,6 +20,8 @@ def main():
         if settings["removeLogo"]:
             get_session()  # Fail early before writing any outputs.
         if settings["upscale"]:
+            import torch
+            torch.set_num_threads(2)
             from scripts.images.image_upscaler import _get_model, _enhance_image, get_device, _MODEL_CACHE
             device = get_device() if settings["device"] == "auto" else settings["device"]
             try:

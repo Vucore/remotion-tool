@@ -1,3 +1,4 @@
+import { leanProject } from "./project-client";
 import { parseProject, type Project } from "../model";
 import type { AutoConfig } from "../auto/config";
 import type { AutoReport } from "../auto/compile";
@@ -23,7 +24,7 @@ export async function buildWithNarration(
     const response = await fetch("/api/narration", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ project, config, keep }),
+      body: JSON.stringify({ project: leanProject(project), config, keep }),
     });
     let job = await response.json();
     if (!response.ok)

@@ -50,7 +50,10 @@ export function ImageProcessingPanel({
   const asset = assets.find((asset) => asset.id === selected) ?? assets[0];
   const source = asset?.original ?? asset;
   const result =
-    preview?.id === asset?.id && preview.key === JSON.stringify(settings)
+    preview &&
+    asset &&
+    preview.id === asset.id &&
+    preview.key === JSON.stringify(settings)
       ? preview
       : null;
   const output = showResult && result;
