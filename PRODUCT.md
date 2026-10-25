@@ -22,6 +22,8 @@ v0.8 có không gian editor toàn cửa sổ: tài nguyên trái, preview giữa
 
 Bốn tab thiết lập: chuyển động ảnh, chuyển cảnh, lớp phủ và phụ đề. Có 20 loại lớp phủ xếp tối đa 8 lớp, 38 chuyển cảnh, 33 lựa chọn chuyển động ảnh, 14 kiểu chữ, toàn bộ 29 lựa chọn animation vào/ra và 12 lựa chọn lặp hiện có. Tham số ảnh/keyframe và trình bày phụ đề mở rộng, đóng mặc định. Ba nhóm ảnh/chuyển cảnh/phụ đề có phạm vi toàn video hoặc cảnh đang xem; lớp phủ vẫn chung. Ngoại lệ lưu theo tên ảnh. Demo dùng hình minh họa A/B cố định, không lấy ảnh dự án; chỉ chạy ô đang tương tác. Thay hiệu ứng giữ timing căn sẵn còn khớp, không bắt chạy lại model chỉ để xem thử.
 
+Chuyển động ảnh và chuyển cảnh có ba chế độ tự động, chọn một hoặc ngẫu nhiên từ danh sách người dùng chọn. Chế độ ngẫu nhiên hiện số kiểu đã chọn, chọn tất cả và đảo lại riêng từng nhóm; luôn giữ ít nhất một kiểu, tránh lặp liền nhau khi có lựa chọn khác. Danh sách và mã ngẫu nhiên riêng được lưu cùng dự án/mẫu, áp dụng toàn video hoặc từng cảnh, cho preview và export cùng kết quả. Vị trí phụ đề có đặt nhanh Trên/Giữa/Dưới và khung kéo đúng tỷ lệ, tọa độ phần trăm thu gọn, hỗ trợ phím mũi tên; đổi kiểu chữ vẫn giữ vị trí.
+
 Kéo đổi độ rộng hai cột bên và chiều cao timeline, hỗ trợ bàn phím, tự giới hạn theo viewport, lưu kích thước trong trình duyệt và khôi phục mặc định. Mobile dùng tab panel và đổi được chiều cao timeline.
 
 Một cảnh = một ảnh + WAV + mục TXT cùng số. WAV quyết định thời lượng, forced alignment local căn câu và giữ trọn voice qua chuyển cảnh. Xuất tự động kiểm tra/căn/dựng/render. Python/model do người dùng cài bằng uv. Không voice thì timing ước lượng. PNG biến đổi nguyên khối, rig/sprite dùng động tác có sẵn; không tự vẽ tư thế mới. Chưa có GPT, video nguồn, cut/trim hoặc mix nhiều audio track.
@@ -31,3 +33,7 @@ Menu Tệp lưu/mở mẫu không cần người dùng viết JSON; giữ tươn
 Lời đọc & giọng gộp chỉnh TXT/nguồn voice/thiết lập TTS trong một dialog. Hồ sơ người nói preset/clone và phân vai từng lượt cho phép nhiều giọng nối tiếp trong một cảnh. Chọn lượt/cả cảnh/tất cả, gán hàng loạt, thêm/tách lượt, thu gọn thiết lập. Cache mỗi lượt, ghép WAV trung gian rồi mới mã hóa MP3; voice/cảnh tiếp tục qua căn phụ đề hiện có. Không tự nhận diện người nói hoặc trộn tiếng đồng thời.
 
 Xử lý ảnh gộp LaMa local (vùng chữ nhật kéo/thay đổi kích thước và điều chỉnh ratio/padding/feather/context) với Real-ESRGAN 2×/4×. Xem thử không đổi dự án, chạy toàn bộ, tự xử lý ảnh nhập mới, cache, hủy, khôi phục nguồn. Giữ ID/tên ảnh và metadata original; xử lý lại từ nguồn. Cần thư viện trong uv .venv và trọng số local; không tự tải model khi mở UI.
+
+Thư viện Dự án ở header cho phép tìm, mở lại, tạo mới và nhân bản video; tự lưu bản đang làm trước khi rời đi. Mỗi dự án giữ Workspace riêng trong `data/projects/` bằng snapshot và journal thay đổi, dùng chung media để tránh nhân đôi. Tệp JSON là bản sao cấu hình để tải về/nhập thành dự án riêng; dữ liệu draft trình duyệt cũ được chuyển một lần sau khi server xác nhận lưu thành công.
+
+Thư viện cho phép xóa dự án đã lưu cùng tệp riêng và bản xuất liên quan; tài nguyên còn được dự án khác dùng được giữ lại. Xác nhận hiện tên dự án, số tệp, dung lượng và cảnh báo không thể hoàn tác; nút Giữ lại nhận focus trước. Xóa dự án đang mở sẽ chuyển sang dự án còn lại hoặc tạo bản trống nếu đây là dự án cuối.

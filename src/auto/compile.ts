@@ -28,6 +28,20 @@ export function hash(value: string): string {
     n = Math.imul(n ^ value.charCodeAt(i), 16777619);
   return (n >>> 0).toString(16).padStart(8, "0");
 }
+function randomPreset<T extends string>(
+  presets: T[],
+  seed: number,
+  index: number,
+  previous: T | undefined,
+  channel = "",
+) {
+  const choices = presets.filter((preset) => preset !== previous);
+  return (
+    choices[
+      Number.parseInt(hash(`${seed}:${index}${channel}`), 16) % choices.length
+    ] ?? presets[0]
+  );
+}
 export function compareNames(a: string, b: string): number {
   const aa =
       a
@@ -106,6 +120,7 @@ export function compileAuto(
   const warnings: string[] = [];
   const fixed = new Set<string>();
   let previousMotion: Scene["motion"] | undefined;
+  let previousTransition: Scene["transition"] | undefined;
   const commonKey = sceneCache
     ? JSON.stringify([
         config.seed,
@@ -131,6 +146,7 @@ export function compileAuto(
     if (old && lockSet.has(sceneId)) {
       fixed.add(sceneId);
       previousMotion = old.motion;
+      previousTransition = old.transition;
       return { ...structuredClone(old), assetId: asset.id };
     }
     const override = config.overrides.find(
@@ -151,6 +167,7 @@ export function compileAuto(
           sceneId,
           index,
           previousMotion,
+          previousTransition,
           override,
           caption,
         ])
@@ -158,19 +175,32 @@ export function compileAuto(
     const cached = sceneCache?.get(sceneId);
     if (cached?.key === cacheKey) {
       previousMotion = cached.scene.motion;
+      previousTransition = cached.scene.transition;
       return structuredClone(cached.scene);
     }
     let motion = config.motion.presets[index % config.motion.presets.length];
-    if (config.motion.policy === "seeded") {
-      const candidates = config.motion.presets.filter(
-        (p) => p !== previousMotion,
+    const motionRandom =
+      override?.motionRandom ??
+      (config.motion.policy === "seeded" ? config.motion : undefined);
+    if (motionRandom)
+      motion = randomPreset(
+        motionRandom.presets,
+        motionRandom.seed,
+        index,
+        previousMotion,
       );
-      motion =
-        candidates[
-          Number.parseInt(hash(`${config.seed}:${index}`), 16) %
-            candidates.length
-        ] ?? motion;
-    }
+    const transitionRandom =
+      override?.transitionRandom ??
+      (config.transition.policy === "seeded" ? config.transition : undefined);
+    const transition = transitionRandom
+      ? randomPreset(
+          transitionRandom.presets,
+          transitionRandom.seed,
+          index,
+          previousTransition,
+          ":transition",
+        )
+      : config.transition.preset;
     const scene: Scene = {
       ...makeScene(asset.id),
       id: sceneId,
@@ -186,7 +216,7 @@ export function compileAuto(
       motion,
       motionAmount: config.motion.amount,
       motionEasing: config.motion.easing,
-      transition: config.transition.preset,
+      transition,
       transitionDuration: config.transition.seconds,
       transitionDirection: config.transition.direction,
       transitionEasing: config.transition.easing,
@@ -195,6 +225,7 @@ export function compileAuto(
       ...structuredClone(override?.scene ?? {}),
     };
     previousMotion = scene.motion;
+    previousTransition = scene.transition;
     for (const key of ["texts", "effects", "overlays", "keyframes"] as const)
       if (!Array.isArray(scene[key]))
         throw Error(`${asset.name}: ${key} phải là một danh sách.`);

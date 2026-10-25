@@ -148,6 +148,7 @@ export async function prepareNarration(
     signal,
     onProgress = () => {},
     align = runAlignment,
+    onResource,
   } = {},
 ) {
   if (!input)
@@ -201,6 +202,7 @@ export async function prepareNarration(
         voiceId: pair.voice.id,
         audioHash,
       };
+      await onResource?.([`/.cache/alignment/${key}.json`]);
       entries.push(entry);
       try {
         const cached = JSON.parse(

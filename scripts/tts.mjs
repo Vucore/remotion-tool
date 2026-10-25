@@ -75,6 +75,7 @@ async function generateSingleTts(
     fetchImpl = fetch,
     timeoutMs = 600_000,
     minimumDuration = 0.5,
+    onResource,
   } = {},
 ) {
   const options = parseTtsSettings(settings),
@@ -235,6 +236,7 @@ async function generateSingleTts(
       };
       await atomicWrite(cachePath, JSON.stringify({ file }));
     }
+    await onResource?.([audio.src, `/.cache/tts/${key}.json`]);
     checkAbort(signal);
     voices.push({
       id: randomUUID(),
@@ -399,6 +401,7 @@ export async function generateTts(input, context = {}) {
           merged.inspected.info,
         ),
       };
+      await context.onResource?.([audio.src, `/.cache/tts/${key}.json`]);
     }
     assets.push({
       ...audio,

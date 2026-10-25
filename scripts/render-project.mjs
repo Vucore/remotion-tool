@@ -2,6 +2,7 @@ import { renderBundle } from "./render-bundle.mjs";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { join, resolve } from "node:path";
 import { mapActorImages } from "../dist/actor-types.mjs";
+import { normalizeMediaCacheSize } from "./resource-budget.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 let bundlePromise;
@@ -69,7 +70,7 @@ export async function renderProject(
     pixelFormat: "yuv420p",
     outputLocation: output,
     concurrency,
-    mediaCacheSizeInBytes,
+    mediaCacheSizeInBytes: normalizeMediaCacheSize(mediaCacheSizeInBytes),
     cancelSignal,
     port: ports.render,
     chromiumOptions: { gl: "angle" },

@@ -7,6 +7,7 @@ import { access, mkdir, stat, writeFile, rm } from "node:fs/promises";
 import { resolve, extname, join } from "node:path";
 import { randomUUID, createHash } from "node:crypto";
 import { ExportJobs } from "./export-jobs.mjs";
+import { ProjectLibrary } from "./project-library.mjs";
 import { heavyTasks } from "./resource-queue.mjs";
 import {
   imageProxy,
@@ -44,6 +45,7 @@ await Promise.all([
   mkdir(join(root, ".cache"), { recursive: true }),
 ]);
 const exportQueue = new ExportJobs(root, origin);
+const projectLibrary = new ProjectLibrary(root);
 await exportQueue.initialize();
 void pruneProxies().catch(() => {});
 const jobs = exportQueue.jobs;
@@ -52,9 +54,32 @@ const ttsJobs = new Map();
 const translationJobs = new Map();
 const imageJobs = new Map();
 const voiceControllers = new Set();
+let deletingProject = false,
+  activeMutations = 0;
+async function trackResources(projectId, resources) {
+  if (projectId)
+    await projectLibrary.request("track", {
+      projectId,
+      raw: JSON.stringify({ resources }),
+    });
+}
+async function finishResources(job) {
+  try {
+    await trackResources(job.projectId, [...(job.resources ?? [])]);
+  } catch {
+    job.status = "error";
+    job.error = "Chưa lưu được liên kết tài nguyên. Kiểm tra ổ đĩa và thử lại.";
+  } finally {
+    job.running = false;
+  }
+}
+const resourcesFor = (job) => (refs) => {
+  for (const ref of refs) job.resources.add(ref);
+};
 async function buildTranslation(job, input) {
   try {
     job.result = await translateSubtitles(input, {
+      onResource: resourcesFor(job),
       signal: job.controller.signal,
       onProgress: (progress, message) => {
         job.progress = progress;
@@ -71,7 +96,7 @@ async function buildTranslation(job, input) {
       job.error = error.message;
     }
   } finally {
-    job.running = false;
+    await finishResources(job);
   }
 }
 async function buildTts(job, input) {
@@ -79,6 +104,7 @@ async function buildTts(job, input) {
     const result = await heavyTasks.run(
       () =>
         generateTts(input, {
+          onResource: resourcesFor(job),
           signal: job.controller.signal,
           onProgress: (progress, message) => {
             job.progress = progress;
@@ -97,7 +123,7 @@ async function buildTts(job, input) {
       job.error = error.message;
     }
   } finally {
-    job.running = false;
+    await finishResources(job);
   }
 }
 const publicNarration = (job) => ({
@@ -120,6 +146,7 @@ async function buildNarration(job, config, project, keep) {
             job.progress = progress;
             job.message = message;
           },
+          resourcesFor(job),
         ),
       job.controller.signal,
     );
@@ -132,7 +159,7 @@ async function buildNarration(job, config, project, keep) {
       job.error = error.message;
     }
   } finally {
-    job.running = false;
+    await finishResources(job);
   }
 }
 const json = (res, code, body) => {
@@ -195,11 +222,12 @@ const mime = {
   ".map": "application/json",
   ".srt": "application/x-subrip; charset=utf-8",
 };
-async function serveFile(req, res, path, attachment = false) {
+async function serveFile(req, res, path, attachment = false, fallback) {
   let info;
   try {
     info = await stat(path);
   } catch {
+    if (fallback) return serveFile(req, res, fallback, attachment);
     json(res, 404, {
       error:
         "Không tìm thấy file. Hãy nhập lại ảnh nếu đã chuyển thư mục data.",
@@ -229,6 +257,15 @@ async function serveFile(req, res, path, attachment = false) {
     headers["Content-Disposition"] =
       `attachment; filename="${extname(path) === ".srt" ? "khung-subtitles.srt" : "khung-video.mp4"}"; filename*=UTF-8''${encodeURIComponent(name).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`;
   }
+  const send = (options) => {
+    if (req.method === "HEAD") { res.end(); return; }
+    const stream = createReadStream(path, options);
+    // A cache file may disappear between stat/open during cleanup. Let the
+    // browser recover instead of crashing Node with an unhandled stream error.
+    stream.once("error", () => res.destroy());
+    res.once("close", () => stream.destroy());
+    stream.pipe(res);
+  };
   const range = req.headers.range?.match(/^bytes=(\d+)-(\d*)$/);
   if (range) {
     const start = Number(range[1]),
@@ -245,14 +282,15 @@ async function serveFile(req, res, path, attachment = false) {
       "Content-Range": `bytes ${start}-${end}/${info.size}`,
       "Content-Length": end - start + 1,
     });
-    createReadStream(path, { start, end }).pipe(res);
+    send({ start, end });
   } else {
     res.writeHead(200, { ...headers, "Content-Length": info.size });
-    createReadStream(path).pipe(res);
+    send();
   }
 }
 const server = createServer(async (req, res) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
+  let mutation = false;
   try {
     const url = new URL(req.url, origin);
     if (
@@ -278,23 +316,109 @@ const server = createServer(async (req, res) => {
       json(res, 403, { error: "Nguồn yêu cầu không hợp lệ." });
       return;
     }
+    if (["POST", "PATCH", "DELETE"].includes(req.method)) {
+      if (deletingProject)
+        throw Object.assign(
+          Error("Đang dọn dự án. Hãy thử lại sau giây lát."),
+          { status: 409 },
+        );
+      activeMutations++;
+      mutation = true;
+    }
+    const owner = req.headers["x-khung-project"];
+    if (owner) {
+      if (typeof owner !== "string" || !/^[a-f0-9-]{36}$/.test(owner))
+        throw Error("ID dự án không hợp lệ.");
+      if (mutation)
+        await projectLibrary.request("exists", { projectId: owner });
+    }
+    const projectRoute = url.pathname.match(
+      /^\/api\/projects(?:\/([a-f0-9-]{36})(\/delete-preview)?)?$/,
+    );
+    if (projectRoute) {
+      const id = projectRoute[1];
+      const action =
+        req.method === "GET"
+          ? id
+            ? projectRoute[2]
+              ? "delete-preview"
+              : "open"
+            : "list"
+          : req.method === "POST" && !id
+            ? "create"
+            : req.method === "PATCH" && id
+              ? "save"
+              : req.method === "DELETE" && id && !projectRoute[2]
+                ? "delete"
+                : null;
+      if (!action) {
+        json(res, 405, { error: "Thao tác dự án không hợp lệ." });
+        return;
+      }
+      if (action === "delete" || action === "delete-preview") {
+        if (
+          voiceControllers.size ||
+          activeMutations > (mutation ? 1 : 0) ||
+          [
+            ...jobs.values(),
+            ...imageJobs.values(),
+            ...ttsJobs.values(),
+            ...narrationJobs.values(),
+            ...translationJobs.values(),
+          ].some((job) => job.running)
+        )
+          throw Object.assign(
+            Error(
+              "Có tác vụ nhập, xử lý hoặc xuất đang chạy. Chờ hoàn tất hoặc dừng tác vụ trước khi xóa dự án.",
+            ),
+            { status: 409 },
+          );
+      }
+      if (action === "delete") deletingProject = true;
+      let result;
+      try {
+        if (action === "delete")
+          await Promise.all([...exportQueue.writes.values()]);
+        result = await projectLibrary.request(action, {
+          projectId: id,
+          raw: ["POST", "PATCH", "DELETE"].includes(req.method)
+            ? (await body(req, 64 * 1024 * 1024)).toString()
+            : undefined,
+          serialize: action === "delete" ? "deletion" : true,
+        });
+        if (action === "delete") {
+          for (const jobId of result.removedJobs) {
+            jobs.delete(jobId);
+            exportQueue.writes.delete(jobId);
+          }
+          result = result.body;
+        }
+      } finally {
+        if (action === "delete") deletingProject = false;
+      }
+      res.writeHead(action === "create" ? 201 : 200, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store",
+      });
+      res.end(result);
+      return;
+    }
     if (url.pathname === "/api/proxy" && ["GET", "HEAD"].includes(req.method)) {
       const src = url.searchParams.get("src") || "";
       const size = Number(url.searchParams.get("size") || 384);
       if (![384, 960, 1440].includes(size))
         throw Error("Kích thước preview không hợp lệ.");
+      const controller = new AbortController();
+      const closed = () => { if (!res.writableEnded) controller.abort(); };
+      res.once("close", closed);
+      const original = join(uploads,
+        src.match(/^\/media\/([a-zA-Z0-9_-]+\.(?:png|jpg|webp))$/)?.[1] || "missing");
       try {
-        await serveFile(req, res, await imageProxy(src, size));
+        const proxy = await imageProxy(src, size, controller.signal);
+        if (!res.destroyed) await serveFile(req, res, proxy, false, original);
       } catch {
-        await serveFile(
-          req,
-          res,
-          join(
-            uploads,
-            src.match(/^\/media\/([a-zA-Z0-9_-]+\.(?:png|jpg|webp))$/)?.[1] ||
-              "missing",
-          ),
-        );
+        if (!res.destroyed && !controller.signal.aborted)
+          await serveFile(req, res, original);
       }
       return;
     }
@@ -317,6 +441,8 @@ const server = createServer(async (req, res) => {
       const job = {
         id: randomUUID(),
         status: "processing",
+        projectId: owner,
+        resources: new Set(),
         progress: 0,
         message: "Đang chuẩn bị xử lý ảnh…",
         running: true,
@@ -330,6 +456,7 @@ const server = createServer(async (req, res) => {
           job.result = await heavyTasks.run(
             () =>
               processImages(project.assets, settings, {
+                onResource: resourcesFor(job),
                 signal: job.controller.signal,
                 onProgress: (progress, message) => {
                   job.progress = progress;
@@ -348,7 +475,7 @@ const server = createServer(async (req, res) => {
             job.error = error.message;
           }
         } finally {
-          job.running = false;
+          await finishResources(job);
         }
       })();
       return;
@@ -413,6 +540,8 @@ const server = createServer(async (req, res) => {
       const job = {
         id: randomUUID(),
         status: "translating",
+        projectId: owner,
+        resources: new Set(),
         progress: 0,
         message: "Đang chuẩn bị dịch…",
         running: true,
@@ -465,6 +594,8 @@ const server = createServer(async (req, res) => {
       const job = {
         id: randomUUID(),
         status: "generating",
+        projectId: owner,
+        resources: new Set(),
         progress: 0,
         message: "Đang chuẩn bị tạo voice…",
         running: true,
@@ -529,6 +660,7 @@ const server = createServer(async (req, res) => {
           if (!uploaded) await rm(destination, { force: true });
         }
         const { envelope, info } = result;
+        await trackResources(owner, [`/media/${voiceId}.${extension}`]);
         json(res, 201, {
           id: voiceId,
           name,
@@ -561,6 +693,8 @@ const server = createServer(async (req, res) => {
       const job = {
         id: randomUUID(),
         status: "aligning",
+        projectId: owner,
+        resources: new Set(),
         progress: 0,
         message: "Đang kiểm tra WAV/TXT…",
         running: true,
@@ -623,6 +757,7 @@ const server = createServer(async (req, res) => {
         },
       );
       const src = `/media/${filename}`;
+      await trackResources(owner, [src]);
       let metadata = dimensions;
       if (ext !== "png") {
         try {
@@ -656,6 +791,7 @@ const server = createServer(async (req, res) => {
       const fontId = randomUUID(),
         filename = `${fontId}.${ext}`;
       await writeFile(join(fontsDir, filename), buffer);
+      await trackResources(owner, [`/fonts/${filename}`]);
       json(res, 201, {
         id: `khung-${fontId}`,
         name: (url.searchParams.get("name") || "Font của bạn").slice(0, 200),
@@ -733,10 +869,12 @@ const server = createServer(async (req, res) => {
         .slice(-180)
         .join("");
       const job = await exportQueue.create(project, {
+        projectId: owner,
         filename,
         quality: payload.quality,
         mode: payload.mode,
       });
+      await trackResources(owner, ["job:" + job.id]);
       json(res, 202, publicJob(job));
       return;
     }
@@ -812,7 +950,9 @@ const server = createServer(async (req, res) => {
       );
       await serveFile(req, res, join(root, "index.html"));
     } else if (
-      /^\/((app|project-worker|utility-worker)\.(js|css)(\.map)?)$/.test(url.pathname)
+      /^\/((app|project-worker|utility-worker)\.(js|css)(\.map)?)$/.test(
+        url.pathname,
+      )
     )
       await serveFile(req, res, join(root, "dist", relative));
     else await serveFile(req, res, staticPath);
@@ -822,6 +962,8 @@ const server = createServer(async (req, res) => {
         error: error.message || "Không thực hiện được thao tác.",
       });
     else res.end();
+  } finally {
+    if (mutation) activeMutations--;
   }
 });
 server.listen(port, "127.0.0.1", () => console.log(`Khung editor: ${origin}`));
@@ -845,6 +987,7 @@ for (const signal of ["SIGINT", "SIGTERM"])
     for (const controller of voiceControllers) controller.abort();
     stopMediaHelpers();
     await exportQueue.close();
+    await projectLibrary.close();
     server.close();
     // Export workers finish graceful cancellation or their 5s process-group deadline.
     const timer = setInterval(() => {

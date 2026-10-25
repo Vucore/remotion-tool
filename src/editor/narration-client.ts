@@ -1,3 +1,4 @@
+import { projectHeaders } from "./workspace-storage";
 import { leanProject } from "./project-client";
 import { parseProject, type Project } from "../model";
 import type { AutoConfig } from "../auto/config";
@@ -23,7 +24,7 @@ export async function buildWithNarration(
     onProgress("Đang kiểm tra ảnh, voice và TXT…");
     const response = await fetch("/api/narration", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { ...projectHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({ project: leanProject(project), config, keep }),
     });
     let job = await response.json();

@@ -1,3 +1,4 @@
+import { projectHeaders } from "./workspace-storage";
 import { leanProject } from "./project-client";
 import type { Asset, Project } from "../model";
 import type { ImageProcessingSettings } from "../auto/image-processing";
@@ -25,7 +26,7 @@ export async function processProjectImages(
     onProgress("Đang chuẩn bị xử lý ảnh…");
     const response = await fetch("/api/images/process", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { ...projectHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({ project: leanProject(project), settings }),
     });
     let job = await response.json();

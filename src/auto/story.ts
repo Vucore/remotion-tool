@@ -19,6 +19,7 @@ import {
 import { planActors } from "../actors/plan";
 import { NARRATION_LANGUAGES, type NarrationLanguage } from "./languages";
 import { defaultTtsSettings, parseTtsSettings, type TtsSettings } from "./tts";
+import { parseRandomSelection, type RandomSelection } from "./random-selection";
 import {
   makeText,
   makeScene,
@@ -150,10 +151,12 @@ export type StoryOptions = {
   style: keyof typeof STORY_STYLES;
   overlay: keyof typeof STORY_OVERLAYS;
   overlays: StoryOverlay[];
-  motion: "auto" | keyof typeof MOTIONS;
+  motion: "auto" | "random" | keyof typeof MOTIONS;
+  motionRandom: RandomSelection<keyof typeof MOTIONS>;
   motionAmount: number;
   image: StoryImage;
-  transition: "auto" | keyof typeof TRANSITIONS;
+  transition: "auto" | "random" | keyof typeof TRANSITIONS;
+  transitionRandom: RandomSelection<keyof typeof TRANSITIONS>;
   transitionSeconds: number;
   transitionDirection: "left" | "right" | "up" | "down";
   transitionEasing: Scene["transitionEasing"];
@@ -172,10 +175,12 @@ export type SceneStoryOverride = Partial<
   Pick<
     StoryOptions,
     | "motion"
+    | "motionRandom"
     | "motionAmount"
     | "image"
     | "fit"
     | "transition"
+    | "transitionRandom"
     | "transitionSeconds"
     | "transitionDirection"
     | "transitionEasing"
@@ -209,9 +214,14 @@ export const defaultStoryOptions = (): StoryOptions => ({
   overlay: "none",
   overlays: [],
   motion: "auto",
+  motionRandom: {
+    presets: ["zoom-in", "zoom-out", "pan-left", "pan-right"],
+    seed: 42,
+  },
   motionAmount: 5,
   image: defaultStoryImage(),
   transition: "auto",
+  transitionRandom: { presets: ["fade", "slide", "wipe", "zoom"], seed: 42 },
   transitionSeconds: 0.45,
   transitionDirection: "left",
   transitionEasing: "linear",
@@ -235,6 +245,18 @@ export function parseStoryOptions(input: unknown): StoryOptions {
   o.caption = { ...defaultCaption(), ...o.caption };
   o.caption.advanced = { ...o.caption.advanced };
   o.image = { ...defaultStoryImage(), ...o.image };
+  o.motionRandom = parseRandomSelection(
+    o.motionRandom,
+    defaultStoryOptions().motionRandom,
+    MOTIONS,
+    "Chuyển động",
+  );
+  o.transitionRandom = parseRandomSelection(
+    o.transitionRandom,
+    defaultStoryOptions().transitionRandom,
+    TRANSITIONS,
+    "Chuyển cảnh",
+  );
   const choices: Record<string, readonly unknown[]> = {
     ratio: ["9:16", "16:9"],
     style: Object.keys(STORY_STYLES),
@@ -243,8 +265,8 @@ export function parseStoryOptions(input: unknown): StoryOptions {
     quality: ["high", "standard"],
     language: Object.keys(NARRATION_LANGUAGES),
     model: ["tiny", "base", "small", "medium"],
-    motion: ["auto", ...Object.keys(MOTIONS)],
-    transition: ["auto", ...Object.keys(TRANSITIONS)],
+    motion: ["auto", "random", ...Object.keys(MOTIONS)],
+    transition: ["auto", "random", ...Object.keys(TRANSITIONS)],
     transitionDirection: ["left", "right", "up", "down"],
     transitionEasing: Object.keys(EASINGS),
   };
@@ -362,10 +384,12 @@ export function parseStoryOptions(input: unknown): StoryOptions {
         (k) =>
           ![
             "motion",
+            "motionRandom",
             "motionAmount",
             "image",
             "fit",
             "transition",
+            "transitionRandom",
             "transitionSeconds",
             "transitionDirection",
             "transitionEasing",
@@ -429,13 +453,15 @@ export function storyConfig(project: Project, input: StoryOptions): AutoConfig {
     rows = storyInputs(project);
   const voice = Boolean(project.voiceover?.assets.length);
   const motion =
-    o.motion !== "auto"
-      ? [o.motion]
-      : o.style === "still"
-        ? ["none"]
-        : o.style === "lively"
-          ? ["zoom-in", "pan-left", "zoom-out", "pan-right"]
-          : ["zoom-in", "zoom-out"];
+    o.motion === "random"
+      ? o.motionRandom.presets
+      : o.motion !== "auto"
+        ? [o.motion]
+        : o.style === "still"
+          ? ["none"]
+          : o.style === "lively"
+            ? ["zoom-in", "pan-left", "zoom-out", "pan-right"]
+            : ["zoom-in", "zoom-out"];
   return parseAutoConfig({
     autoEditVersion: 1,
     output: {
@@ -461,19 +487,26 @@ export function storyConfig(project: Project, input: StoryOptions): AutoConfig {
       focus: { x: o.image.focusX / 100, y: o.image.focusY / 100 },
     },
     motion: {
+      policy: o.motion === "random" ? "seeded" : "alternate",
+      seed: o.motionRandom.seed,
       presets: motion,
       amount: o.motionAmount,
       easing: o.image.motionEasing,
     },
     transition: {
+      policy: o.transition === "random" ? "seeded" : "fixed",
+      presets: o.transitionRandom.presets,
+      seed: o.transitionRandom.seed,
       preset:
-        o.transition !== "auto"
-          ? o.transition
-          : o.style === "still"
-            ? "none"
-            : o.style === "lively"
-              ? "slide"
-              : "fade",
+        o.transition === "random"
+          ? o.transitionRandom.presets[0]
+          : o.transition !== "auto"
+            ? o.transition
+            : o.style === "still"
+              ? "none"
+              : o.style === "lively"
+                ? "slide"
+                : "fade",
       seconds: o.transitionSeconds,
       direction: o.transitionDirection,
       easing: o.transitionEasing,
@@ -511,10 +544,16 @@ export function storyConfig(project: Project, input: StoryOptions): AutoConfig {
         scoped = sceneStoryOptions(o, row.image.name);
       return {
         file: row.image.name,
+        ...(patch?.motion === "random"
+          ? { motionRandom: scoped.motionRandom }
+          : {}),
+        ...(patch?.transition === "random"
+          ? { transitionRandom: scoped.transitionRandom }
+          : {}),
         scene: {
           ...(patch?.image ? scoped.image : {}),
           ...(patch?.fit ? { fit: scoped.fit } : {}),
-          ...(patch?.motion
+          ...(patch?.motion && patch.motion !== "random"
             ? {
                 motion:
                   scoped.motion === "auto"
@@ -525,7 +564,7 @@ export function storyConfig(project: Project, input: StoryOptions): AutoConfig {
           ...(patch?.motionAmount !== undefined
             ? { motionAmount: scoped.motionAmount }
             : {}),
-          ...(patch?.transition
+          ...(patch?.transition && patch.transition !== "random"
             ? {
                 transition:
                   scoped.transition === "auto"
@@ -632,6 +671,8 @@ export function optionsFromProject(
             .filter(
               (o) =>
                 o.textStyle ||
+                o.motionRandom ||
+                o.transitionRandom ||
                 Object.keys(o.scene).some((k) => k !== "duration"),
             )
             .map((o) => {
@@ -664,11 +705,20 @@ export function optionsFromProject(
                   ...(Object.keys(image).length ? { image } : {}),
                   ...(o.scene.fit ? { fit: o.scene.fit } : {}),
                   ...(o.scene.motion ? { motion: o.scene.motion } : {}),
+                  ...(o.motionRandom
+                    ? { motion: "random", motionRandom: o.motionRandom }
+                    : {}),
                   ...(o.scene.motionAmount !== undefined
                     ? { motionAmount: o.scene.motionAmount }
                     : {}),
                   ...(o.scene.transition
                     ? { transition: o.scene.transition }
+                    : {}),
+                  ...(o.transitionRandom
+                    ? {
+                        transition: "random",
+                        transitionRandom: o.transitionRandom,
+                      }
                     : {}),
                   ...(o.scene.transitionDuration !== undefined
                     ? { transitionSeconds: o.scene.transitionDuration }
@@ -691,7 +741,15 @@ export function optionsFromProject(
     ratio: project.width < project.height ? "9:16" : "16:9",
     fit: config?.framing.fit ?? "contain",
     motion:
-      config?.motion.presets.length === 1 ? config.motion.presets[0] : "auto",
+      config?.motion.policy === "seeded"
+        ? "random"
+        : config?.motion.presets.length === 1
+          ? config.motion.presets[0]
+          : "auto",
+    motionRandom:
+      config?.motion.policy === "seeded"
+        ? { presets: config.motion.presets, seed: config.motion.seed }
+        : defaultStoryOptions().motionRandom,
     motionAmount: config?.motion.amount ?? 5,
     image: {
       ...defaultStoryImage(),
@@ -702,7 +760,13 @@ export function optionsFromProject(
       ),
       motionEasing: config?.motion.easing ?? "linear",
     },
-    transition: config?.transition.preset ?? "auto",
+    transition:
+      config?.transition.policy === "seeded"
+        ? "random"
+        : (config?.transition.preset ?? "auto"),
+    transitionRandom: config
+      ? { presets: config.transition.presets, seed: config.transition.seed }
+      : defaultStoryOptions().transitionRandom,
     transitionSeconds: config?.transition.seconds ?? 0.45,
     transitionDirection: config?.transition.direction ?? "left",
     transitionEasing: config?.transition.easing ?? "linear",

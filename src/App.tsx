@@ -7,7 +7,7 @@ import {
   type SetStateAction,
 } from "react";
 import { Player, type PlayerRef } from "@remotion/player";
-import { emptyProject, timeline, type Project, type Asset } from "./model";
+import { timeline, type Asset } from "./model";
 import { PreviewVideo } from "./editor/PreviewVideo";
 import { Icon } from "./icons";
 import { StoryInput } from "./editor/StoryInput";
@@ -43,34 +43,31 @@ import {
   type ImageProcessingSettings,
 } from "./auto/image-processing";
 import { SubtitlePanel } from "./editor/SubtitlePanel";
-import { PlaybackClock, lastAt, proxySource } from "./editor/performance";
+import { PlaybackClock, lastAt } from "./editor/performance";
+import { ProxyThumbnail } from "./editor/ProxyThumbnail";
 import { useStoryPreview } from "./editor/useStoryPreview";
 import {
   readWorkspace,
   writeWorkspace,
   readEditorFile,
   jsonBlob,
+  createSavedProject,
+  openSavedProject,
+  type LoadedWorkspace,
+  projectHeaders,
+  prepareProjectDeletion,
+  deleteSavedProject,
+  type ProjectDeletion,
 } from "./editor/workspace-storage";
 import { ExportPanel } from "./editor/ExportPanel";
 import { leanProject } from "./editor/project-client";
+import { ProjectsPanel } from "./editor/ProjectsPanel";
+import {
+  emptyWorkspace,
+  type Workspace,
+  type WorkspaceJob as Job,
+} from "./editor/workspace";
 
-type Job = {
-  id: string;
-  status: "queued" | "preparing" | "rendering" | "done" | "error" | "cancelled";
-  createdAt?: string;
-  mode?: string;
-  progress: number;
-  error?: string;
-  url?: string;
-  subtitleUrl?: string;
-  subtitleFilename?: string;
-};
-type Workspace = {
-  project: Project;
-  options: StoryOptions;
-  dirty: boolean;
-  job: Job | null;
-};
 async function saveJson(filename: string, value: unknown, preset = false) {
   const url = URL.createObjectURL(await jsonBlob(value, preset));
   const link = document.createElement("a");
@@ -88,12 +85,11 @@ const running = (job: Job | null) =>
 
 export function App() {
   const layout = useWorkspaceLayout();
-  const [workspace, rawSetWorkspace] = useState<Workspace>(() => ({
-    project: emptyProject(),
-    options: defaultStoryOptions(),
-    dirty: true,
-    job: null,
-  }));
+  const [workspace, rawSetWorkspace] = useState<Workspace>(emptyWorkspace);
+  const latestWorkspace = useRef(workspace);
+  latestWorkspace.current = workspace;
+  const switching = useRef(false);
+  const [projectId, setProjectId] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
   const [exportMode, setExportMode] = useState<"editing" | "fast">("editing");
@@ -111,7 +107,14 @@ export function App() {
   }, []);
   const { project, options, dirty, job } = workspace;
   const [phase, setPhase] = useState<
-    "idle" | "importing" | "generating" | "building" | "starting" | "processing"
+    | "idle"
+    | "importing"
+    | "generating"
+    | "building"
+    | "starting"
+    | "processing"
+    | "switching"
+    | "deleting"
   >("idle");
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
@@ -127,9 +130,15 @@ export function App() {
     "media" | "preview" | "settings"
   >("preview");
   const [saved, setSaved] = useState(true);
-  const [resetOpen, setResetOpen] = useState(false);
   const [resourceDialog, setResourceDialog] = useState<
-    "tts" | "actors" | "subtitles" | "help" | "images" | "exports" | null
+    | "tts"
+    | "actors"
+    | "subtitles"
+    | "help"
+    | "images"
+    | "exports"
+    | "projects"
+    | null
   >(null);
   const [imagePreview, setImagePreview] = useState<{
     id: string;
@@ -148,7 +157,6 @@ export function App() {
   const presetInput = useRef<HTMLInputElement>(null);
   const controller = useRef<AbortController | null>(null);
   const operation = useRef(false);
-  const resetDialog = useRef<HTMLDialogElement>(null);
   const mounted = useRef(true);
   const busy = !hydrated || phase !== "idle";
   const exportId = job?.id;
@@ -203,13 +211,20 @@ export function App() {
     void readWorkspace()
       .then((saved) => {
         if (disposed) return;
-        if (saved) setWorkspace(saved as Workspace);
+        rawSetWorkspace(saved.workspace);
+        setProjectId(saved.entry.id);
+        if (saved.migrated)
+          setNotice(
+            "Đã chuyển bản nháp cũ vào Dự án. Bạn có thể mở lại bất cứ lúc nào.",
+          );
         setStorageReady(true);
       })
-      .catch(() => {
+      .catch((error) => {
         if (!disposed)
           setNotice(
-            "Chưa mở được bản nháp. Bản cũ được giữ; đóng tab editor khác rồi tải lại, hoặc mở dự án từ tệp.",
+            "Chưa mở được dự án: " +
+              errorMessage(error) +
+              " Bản lưu cũ vẫn được giữ. Khởi động lại server rồi tải lại trang.",
           );
       })
       .finally(() => {
@@ -218,23 +233,27 @@ export function App() {
     return () => {
       disposed = true;
     };
-  }, [setWorkspace]);
+  }, []);
   useEffect(() => {
-    if (!hydrated || !storageReady) return;
+    if (!hydrated || !storageReady || switching.current) return;
     setSaved(false);
     let disposed = false;
-    const save = () =>
-      void writeWorkspace(workspace).then(
+    const save = () => {
+      if (switching.current) return;
+      void writeWorkspace(workspace, projectId ?? undefined).then(
         () => {
           if (!disposed) setSaved(true);
         },
-        () => {
+        (error) => {
           if (!disposed)
             setNotice(
-              "Chưa lưu được bản nháp. Dùng Lưu dự án để giữ bản dựng.",
+              "Chưa tự lưu được: " +
+                errorMessage(error) +
+                " Có thể dùng Tệp → Tải bản sao JSON để giữ thay đổi.",
             );
         },
       );
+    };
     const timeout = setTimeout(save, 600);
     const flush = () => {
       if (document.visibilityState === "hidden") save();
@@ -245,11 +264,16 @@ export function App() {
       clearTimeout(timeout);
       document.removeEventListener("visibilitychange", flush);
     };
-  }, [workspace, hydrated, storageReady]);
+  }, [workspace, hydrated, storageReady, projectId, phase]);
   useEffect(() => {
-    if (resetOpen) resetDialog.current?.showModal();
-    else resetDialog.current?.close();
-  }, [resetOpen]);
+    if (saved || !storageReady) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, [saved, storageReady]);
   useEffect(() => {
     const p = player.current;
     if (!p) return;
@@ -369,6 +393,7 @@ export function App() {
         {
           method: "POST",
           headers: {
+            ...projectHeaders(),
             "Content-Type": /\.mp3$/i.test(file.name)
               ? "audio/mpeg"
               : "audio/wav",
@@ -640,6 +665,99 @@ export function App() {
       setProgress("");
     }
   }
+  function activateProject(saved: LoadedWorkspace) {
+    player.current?.pause();
+    // Switching projects must not carry a running job from the previous project.
+    latestWorkspace.current = saved.workspace;
+    rawSetWorkspace(saved.workspace);
+    setProjectId(saved.entry.id);
+    setStorageReady(true);
+    setSaved(true);
+    setPlaying(false);
+    clock.set(0);
+    setFrame(0);
+    player.current?.seekTo(0);
+    setError("");
+    setNotice("");
+    setWarnings([]);
+    setImagePreview(null);
+    setConnectionLost(false);
+    setSettingsScope("all");
+    setResourceDialog(null);
+  }
+  async function switchProject(id?: string, name?: string, duplicate = false) {
+    if (busy || operation.current) return;
+    operation.current = true;
+    switching.current = true;
+    setPhase("switching");
+    setProgress("Đang lưu và mở dự án…");
+    player.current?.pause();
+    try {
+      narrationFlush.current?.();
+      // Flush local text editors before taking the final snapshot.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const current = latestWorkspace.current;
+      if (storageReady) await writeWorkspace(current, projectId ?? undefined);
+      const next = duplicate
+        ? {
+            ...current,
+            options: {
+              ...current.options,
+              name:
+                (current.options.name.slice(0, 88) || "Câu chuyện") +
+                " (bản sao)",
+            },
+            job: null,
+          }
+        : {
+            ...emptyWorkspace(),
+            options: {
+              ...defaultStoryOptions(),
+              ratio: current.options.ratio,
+              name: name || "Câu chuyện mới",
+            },
+          };
+      const saved = id
+        ? await openSavedProject(id)
+        : await createSavedProject(next);
+      activateProject(saved);
+    } finally {
+      switching.current = false;
+      operation.current = false;
+      setPhase("idle");
+      setProgress("");
+    }
+  }
+  async function projectDeletion(id: string, plan?: ProjectDeletion) {
+    if (busy || operation.current)
+      throw Error("Đang có thao tác khác. Hãy thử lại.");
+    operation.current = true;
+    switching.current = true;
+    setPhase("deleting");
+    setProgress(
+      plan
+        ? "Đang xóa dự án và dọn file…"
+        : "Đang kiểm tra tài nguyên của dự án…",
+    );
+    player.current?.pause();
+    try {
+      if (storageReady)
+        await writeWorkspace(latestWorkspace.current, projectId ?? undefined);
+      if (!plan) return await prepareProjectDeletion(id);
+      const result = await deleteSavedProject(plan);
+      if (result.opened) activateProject(result.opened);
+      setNotice(
+        result.failures.length
+          ? `Đã xóa dự án; còn ${result.failures.length} tệp chưa dọn được. Danh sách nằm trong data/projects/${id}/deleted.json.`
+          : `Đã xóa dự án và ${result.removed} tệp riêng. Tài nguyên dùng chung được giữ lại.`,
+      );
+    } finally {
+      switching.current = false;
+      operation.current = false;
+      setPhase("idle");
+      setProgress("");
+    }
+  }
   async function openFile(file: File | undefined, type: "project" | "preset") {
     if (!file || busy || operation.current) return;
     operation.current = true;
@@ -647,20 +765,22 @@ export function App() {
     setProgress("Đang mở tệp…");
     setError("");
     try {
-      if (file.size > 10_000_000) throw Error("Tệp dự án/mẫu tối đa 10 MB.");
+      if (file.size > 64 * 1024 * 1024)
+        throw Error("Tệp dự án/mẫu tối đa 64 MB.");
       const data = await readEditorFile(file, type, options.name);
       if (type === "project") {
         const next = data.project;
-        player.current?.pause();
-        clock.set(0);
-        setFrame(0);
-        setWorkspace({
-          project: next,
-          options: data.options,
-          dirty: !next.scenes.length,
-          job: null,
-        });
-        setWarnings([]);
+        switching.current = true;
+        if (storageReady)
+          await writeWorkspace(latestWorkspace.current, projectId ?? undefined);
+        activateProject(
+          await createSavedProject({
+            project: next,
+            options: data.options,
+            dirty: data.dirty ?? !next.scenes.length,
+            job: null,
+          }),
+        );
         setNotice(
           "Đã mở dự án. Xuất video sẽ giữ bản dựng này; Dựng lại sẽ áp dụng mẫu hiện tại.",
         );
@@ -683,6 +803,7 @@ export function App() {
     } catch (e) {
       setError(errorMessage(e));
     } finally {
+      switching.current = false;
       operation.current = false;
       setPhase("idle");
       setProgress("");
@@ -795,7 +916,7 @@ export function App() {
         // Do not abort this POST: obtain its job ID so any requested cancellation can reach the server.
         const response = await fetch("/api/exports", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { ...projectHeaders(), "Content-Type": "application/json" },
           body: JSON.stringify({
             project: leanProject(next),
             mode: exportMode,
@@ -937,6 +1058,18 @@ export function App() {
           </span>
           <strong>Khung</strong>
         </div>
+        <button
+          type="button"
+          className="project-library-button"
+          disabled={busy}
+          onClick={() => {
+            player.current?.pause();
+            setResourceDialog("projects");
+          }}
+        >
+          <Icon name="folder" />
+          Dự án
+        </button>
         <input
           className="project-name"
           aria-label="Tên video"
@@ -947,9 +1080,16 @@ export function App() {
         />
         <span
           className="workspace-saved"
-          title={saved ? "Đã lưu trên trình duyệt" : "Đang lưu"}
+          title={
+            saved && storageReady
+              ? "Đã lưu trong data/projects"
+              : "Chưa lưu xong dự án"
+          }
+          aria-label={
+            saved && storageReady ? "Đã lưu dự án" : "Chưa lưu xong dự án"
+          }
         >
-          <Icon name={saved ? "check" : "clock"} />
+          <Icon name={saved && storageReady ? "check" : "clock"} />
         </span>
         <nav className="mobile-panels" aria-label="Không gian làm việc">
           {(
@@ -998,19 +1138,19 @@ export function App() {
               onClick={() => projectInput.current?.click()}
             >
               <Icon name="folder" />
-              Mở dự án
+              Nhập dự án từ JSON
             </button>
             <button
-              disabled={busy || dirty || !hasScenes}
+              disabled={busy}
               onClick={() =>
-                void saveJson(
-                  (project.name || "video") + ".khung.json",
-                  project,
-                ).catch((error) => setError(errorMessage(error)))
+                void saveJson((options.name || "video") + ".khung.json", {
+                  khungWorkspaceVersion: 1,
+                  workspace,
+                }).catch((error) => setError(errorMessage(error)))
               }
             >
               <Icon name="save" />
-              Lưu dự án
+              Tải bản sao JSON
             </button>
             <hr />
             <button
@@ -1099,9 +1239,6 @@ export function App() {
                 ))}
               </select>
             </label>
-            <button disabled={busy} onClick={() => setResetOpen(true)}>
-              Câu chuyện mới
-            </button>
             {!!warnings.length && (
               <details className="compact-details">
                 <summary>Ghi chú · {warnings.length}</summary>
@@ -1126,10 +1263,16 @@ export function App() {
           <button
             className="button export-button"
             onClick={() => void cancel()}
-            disabled={!hydrated}
+            disabled={
+              !hydrated || phase === "switching" || phase === "deleting"
+            }
           >
             <Icon name="close" />
-            {"Dừng"}
+            {phase === "switching"
+              ? "Đang mở…"
+              : phase === "deleting"
+                ? "Đang dọn…"
+                : "Dừng"}
           </button>
         ) : (
           <button
@@ -1322,25 +1465,17 @@ export function App() {
               const item = assetItems.get(asset.id);
               const scene = item?.scene;
               return (
-                <button
+                <ProxyThumbnail
                   key={asset.id}
-                  className={activeScene === scene?.id ? "active" : ""}
-                  title={asset.name}
-                  aria-label={"Xem ảnh " + asset.name}
-                  onClick={() => {
+                  src={asset.src}
+                  name={asset.name}
+                  number={i + 1}
+                  active={activeScene === scene?.id}
+                  onSelect={() => {
                     if (item) seek(item.from + item.overlap);
                     setMobilePanel("preview");
                   }}
-                >
-                  <img
-                    src={proxySource(asset.src, 384)}
-                    alt=""
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <span>{asset.name}</span>
-                  <small>{i + 1}</small>
-                </button>
+                />
               );
             })}
           </div>
@@ -1472,6 +1607,16 @@ export function App() {
                 initiallyMuted={muted}
                 clickToPlay
                 doubleClickToFullscreen
+                showPosterWhenBuffering
+                showPosterWhenBufferingAndPaused
+                showPosterWhenUnplayed={false}
+                showPosterWhenPaused={false}
+                bufferStateDelayInMilliseconds={200}
+                renderPoster={() => (
+                  <div className="preview-buffer" role="status">
+                    <Icon name="image" /> Đang tải preview…
+                  </div>
+                )}
                 style={{ width: "100%", height: "100%" }}
                 errorFallback={({ error: previewError }) => (
                   <div className="preview-error">
@@ -1619,6 +1764,28 @@ export function App() {
           setResourceDialog("tts");
         }}
       />
+      <EditorDialog
+        open={resourceDialog === "projects"}
+        title="Dự án của bạn"
+        onClose={() => {
+          if (!switching.current) setResourceDialog(null);
+        }}
+        wide
+        className="projects-dialog"
+      >
+        <ProjectsPanel
+          currentId={projectId}
+          currentName={options.name}
+          busy={busy}
+          onOpen={(id) => switchProject(id)}
+          onCreate={(name) => switchProject(undefined, name)}
+          onDuplicate={() => switchProject(undefined, undefined, true)}
+          onPrepareDelete={async (id) => (await projectDeletion(id))!}
+          onDelete={async (plan) => {
+            await projectDeletion(plan.id, plan);
+          }}
+        />
+      </EditorDialog>
       <EditorDialog
         open={resourceDialog === "exports"}
         title="Các video đã xuất"
@@ -1879,42 +2046,6 @@ export function App() {
           void openFile(file, "preset");
         }}
       />
-      <dialog
-        ref={resetDialog}
-        className="reset-dialog"
-        onCancel={() => setResetOpen(false)}
-      >
-        <h2>Bắt đầu câu chuyện mới?</h2>
-        <p>
-          Khung sẽ bỏ bản dựng hiện tại khỏi trình duyệt. Các tệp trong data và
-          video đã xuất vẫn được giữ.
-        </p>
-        <div className="inline-actions">
-          <button className="button" onClick={() => setResetOpen(false)}>
-            Quay lại
-          </button>
-          <button
-            className="button primary"
-            onClick={() => {
-              player.current?.pause();
-              setWorkspace({
-                project: emptyProject(),
-                options: { ...options, name: "Câu chuyện của tôi" },
-                dirty: true,
-                job: null,
-              });
-              setError("");
-              setNotice("");
-              setWarnings([]);
-              clock.set(0);
-              setFrame(0);
-              setResetOpen(false);
-            }}
-          >
-            Tạo câu chuyện mới
-          </button>
-        </div>
-      </dialog>
     </div>
   );
 }

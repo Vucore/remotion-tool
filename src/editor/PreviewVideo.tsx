@@ -3,7 +3,8 @@ import { useCurrentFrame, useVideoConfig } from "remotion";
 import { Video } from "../Video";
 import { timeline, type Project } from "../model";
 import { PreviewHealth } from "./preview-health";
-import { lastAt, proxySource } from "./performance";
+import { lastAt } from "./performance";
+import { imageResources } from "./image-resources";
 
 export function PreviewVideo({
   project,
@@ -40,21 +41,21 @@ export function PreviewVideo({
     if (mode) setLight(mode === "light");
   }, [frame, fps, playing, previewQuality]);
   useEffect(() => {
-    const images: HTMLImageElement[] = [];
-    // Debounce scrubbing, prewarm only the next scene, and never preload an entire project.
+    const requests: { release: () => void }[] = [];
+    // Debounce scrubbing and prewarm only two following scenes. These requests
+    // share the foreground loader and are released when the playhead moves away.
     const timer = setTimeout(() => {
-      const asset = assetMap.get(items[sceneIndex + 1]?.scene.assetId ?? "");
-      if (!asset || !asset.src.startsWith("/media/")) return;
-      const image = new Image();
-      image.decoding = "async";
-      image.fetchPriority = "low";
-      image.src = proxySource(asset.src, effective === "light" ? 960 : 1440);
-      images.push(image);
-      void image.decode().catch(() => {});
-    }, 200);
+      for (let offset = 1; offset <= 2; offset++) {
+        const asset = assetMap.get(items[sceneIndex + offset]?.scene.assetId ?? "");
+        if (!asset) continue;
+        const request = imageResources.acquire(asset.src, effective === "light" ? 960 : 1440, "next");
+        requests.push(request);
+        void request.promise.catch(() => {});
+      }
+    }, 120);
     return () => {
       clearTimeout(timer);
-      for (const image of images) image.src = "";
+      for (const request of requests) request.release();
     };
   }, [sceneIndex, assetMap, items, effective]);
   return useMemo(

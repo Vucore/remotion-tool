@@ -12,6 +12,7 @@ import {
 import type { Project } from "../model";
 import { Icon } from "../icons";
 import { subtitleZip } from "../auto/subtitle-zip";
+import { projectHeaders } from "./workspace-storage";
 
 function download(name: string, cues: SubtitleCue[]) {
   const url = URL.createObjectURL(
@@ -151,7 +152,10 @@ export function SubtitlePanel({
           // Receive the job ID before honoring cancellation so no orphan job is left running.
           const response = await fetch("/api/subtitles/translate", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              ...projectHeaders(),
+              "Content-Type": "application/json",
+            },
             body: JSON.stringify({ cues, source, target }),
           });
           let job = await response.json();

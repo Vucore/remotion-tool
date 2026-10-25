@@ -1,3 +1,4 @@
+import { projectHeaders } from "./workspace-storage";
 import { id, type Asset, type Project, type VoiceAsset } from "../model";
 import { defaultActorImport } from "../actors/types";
 import { uploadActorFiles } from "./actor-upload";
@@ -109,6 +110,7 @@ export async function importStoryFiles(
             {
               method: "POST",
               headers: {
+                ...projectHeaders(),
                 "Content-Type": isImage
                   ? file.type || "application/octet-stream"
                   : isMp3

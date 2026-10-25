@@ -94,6 +94,7 @@ export async function translateSubtitles(
     signal,
     translator = runTranslator,
     onProgress = () => {},
+    onResource,
   } = {},
 ) {
   const cues = validateCues(input.cues),
@@ -115,6 +116,7 @@ export async function translateSubtitles(
       target,
       text,
     });
+    await onResource?.([`/.cache/translations/${key}.json`]);
     if (resolved.has(cue.text) || pending.has(cue.text)) continue;
     try {
       const cached = JSON.parse(

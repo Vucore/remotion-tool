@@ -1,4 +1,5 @@
-import type { Project, VoiceAsset } from "../model";
+import type { VoiceAsset } from "../model";
+import type { Workspace, SavedProject } from "./workspace";
 import type { StoryOptions } from "../auto/story";
 import { leanProject } from "./project-client";
 import { revisionDiff } from "./revision";
@@ -14,6 +15,20 @@ const pending = new Map<
   }
 >();
 let sent: unknown;
+let activeId: string | undefined;
+export type LoadedWorkspace = {
+  workspace: Workspace;
+  entry: SavedProject;
+  migrated?: boolean;
+};
+function adopt(result: LoadedWorkspace) {
+  activeId = result.entry.id;
+  sent = undefined;
+  knownWaves.clear();
+  for (const voice of result.workspace.project.voiceover?.assets ?? [])
+    if (voice.envelope) knownWaves.set(voice.id, voice.envelope);
+  return result;
+}
 const knownWaves = new Map<string, VoiceAsset["envelope"]>();
 function stop(error: Error) {
   worker?.terminate();
@@ -74,20 +89,28 @@ export async function readWorkspace() {
   } catch {
     /* Browser may block localStorage. */
   }
-  const result = await request<{ project: Project }>("load", {
-    legacy,
-    oldProject,
-  });
-  for (const voice of result.project.voiceover?.assets ?? [])
-    if (voice.envelope) knownWaves.set(voice.id, voice.envelope);
+  const result = adopt(
+    await request<LoadedWorkspace>("load", { legacy, oldProject }),
+  );
+  if (result.migrated) {
+    try {
+      localStorage.removeItem(LEGACY_STORAGE);
+      localStorage.removeItem("khung-editor-project-v1");
+    } catch {
+      /* The server has already committed the migration. */
+    }
+  }
   return result;
 }
-let writes = Promise.resolve();
-export function writeWorkspace(workspace: unknown) {
+
+let writes: Promise<unknown> = Promise.resolve();
+export function writeWorkspace(workspace: Workspace, projectId = activeId) {
   const next = writes
     .catch(() => {})
     .then(async () => {
-      const value = workspace as { project: Project };
+      const value = workspace;
+      if (!projectId || projectId !== activeId)
+        throw Error("Dự án đã thay đổi. Hãy thử lại.");
       const lean = { ...value, project: leanProject(value.project) };
       const waves = (value.project.voiceover?.assets ?? [])
         .filter(
@@ -95,21 +118,17 @@ export function writeWorkspace(workspace: unknown) {
             voice.envelope && knownWaves.get(voice.id) !== voice.envelope,
         )
         .map((voice) => ({ id: voice.id, envelope: voice.envelope }));
-      const promise = request("save", {
+      const result = await request<{ entry: SavedProject }>("save", {
+        projectId,
         patch: revisionDiff(sent, lean),
         waves,
       });
       sent = lean;
-      await promise;
       for (const wave of waves) knownWaves.set(wave.id, wave.envelope);
       const ids = new Set(value.project.voiceover?.assets.map((v) => v.id));
       for (const id of knownWaves.keys())
         if (!ids.has(id)) knownWaves.delete(id);
-      try {
-        localStorage.removeItem(LEGACY_STORAGE);
-      } catch {
-        /* IndexedDB save has already committed. */
-      }
+      return result.entry;
     });
   writes = next;
   return next;
@@ -120,9 +139,53 @@ export const readEditorFile = (
   name: string,
 ) =>
   request<{
-    project: Project;
+    project: Workspace["project"];
     options: StoryOptions;
-    imageProcessing?: Project["imageProcessing"];
+    dirty?: boolean;
+    imageProcessing?: Workspace["project"]["imageProcessing"];
   }>("file", { file, type, name });
 export const jsonBlob = (value: unknown, preset = false) =>
   request<Blob>("json", { value, preset });
+
+export const listSavedProjects = () =>
+  request<{ projects: SavedProject[]; activeId: string | null }>("list");
+export async function openSavedProject(id: string) {
+  await writes;
+  return adopt(await request<LoadedWorkspace>("open", { projectId: id }));
+}
+export async function createSavedProject(workspace: Workspace) {
+  await writes;
+  return adopt(await request<LoadedWorkspace>("create", { workspace }));
+}
+export const projectHeaders = (): Record<string, string> =>
+  activeId ? { "X-Khung-Project": activeId } : {};
+export type ProjectDeletion = {
+  id: string;
+  name: string;
+  revision: string;
+  files: number;
+  bytes: number;
+  shared: number;
+  exports: number;
+};
+export type DeletedProject = {
+  id: string;
+  removed: number;
+  bytes: number;
+  shared: number;
+  failures: string[];
+  opened?: LoadedWorkspace;
+};
+export async function prepareProjectDeletion(id: string) {
+  await writes;
+  return request<ProjectDeletion>("delete-preview", { projectId: id });
+}
+export async function deleteSavedProject(plan: ProjectDeletion) {
+  await writes;
+  const result = await request<DeletedProject>("delete", {
+    projectId: plan.id,
+    revision: plan.revision,
+  });
+  if (result.opened) adopt(result.opened);
+  return result;
+}

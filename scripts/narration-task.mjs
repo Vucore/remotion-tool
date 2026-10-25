@@ -1,5 +1,5 @@
 import { Worker } from "node:worker_threads";
-export function narrationTask(data, signal, onProgress) {
+export function narrationTask(data, signal, onProgress, onResource) {
   return new Promise((resolve, reject) => {
     const worker = new Worker(
       new URL("./narration-worker.mjs", import.meta.url),
@@ -23,6 +23,7 @@ export function narrationTask(data, signal, onProgress) {
           signal.aborted ? Error("Đã hủy căn phụ đề.") : null,
           event.result,
         );
+      else if (event.resources) onResource?.(event.resources);
       else onProgress(event.progress, event.message);
     });
     worker.on("error", (error) => finish(error));

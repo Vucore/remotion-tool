@@ -3,6 +3,7 @@ import type { Project, Scene, TextLayer } from "../model";
 import type { ActorSettings } from "../actors/types";
 import { parseActorSettings } from "../actors/schema";
 import { NARRATION_LANGUAGES, type NarrationLanguage } from "./languages";
+import { parseRandomSelection, type RandomSelection } from "./random-selection";
 
 export const AUTO_TEMPLATES = {
   "story-clean@1": "Kể chuyện nhẹ",
@@ -44,11 +45,15 @@ export type AutoConfig = {
   framing: { fit: "cover" | "contain"; focus: { x: number; y: number } };
   motion: {
     policy: "alternate" | "seeded";
+    seed: number;
     presets: Scene["motion"][];
     amount: number;
     easing: Scene["motionEasing"];
   };
   transition: {
+    policy: "fixed" | "seeded";
+    presets: Scene["transition"][];
+    seed: number;
     preset: Scene["transition"];
     seconds: number;
     direction: Scene["transitionDirection"];
@@ -71,6 +76,8 @@ export type AutoConfig = {
     scene: Partial<Scene>;
     text?: string;
     textStyle?: Partial<TextLayer>;
+    motionRandom?: RandomSelection<Scene["motion"]>;
+    transitionRandom?: RandomSelection<Scene["transition"]>;
   }[];
 };
 type Obj = Record<string, unknown>;
@@ -212,8 +219,12 @@ export function parseAutoConfig(value: unknown): AutoConfig {
     "presets",
     "amount",
     "easing",
+    "seed",
   ]);
   const transition = section(o, "transition", [
+    "policy",
+    "presets",
+    "seed",
     "preset",
     "seconds",
     "direction",
@@ -233,8 +244,23 @@ export function parseAutoConfig(value: unknown): AutoConfig {
     (template === "minimal@1"
       ? ["none"]
       : ["zoom-in", "pan-left", "zoom-out", "pan-right"]);
-  if (!Array.isArray(presets) || !presets.length || presets.length > 24)
-    throw Error("motion.presets: cần 1–24 preset.");
+  if (
+    !Array.isArray(presets) ||
+    !presets.length ||
+    presets.length > Object.keys(MOTIONS).length
+  )
+    throw Error(`motion.presets: cần 1–${Object.keys(MOTIONS).length} preset.`);
+  const transitionSelection = parseRandomSelection(
+    {
+      presets: transition.presets ?? [
+        transition.preset ?? (template === "minimal@1" ? "none" : "fade"),
+      ],
+      seed: transition.seed ?? o.seed ?? 42,
+    },
+    { presets: ["fade"], seed: 42 },
+    TRANSITIONS,
+    "transition",
+  );
   const extensions = input.extensions ?? ["jpg", "jpeg", "png", "webp"];
   if (!Array.isArray(extensions) || !extensions.length)
     throw Error("input.extensions: cần ít nhất một định dạng ảnh.");
@@ -368,6 +394,7 @@ export function parseAutoConfig(value: unknown): AutoConfig {
       },
     },
     motion: {
+      seed: num(motion.seed ?? o.seed ?? 42, "motion.seed", 0, 99999),
       policy: choice(
         motion.policy ?? "alternate",
         ["alternate", "seeded"],
@@ -384,6 +411,12 @@ export function parseAutoConfig(value: unknown): AutoConfig {
       ),
     },
     transition: {
+      policy: choice(
+        transition.policy ?? "fixed",
+        ["fixed", "seeded"],
+        "transition.policy",
+      ),
+      ...transitionSelection,
       preset: choice(
         transition.preset ?? (template === "minimal@1" ? "none" : "fade"),
         Object.keys(TRANSITIONS) as Scene["transition"][],
@@ -432,10 +465,41 @@ export function parseAutoConfig(value: unknown): AutoConfig {
     },
     overrides: overrides.map((v, i) => {
       const s = obj(v, `overrides[${i}]`);
-      keys(s, ["file", "scene", "text", "textStyle"], `overrides[${i}]`);
+      keys(
+        s,
+        [
+          "file",
+          "scene",
+          "text",
+          "textStyle",
+          "motionRandom",
+          "transitionRandom",
+        ],
+        `overrides[${i}]`,
+      );
       return {
         file: text(s.file, `overrides[${i}].file`, 500),
         scene: scenePatch(s.scene ?? {}, `overrides[${i}].scene`),
+        ...(s.motionRandom === undefined
+          ? {}
+          : {
+              motionRandom: parseRandomSelection(
+                s.motionRandom,
+                { presets: ["zoom-in"], seed: 42 },
+                MOTIONS,
+                `overrides[${i}].motionRandom`,
+              ),
+            }),
+        ...(s.transitionRandom === undefined
+          ? {}
+          : {
+              transitionRandom: parseRandomSelection(
+                s.transitionRandom,
+                { presets: ["fade"], seed: 42 },
+                TRANSITIONS,
+                `overrides[${i}].transitionRandom`,
+              ),
+            }),
         ...(s.text === undefined
           ? {}
           : { text: text(s.text, `overrides[${i}].text`, 2000) }),

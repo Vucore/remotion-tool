@@ -275,17 +275,61 @@ export function NarrationPanel({
               Dùng WAV / MP3
             </button>
           </div>
-          <button
-            className="button"
-            onClick={() => {
-              buffered.flush();
-              onImportScript();
-            }}
-          >
-            <Icon name="folder" />
-            Nhập TXT
-          </button>
+          <div className="inline-actions">
+            <button
+              className="button"
+              onClick={() => {
+                buffered.flush();
+                onImportScript();
+              }}
+            >
+              <Icon name="folder" />
+              Nhập TXT
+            </button>
+            {settings.enabled && (
+              <button
+                className="button primary"
+                disabled={
+                  !canGenerate ||
+                  raw ||
+                  staleAssignments ||
+                  ready ||
+                  !rows.length
+                }
+                onClick={() => {
+                  buffered.flush();
+                  setTimeout(() => generateRef.current(), 0);
+                }}
+              >
+                <Icon name="voice" />
+                {ready ? "Voice đã cập nhật" : "Tạo / cập nhật voice"}
+              </button>
+            )}
+          </div>
         </div>
+        {settings.enabled && (
+          <details className="compact-details narration-settings">
+            <summary>
+              Thiết lập TTS ·{" "}
+              {settings.model === "turbo"
+                ? "Turbo · en"
+                : `Multilingual · ${settings.languageId}`}{" "}
+              · {settings.outputFormat.toUpperCase()}
+            </summary>
+            <TtsPanel
+              settings={settings}
+              busy={busy}
+              ready={ready}
+              voices={voices}
+              canGenerate={canGenerate && !raw && !staleAssignments}
+              onChange={onChange}
+              onReference={(file) => onReference(file, "default")}
+              onGenerate={onGenerate}
+              hideVoiceSource
+              hideResults
+            />
+          </details>
+        )}
         {!settings.enabled && (
           <div className="narration-upload">
             <button
@@ -773,50 +817,12 @@ export function NarrationPanel({
             {localError}
           </p>
         )}
-        {settings.enabled && (
-          <details className="compact-details narration-settings">
-            <summary>
-              Thiết lập TTS ·{" "}
-              {settings.model === "turbo"
-                ? "Turbo · en"
-                : `Multilingual · ${settings.languageId}`}{" "}
-              · {settings.outputFormat.toUpperCase()}
-            </summary>
-            <TtsPanel
-              settings={settings}
-              busy={busy}
-              ready={ready}
-              voices={voices}
-              canGenerate={canGenerate && !raw && !staleAssignments}
-              onChange={onChange}
-              onReference={(file) => onReference(file, "default")}
-              onGenerate={onGenerate}
-              hideVoiceSource
-              hideResults
-            />
-          </details>
-        )}
         <div className="narration-bottom">
           <span>
             {ready
               ? `${voices.length} cảnh đã có voice`
               : "Đổi lời hoặc phân vai sẽ cần cập nhật voice và căn lại phụ đề."}
           </span>
-          {settings.enabled && (
-            <button
-              className="button primary"
-              disabled={
-                !canGenerate || raw || staleAssignments || ready || !rows.length
-              }
-              onClick={() => {
-                buffered.flush();
-                setTimeout(() => generateRef.current(), 0);
-              }}
-            >
-              <Icon name="voice" />
-              {ready ? "Voice đã cập nhật" : "Tạo / cập nhật voice"}
-            </button>
-          )}
         </div>
         {audio && (!settings.enabled || ready) && (
           <details className="compact-details">

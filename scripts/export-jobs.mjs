@@ -38,6 +38,7 @@ export class ExportJobs {
       subtitleFilename,
       createdAt,
       mode,
+      projectId,
     } = job;
     return {
       id,
@@ -50,6 +51,7 @@ export class ExportJobs {
       subtitleFilename,
       createdAt,
       mode,
+      ...(projectId ? { projectId } : {}),
     };
   }
   async persist(job) {
@@ -89,12 +91,13 @@ export class ExportJobs {
       }
     }
   }
-  async create(project, { filename, quality, mode = "editing" }) {
+  async create(project, { filename, quality, mode = "editing", projectId }) {
     if ([...this.jobs.values()].filter((job) => job.running).length >= 5)
       throw Error("Hàng đợi đã đầy.");
     const job = {
       id: randomUUID(),
       filename,
+      projectId,
       createdAt: new Date().toISOString(),
       mode: mode === "fast" ? "fast" : "editing",
       status: "queued",
@@ -104,6 +107,7 @@ export class ExportJobs {
     };
     const request = {
       project,
+      projectId,
       filename,
       quality,
       mode: job.mode,

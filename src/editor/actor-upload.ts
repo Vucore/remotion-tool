@@ -1,3 +1,4 @@
+import { projectHeaders } from "./workspace-storage";
 import {
   buildActorPacks,
   type PackManifest,
@@ -26,7 +27,10 @@ export async function uploadActorFiles(
       throw Error(`${file.name}: tối đa 25 MB mỗi ảnh/frame.`);
     const response = await fetch("/api/uploads", {
       method: "POST",
-      headers: { "Content-Type": file.type || "application/octet-stream" },
+      headers: {
+        ...projectHeaders(),
+        "Content-Type": file.type || "application/octet-stream",
+      },
       body: file,
     });
     const result = await response.json();

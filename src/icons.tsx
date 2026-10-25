@@ -1,5 +1,6 @@
 import { CSSProperties } from "react";
 const paths: Record<string, React.ReactNode> = {
+  shuffle: <path d="M3 6h3c4 0 8 12 12 12h3m-4-4 4 4-4 4M3 18h3c1.5 0 3-1.6 4.5-4M13.5 10C15 7.6 16.5 6 18 6h3m-4-4 4 4-4 4" />,
   plus: <path d="M12 5v14M5 12h14" />,
   minus: <path d="M5 12h14" />,
   down: <path d="m6 9 6 6 6-6" />,

@@ -22,7 +22,8 @@ import { Overlays } from "./Overlays";
 import { FontLoader } from "./FontLoader";
 import { useMemo } from "react";
 import { Audio } from "@remotion/media";
-import { proxySource, lastAt } from "./editor/performance";
+import { lastAt } from "./editor/performance";
+import { PreviewImage } from "./editor/PreviewImage";
 import { SceneActors } from "./actors/ActorView";
 const filterStyles = {
   none: "",
@@ -39,6 +40,7 @@ const SceneView = ({
   placementMode,
   previewQuality,
   asset,
+  active,
 }: {
   scene: Scene;
   project: Project;
@@ -47,6 +49,7 @@ const SceneView = ({
   placementMode?: boolean;
   previewQuality?: "light" | "full";
   asset?: Project["assets"][number];
+  active: boolean;
 }) => {
   const frame = useCurrentFrame(),
     { fps } = useVideoConfig();
@@ -67,10 +70,6 @@ const SceneView = ({
     frame / fps,
     item.duration / fps,
   );
-  const imageSrc =
-    asset && previewQuality
-      ? proxySource(asset.src, previewQuality === "light" ? 960 : 1440)
-      : asset?.src;
   const outputScale = previewQuality === "light" ? 0.5 : 1;
   const imageStyle = {
     width: "100%",
@@ -104,9 +103,24 @@ const SceneView = ({
       >
         <AbsoluteFill style={{ overflow: "hidden", ...maskStyle(scene.mask) }}>
           {asset &&
-            (effects.length ? (
+            (previewQuality ? (
+              <PreviewImage
+                src={asset.src}
+                size={previewQuality === "light" ? 960 : 1440}
+                active={active}
+                width={project.width}
+                height={project.height}
+                fit={scene.fit}
+                effects={effects}
+                effectsOutputSize={{
+                  width: Math.round(project.width * outputScale),
+                  height: Math.round(project.height * outputScale),
+                }}
+                style={imageStyle}
+              />
+            ) : effects.length ? (
               <CanvasImage
-                src={imageSrc!}
+                src={asset.src}
                 width={project.width}
                 height={project.height}
                 fit={scene.fit}
@@ -118,7 +132,7 @@ const SceneView = ({
                 style={imageStyle}
               />
             ) : (
-              <Img src={imageSrc!} style={imageStyle} />
+              <Img src={asset.src} style={imageStyle} />
             ))}
         </AbsoluteFill>
         <SceneActors
@@ -216,6 +230,7 @@ export const Video = ({
             asset={assets.get(item.scene.assetId)}
             previewQuality={previewQuality}
             placementMode={placementMode}
+            active={frame >= item.from}
           />
         </Sequence>
       ))}

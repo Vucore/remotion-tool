@@ -1,4 +1,4 @@
-import { renderBudget } from "./resource-budget.mjs";
+import { renderBudget, normalizeMediaCacheSize } from "./resource-budget.mjs";
 import { readFile, writeFile, rename, rm } from "node:fs/promises";
 import { setPriority } from "node:os";
 import { makeCancelSignal } from "@remotion/renderer";
@@ -38,7 +38,7 @@ try {
     quality: request.quality,
     concurrency: Math.min(request.concurrency, current.concurrency),
     mediaCacheSizeInBytes: Math.min(
-      request.mediaCacheSizeInBytes,
+      normalizeMediaCacheSize(request.mediaCacheSizeInBytes),
       current.mediaCacheSizeInBytes,
     ),
     cancelSignal: signal.cancelSignal,

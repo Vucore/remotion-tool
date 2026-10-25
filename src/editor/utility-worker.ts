@@ -1,125 +1,195 @@
-import { emptyProject, parseProject, type Project } from "../model";
-import {
-  defaultStoryOptions,
-  parseStoryOptions,
-  optionsFromProject,
-} from "../auto/story";
-import { defaultTtsSettings, parseTtsSettings } from "../auto/tts";
+import { parseProject } from "../model";
+import { parseStoryOptions, optionsFromProject } from "../auto/story";
 import { parseImageProcessing } from "../auto/image-processing";
-import { readDraft, DraftWriter } from "./workspace-database";
-import { applyRevision } from "./revision";
-let draft: Record<string, unknown> & { project: Project };
-let initialWaves: {
-  id: string;
-  envelope: NonNullable<Project["voiceover"]>["assets"][number]["envelope"];
-}[] = [];
-const writer = new DraftWriter();
-function restore(
-  value: Record<string, unknown> & {
-    project: Project;
-    options?: unknown;
-    dirty?: boolean;
-    job?: { id?: string };
-  },
-) {
-  let tts = defaultTtsSettings();
-  try {
-    tts = parseTtsSettings((value.options as { tts?: unknown })?.tts);
-  } catch {
-    /* Preserve the old behavior for unfinished TTS settings. */
-  }
-  return {
-    project: parseProject(value.project),
-    options: parseStoryOptions({ ...(value.options as object), tts }),
-    dirty: value.dirty !== false,
-    job:
-      value.job?.id && /^[a-f0-9-]{36}$/.test(value.job.id) ? value.job : null,
-  };
+import { readDraft, clearLegacyDraft } from "./legacy-workspace";
+import { applyRevision, revisionDiff } from "./revision";
+import { leanProject } from "./project-client";
+import {
+  emptyWorkspace,
+  restoreWorkspace,
+  type Workspace,
+  type SavedProject,
+} from "./workspace";
+
+type Saved = { workspace: Workspace; entry: SavedProject; revision: string };
+let draft: Workspace, projectId: string, revision: string;
+async function api(path: string, method = "GET", value?: unknown) {
+  const response = await fetch("/api/projects" + path, {
+    method,
+    headers: value ? { "Content-Type": "application/json" } : undefined,
+    body: value ? JSON.stringify(value) : undefined,
+    signal: AbortSignal.timeout(110000),
+  });
+  const result = await response.json();
+  if (!response.ok)
+    throw Error(
+      result.error || "Chưa lưu được dự án. Kiểm tra server và thử lại.",
+    );
+  return result;
 }
-globalThis.addEventListener("message", async ({ data }) => {
+function waves(workspace: Workspace) {
+  return (
+    workspace.project.voiceover?.assets
+      .filter((v) => v.envelope)
+      .map((v) => ({ id: v.id, envelope: v.envelope })) ?? []
+  );
+}
+function lean(workspace: Workspace): Workspace {
+  return { ...workspace, project: leanProject(workspace.project) };
+}
+function adopt(saved: Saved) {
+  const workspace = restoreWorkspace(saved.workspace);
+  // Keep the exact server baseline; restoration can add defaults to older projects.
+  draft = lean(saved.workspace);
+  projectId = saved.entry.id;
+  revision = saved.revision;
+  return { ...saved, workspace };
+}
+async function create(workspace: Workspace, migrate = false): Promise<Saved> {
+  return api("", "POST", {
+    workspace: lean(workspace),
+    waves: waves(workspace),
+    migrate,
+  });
+}
+async function load(data: { legacy?: string; oldProject?: string }) {
+  const library = await api("");
+  let previous: Workspace | undefined, failure: unknown;
   try {
-    let result: unknown;
-    if (data.kind === "load") {
-      let value, failure: unknown;
-      try {
-        value = await readDraft();
-      } catch (error) {
-        failure = error;
-      }
-      if (value) {
-        try {
-          result = restore(value);
-        } catch (error) {
-          failure = error;
-        }
-      }
-      if (!result && data.legacy) {
-        try {
-          result = restore(JSON.parse(data.legacy));
-        } catch (error) {
-          failure = error;
-        }
-      }
-      if (!result && data.oldProject) {
-        try {
-          const project = parseProject(JSON.parse(data.oldProject));
-          result = {
-            project,
-            options: optionsFromProject(project),
-            dirty: !project.scenes.length,
-            job: null,
-          };
-        } catch (error) {
-          failure = error;
-        }
-      }
-      if (!result && failure) throw failure;
-      result ??= {
-        project: emptyProject(),
-        options: defaultStoryOptions(),
-        dirty: true,
+    const value = await readDraft();
+    if (value) previous = restoreWorkspace(value as Workspace);
+  } catch (error) {
+    failure = error;
+  }
+  if (!previous && data.legacy) {
+    try {
+      previous = restoreWorkspace(JSON.parse(data.legacy));
+    } catch (error) {
+      failure = error;
+    }
+  }
+  if (!previous && data.oldProject) {
+    try {
+      const project = parseProject(JSON.parse(data.oldProject));
+      previous = {
+        project,
+        options: optionsFromProject(project),
+        dirty: !project.scenes.length,
         job: null,
       };
-      const restored = result as { project: Project };
-      initialWaves =
-        restored.project.voiceover?.assets
-          .filter((v) => v.envelope)
-          .map((v) => ({ id: v.id, envelope: v.envelope })) ?? [];
-    } else if (data.kind === "save") {
-      draft = applyRevision(draft, data.patch);
-      await writer.save(draft, [...initialWaves, ...data.waves]);
-      initialWaves = [];
-      result = true;
-    } else if (data.kind === "file") {
-      if (data.file.size > 10_000_000)
-        throw Error("Tệp dự án/mẫu tối đa 10 MB.");
-      const value = JSON.parse(await data.file.text());
-      if (data.type === "project") {
-        const project = parseProject(value);
-        result = { project, options: optionsFromProject(project) };
-      } else {
-        if (value.storyPresetVersion !== 1)
-          throw Error("Chọn tệp .khung-preset.json đã lưu từ Khung.");
-        result = {
-          options: parseStoryOptions({ ...value.options, name: data.name }),
-          imageProcessing: value.imageProcessing
-            ? parseImageProcessing(value.imageProcessing)
-            : undefined,
-        };
-      }
-    } else if (data.kind === "json") {
-      const value = data.preset
-        ? { ...data.value, options: parseStoryOptions(data.value.options) }
-        : data.value;
-      result = new Blob([JSON.stringify(value, null, 2)], {
-        type: "application/json",
-      });
-    } else throw Error("Thao tác dữ liệu không hợp lệ.");
-    globalThis.postMessage({ id: data.id, result });
-  } catch (error) {
-    globalThis.postMessage({
-      id: data.id,
-      error: error instanceof Error ? error.message : String(error),
+    } catch (error) {
+      failure = error;
+    }
+  }
+  if (previous) {
+    const saved = await create(previous, true);
+    // A failed cleanup is safe: migration is idempotent, so retry cannot overwrite the newer server version.
+    await clearLegacyDraft().catch(() => {});
+    return { ...adopt(saved), migrated: true };
+  }
+  if (library.projects.length) {
+    const id = library.projects.some(
+      (item: SavedProject) => item.id === library.activeId,
+    )
+      ? library.activeId
+      : library.projects[0].id;
+    return adopt(await api("/" + id));
+  }
+  // An inaccessible legacy draft must not be silently replaced by a blank workspace.
+  if (failure) throw failure;
+  return adopt(await create(emptyWorkspace()));
+}
+type Message = {
+  kind: string;
+  projectId: string;
+  revision: string;
+  workspace: Workspace;
+  patch: Parameters<typeof applyRevision>[1];
+  waves: ReturnType<typeof waves>;
+  file: File;
+  type: string;
+  name: string;
+  value: Record<string, unknown>;
+  preset: boolean;
+  legacy?: string;
+  oldProject?: string;
+};
+async function handle(data: Message) {
+  if (data.kind === "load") return load(data);
+  if (data.kind === "list") return api("");
+  if (data.kind === "open") return adopt(await api("/" + data.projectId));
+  if (data.kind === "create") return adopt(await create(data.workspace));
+  if (data.kind === "delete-preview")
+    return api("/" + data.projectId + "/delete-preview");
+  if (data.kind === "delete") {
+    const result = await api("/" + data.projectId, "DELETE", {
+      revision: data.revision,
+      activeId: projectId,
+      confirm: true,
+    });
+    if (result.opened) result.opened = adopt(result.opened);
+    return result;
+  }
+  if (data.kind === "save") {
+    if (!projectId || data.projectId !== projectId)
+      throw Error("Dự án đã thay đổi. Hãy tải lại trang.");
+    const next = applyRevision(draft, data.patch);
+    const result = await api("/" + projectId, "PATCH", {
+      revision,
+      patch: revisionDiff(draft, next),
+      waves: data.waves,
+    });
+    draft = next;
+    revision = result.revision;
+    return result;
+  }
+  if (data.kind === "file") {
+    if (data.file.size > 64 * 1024 * 1024)
+      throw Error("Tệp dự án/mẫu tối đa 64 MB.");
+    const value = JSON.parse(await data.file.text());
+    if (data.type === "project") {
+      if (value.khungWorkspaceVersion === 1)
+        return restoreWorkspace(value.workspace);
+      const project = parseProject(value);
+      return {
+        project,
+        options: optionsFromProject(project),
+        dirty: !project.scenes.length,
+        job: null,
+      };
+    }
+    if (value.storyPresetVersion !== 1)
+      throw Error("Chọn tệp .khung-preset.json đã lưu từ Khung.");
+    return {
+      options: parseStoryOptions({ ...value.options, name: data.name }),
+      imageProcessing: value.imageProcessing
+        ? parseImageProcessing(value.imageProcessing)
+        : undefined,
+    };
+  }
+  if (data.kind === "json") {
+    const value = data.preset
+      ? { ...data.value, options: parseStoryOptions(data.value.options) }
+      : data.value;
+    return new Blob([JSON.stringify(value, null, 2)], {
+      type: "application/json",
     });
   }
+  throw Error("Thao tác dữ liệu không hợp lệ.");
+}
+// Await saves before opening another project, including when requests arrive during disk writes.
+let queue = Promise.resolve();
+globalThis.addEventListener("message", ({ data }) => {
+  queue = queue
+    .catch(() => {})
+    .then(async () => {
+      try {
+        globalThis.postMessage({ id: data.id, result: await handle(data) });
+      } catch (error) {
+        globalThis.postMessage({
+          id: data.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    });
 });

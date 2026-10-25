@@ -10,6 +10,8 @@ import {
   TEXT_PRESETS,
 } from "../catalog";
 import { PresetDemo } from "./PresetDemo";
+import { AnimationMode } from "./AnimationMode";
+import { CaptionPosition } from "./CaptionPosition";
 import { textTemplate } from "../text-template";
 import {
   CaptionAdvancedSettings,
@@ -277,7 +279,11 @@ export function QuickSettings({
     return {
       ...c,
       preset: id,
-      advanced: {},
+      advanced: Object.fromEntries(
+        Object.entries(c.advanced).filter(
+          ([key]) => key === "x" || key === "y",
+        ),
+      ),
       transparent: false,
       color: template.color ?? "#ffffff",
       background:
@@ -323,23 +329,66 @@ export function QuickSettings({
             : !nature.includes(k) && !lighting.includes(k))) &&
       label.toLocaleLowerCase("vi").includes(search.toLocaleLowerCase("vi")),
   );
-  const tile = (type: "motion" | "transition", id: string, label: string) => (
-    <PresetDemo
-      key={id}
-      type={type}
-      id={id}
-      label={label}
-      options={options}
-      selected={options[type] === id}
-      onClick={() =>
-        onChange(
-          type === "motion"
-            ? { motion: id as StoryOptions["motion"] }
-            : { transition: id as StoryOptions["transition"] },
-        )
-      }
-    />
-  );
+  const animationMode = (type: "motion" | "transition") => {
+    const randomKey = type === "motion" ? "motionRandom" : "transitionRandom";
+    const selection = options[randomKey];
+    const catalog = type === "motion" ? MOTIONS : TRANSITIONS;
+    return (
+      <AnimationMode
+        type={type}
+        mode={
+          options[type] === "auto"
+            ? "auto"
+            : options[type] === "random"
+              ? "random"
+              : "single"
+        }
+        count={selection.presets.length}
+        total={Object.keys(catalog).length}
+        onMode={(mode) =>
+          onChange({ [type]: mode === "single" ? selection.presets[0] : mode })
+        }
+        onAll={() =>
+          onChange({
+            [randomKey]: { ...selection, presets: Object.keys(catalog) },
+          })
+        }
+        onShuffle={() =>
+          onChange({
+            [randomKey]: { ...selection, seed: (selection.seed + 1) % 100000 },
+          })
+        }
+      />
+    );
+  };
+  const tile = (type: "motion" | "transition", id: string, label: string) => {
+    const randomKey = type === "motion" ? "motionRandom" : "transitionRandom";
+    const selection = options[randomKey];
+    const pool: readonly string[] = selection.presets;
+    const random = options[type] === "random";
+    return (
+      <PresetDemo
+        key={id}
+        type={type}
+        id={id}
+        label={label}
+        options={options}
+        selected={random ? pool.includes(id) : options[type] === id}
+        disabled={random && pool.length === 1 && pool.includes(id)}
+        onClick={() => {
+          if (!random) {
+            onChange({ [type]: id });
+            return;
+          }
+          const presets = pool.includes(id)
+            ? pool.filter((preset) => preset !== id)
+            : [...pool, id];
+          if (presets.length)
+            onChange({ [randomKey]: { ...selection, presets } });
+        }}
+      />
+    );
+  };
   return (
     <aside className="quick-settings" aria-label="Thiết lập nhanh">
       <div className="panel-title">
@@ -398,8 +447,8 @@ export function QuickSettings({
         )}
         {tab === "motion" && (
           <>
+            {animationMode("motion")}
             <div className="preset-grid">
-              {tile("motion", "auto", "Luân phiên tự động")}
               {Object.entries(MOTIONS)
                 .filter(([id]) => basicMotions.includes(id))
                 .map(([id, label]) => tile("motion", id, label))}
@@ -457,8 +506,8 @@ export function QuickSettings({
         )}
         {tab === "transition" && (
           <>
+            {animationMode("transition")}
             <div className="preset-grid">
-              {tile("transition", "auto", "Tự động")}
               {Object.entries(TRANSITIONS)
                 .filter(([id]) => basicTransitions.includes(id))
                 .map(([id, label]) => tile("transition", id, label))}
@@ -657,6 +706,7 @@ export function QuickSettings({
                 onChange={(e) => onChange({ subtitles: e.target.checked })}
               />
             </label>
+            <CaptionPosition options={options} onChange={onChange} />
             <div className="preset-grid">
               {(
                 [
@@ -713,25 +763,6 @@ export function QuickSettings({
               suffix="px"
               onChange={(size) => caption({ size })}
             />
-            <div className="setting-row">
-              <span>Vị trí</span>
-              <select
-                aria-label="Vị trí phụ đề"
-                value={c.position}
-                onChange={(e) =>
-                  caption({
-                    position: e.target.value as StoryCaption["position"],
-                    advanced: Object.fromEntries(
-                      Object.entries(c.advanced).filter(([key]) => key !== "y"),
-                    ),
-                  })
-                }
-              >
-                <option value="bottom">Dưới</option>
-                <option value="middle">Giữa</option>
-                <option value="top">Trên</option>
-              </select>
-            </div>
             <div className="color-pair">
               <label className="color-setting">
                 Chữ

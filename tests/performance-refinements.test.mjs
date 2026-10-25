@@ -12,7 +12,10 @@ import {
   storyInputs,
 } from "../dist/story.mjs";
 import { defaultTtsSettings, ttsInputKey } from "../dist/tts.mjs";
-import { renderBudget } from "../scripts/resource-budget.mjs";
+import {
+  renderBudget,
+  MIN_MEDIA_CACHE_BYTES,
+} from "../scripts/resource-budget.mjs";
 await mkdir(".cache", { recursive: true });
 const directory = await mkdtemp(resolve(".cache/refinement-test-"));
 test.after(() => rm(directory, { recursive: true, force: true }));
@@ -184,7 +187,7 @@ test("full overlay descriptors match the original particle math; light keeps ori
   );
 });
 
-test("quality adapts to missed Remotion frames and budget respects currently free RAM", () => {
+test("quality adapts to missed frames; RAM budget respects Remotion's minimum cache", () => {
   const good = new PreviewHealth();
   for (let n = 0; n < 100; n++)
     assert.notEqual(good.sample(n, (n * 1000) / 30, 30), "light");
@@ -196,9 +199,9 @@ test("quality adapts to missed Remotion frames and budget respects currently fre
   assert.equal(new PreviewHealth().sample(500, 30000, 30), undefined);
   const gib = 1024 ** 3;
   assert.equal(renderBudget("fast", 32 * gib, 12, 2 * gib).concurrency, 1);
-  assert.ok(
-    renderBudget("fast", 32 * gib, 12, 0.25 * gib).mediaCacheSizeInBytes <=
-      (0.25 * gib) / 4,
+  assert.equal(
+    renderBudget("fast", 32 * gib, 12, 0.25 * gib).mediaCacheSizeInBytes,
+    MIN_MEDIA_CACHE_BYTES,
   );
   assert.equal(renderBudget("editing", 32 * gib, 12, 16 * gib).concurrency, 1);
 });
@@ -305,7 +308,7 @@ test("utility worker uses the existing project/preset parsers and serializes UTF
   const shim = join(directory, "utility.mjs");
   await writeFile(
     shim,
-    `import {parentPort} from 'node:worker_threads'; globalThis.addEventListener=(_,fn)=>parentPort.on('message',data=>fn({data})); globalThis.postMessage=value=>parentPort.postMessage(value); await import(${JSON.stringify(pathToFileURL(resolve("dist/utility-worker.js")).href)}); parentPort.postMessage({ready:true});`,
+    `import {parentPort} from 'node:worker_threads'; globalThis.addEventListener=(_,fn)=>parentPort.on('message',data=>fn({data})); globalThis.postMessage=value=>parentPort.postMessage(value); globalThis.fetch=async (_,options={})=>new Response(JSON.stringify(options.method==='POST'?{workspace:JSON.parse(options.body).workspace,entry:{id:'11111111-1111-4111-8111-111111111111'},revision:'one'}:{projects:[],activeId:null})); await import(${JSON.stringify(pathToFileURL(resolve("dist/utility-worker.js")).href)}); parentPort.postMessage({ready:true});`,
   );
   const worker = new Worker(shim);
   const { parseProject } = await import("../dist/model.mjs");
@@ -358,6 +361,23 @@ test("utility worker uses the existing project/preset parsers and serializes UTF
       ...preset,
       options: parseStoryOptions(preset.options),
     });
+    const fullWorkspace = {
+      project,
+      options: { ...defaultStoryOptions(), name: "Bản chưa dựng" },
+      dirty: true,
+      job: null,
+    };
+    const backup = await request({
+      kind: "file",
+      type: "project",
+      file: new Blob([
+        JSON.stringify({ khungWorkspaceVersion: 1, workspace: fullWorkspace }),
+      ]),
+    });
+    assert.equal(backup.error, undefined);
+    assert.equal(backup.result.options.name, "Bản chưa dựng");
+    assert.equal(backup.result.dirty, true);
+    assert.deepEqual(backup.result.project, parseProject(project));
     const broken = await request({
       kind: "file",
       type: "project",
@@ -379,7 +399,8 @@ test("utility worker uses the existing project/preset parsers and serializes UTF
       }),
     });
     assert.equal(legacy.error, undefined);
-    assert.deepEqual(legacy.result.project, parseProject(project));
+    assert.deepEqual(legacy.result.workspace.project, parseProject(project));
+    assert.equal(legacy.result.migrated, true);
   } finally {
     await worker.terminate();
   }

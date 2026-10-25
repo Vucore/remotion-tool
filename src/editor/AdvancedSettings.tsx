@@ -369,8 +369,6 @@ export function CaptionAdvancedSettings({
         {n("loopSpeed", "Tốc độ lặp", 0.1, 5, 0.1)}
       </Group>
       <Group label="Bố cục và kiểu chữ">
-        {n("x", "Ngang chữ (%)", 0, 100)}
-        {n("y", "Dọc chữ (%)", 0, 100)}
         {n("width", "Độ rộng chữ (%)", 5, 100)}
         {choice("align", "Căn chữ", {
           left: "Trái",
@@ -436,10 +434,23 @@ export function CaptionAdvancedSettings({
         {n("glow", "Phát sáng (px)", 0, 100)}
         {n("depth", "Độ nổi", 0, 30)}
       </Group>
-      {Object.keys(o.caption.advanced).length > 0 && (
+      {Object.keys(o.caption.advanced).some(
+        (key) => key !== "x" && key !== "y",
+      ) && (
         <button
           className="text-button"
-          onClick={() => onChange({ caption: { ...o.caption, advanced: {} } })}
+          onClick={() =>
+            onChange({
+              caption: {
+                ...o.caption,
+                advanced: Object.fromEntries(
+                  Object.entries(o.caption.advanced).filter(
+                    ([key]) => key === "x" || key === "y",
+                  ),
+                ),
+              },
+            })
+          }
         >
           Đặt lại nâng cao
         </button>

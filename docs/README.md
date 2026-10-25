@@ -1,11 +1,13 @@
 # Tài liệu Khung
 
 - [Hướng dẫn sử dụng](HUONG-DAN.md)
+- [Lưu, tạo mới và chuyển dự án trong data](QUAN-LY-DU-AN.md)
 - [Bộ minh hoạ: 3 ảnh + 3 WAV + TXT](../test/README.md)
 - [Kế hoạch và phạm vi hiện tại](TRIEN-KHAI-KE-CHUYEN-TU-DONG.md)
 - [Thiết kế giao diện](THIET-KE.md)
 - [Kế hoạch không gian dựng, timeline ba hàng và thiết lập nhanh](KHONG-GIAN-DUNG-VIDEO.md)
 - [Mở rộng animation, gallery demo và layout có thanh kéo](MO-RONG-THIET-LAP-VA-LAYOUT.md)
+- [Ngẫu nhiên chuyển động/chuyển cảnh và đặt vị trí phụ đề](THIET-LAP-NGAU-NHIEN.md)
 - [Kiến trúc](KIEN-TRUC.md)
 - [Kế hoạch tối ưu hiệu năng: dự án lớn và xuất video nền](TOI-UU-HIEU-NANG.md)
 - [Triển khai hiệu năng, cách chạy và kiểm chứng](HIEU-NANG-TRIEN-KHAI.md)

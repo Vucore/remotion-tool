@@ -1,5 +1,17 @@
 # Dùng Khung v0.8
 
+## Dự án
+
+Bấm **Dự án** trên thanh đầu để xem danh sách video, tìm theo tên, **Tạo mới** hoặc mở lại video cũ. Bản đang làm được lưu xong trước khi chuyển; khi có lỗi lưu, thao tác chuyển dừng để giữ nguyên thay đổi. **Nhân bản đang mở** tạo bản chỉnh sửa riêng, dùng chung ảnh/voice để tiết kiệm dung lượng. Sửa tên video ngay trên thanh đầu.
+
+Dự án tự lưu trong `data/projects/`, gồm cả thiết lập, TXT/phân vai, voice, cue đã căn, tài nguyên nhân vật và trạng thái bản dựng chưa hoàn tất. Mở lại app sẽ tiếp tục dự án được dùng gần nhất. Bản nháp trình duyệt cũ được chuyển sang kho này ở lần mở đầu tiên sau nâng cấp.
+
+Nút thùng rác ở từng dự án mở xác nhận có số tệp/dung lượng riêng sẽ dọn. Xóa gồm bản dựng, ảnh/voice/font/giọng mẫu và kết quả MP4/SRT/lịch sử xuất có liên kết riêng; file còn được dự án hoặc snapshot xuất khác dùng sẽ được giữ. Không xóa file nguồn ở vị trí bạn chọn trên máy hay model. Khi có tác vụ nhập/xử lý/xuất đang chạy, chờ hoàn tất hoặc dừng trước khi xóa. Xóa không thể hoàn tác; nếu xóa bản đang mở, Khung mở một bản còn lại hoặc một dự án trống mới.
+
+Ảnh nhập được chép nguyên bytes vào `data/uploads/`, tên nội bộ theo SHA-256 để dùng chung các bản giống nhau. App không phụ thuộc đường dẫn file gốc trên máy sau khi nhập. WAV/MP3 được chép riêng và giữ nguyên định dạng/bytes như trước.
+
+**Tệp → Tải bản sao JSON** giữ một bản cấu hình đầy đủ; **Nhập dự án từ JSON** mở thành dự án mới, không thay bản đang làm. JSON không đóng gói media. Muốn chuyển máy hoặc sao lưu toàn bộ, giữ nguyên cả thư mục `data/`. [Chi tiết nơi lưu và khôi phục](QUAN-LY-DU-AN.md).
+
 ## Không gian làm việc
 
 Tài nguyên bên trái, preview ở giữa, thiết lập nhanh bên phải và timeline phía dưới. Không cần cuộn một form dài. Trên màn hình nhỏ dùng ba nút **Tệp · Video · Sửa** để đổi vùng; timeline luôn nằm dưới.
@@ -41,11 +53,15 @@ Chọn trực tiếp trong bốn tab bên phải. Thay đổi xuất hiện ngay
 
 Các mẫu phổ biến hiện trước; phần còn lại và thông số chi tiết đặt trong mục mở rộng. Mặc định áp dụng toàn video; ba nhóm ảnh/chuyển cảnh/phụ đề có thể đổi sang phạm vi cảnh như hướng dẫn bên dưới. Danh mục lớp phủ này là toàn bộ loại đang có trong engine, không phải giới hạn những gì có thể lập trình thêm bằng Remotion.
 
+Chuyển động và chuyển cảnh có ba chế độ: **Luân phiên/Tự động**, **Chọn một**, **Ngẫu nhiên**. Ở chế độ Ngẫu nhiên, đánh dấu các ô được phép dùng, có **Chọn tất cả** và nút **Đảo lại**. Danh sách phải giữ ít nhất một kiểu; kết quả lưu cùng dự án/mẫu, giữ nhất quán khi preview và xuất. Hai nhóm đảo độc lập, tránh lặp cùng kiểu ở hai cảnh liền nhau khi có lựa chọn khác. Vẫn dùng được phạm vi toàn video hoặc cảnh đang xem. [Chi tiết](THIET-LAP-NGAU-NHIEN.md).
+
 Rê chuột hoặc focus bằng Tab vào ô chuyển động/chuyển cảnh/kiểu chữ để xem demo. Trên màn hình cảm ứng, chạm ô sẽ chọn và phát demo. Demo dùng hình minh họa cố định A/B, không lấy ảnh dự án, và dùng cùng hàm animation với video; chỉ ô đang tương tác chạy, không tải nhiều Player. Hệ điều hành bật giảm chuyển động thì demo đứng yên. Ảnh dự án chỉ hiện ở preview chính và bộ chọn tâm zoom.
 
 Mục **Tâm zoom và khung ảnh** cho phép bấm vào ảnh để đặt tâm, hoặc nhập tọa độ. **Đường đi tùy chỉnh** thêm mốc thời gian theo giây với vị trí/tỷ lệ/góc/độ hiện, tối đa 100 mốc. Mốc được kết hợp với kiểu chuyển động đã chọn; chọn Đứng yên nếu chỉ muốn chạy đường đi. Cảnh ngắn hơn mốc cuối sẽ kết thúc trước mốc đó.
 
-Phụ đề có nhóm thu gọn **Animation và thời gian**, **Bố cục và kiểu chữ**, **Viền, bóng và màu chuyển**. Có animation ra, thời gian vào/ra, trễ ký tự/từ, loop, căn lề, độ đậm/nghiêng, giãn dòng/chữ, nền trong suốt, gradient, glow, chữ cong. Thời gian vào/ra được giới hạn theo độ dài từng cue để không tràn sang câu tiếp theo. Tô sáng từng từ là animation trình bày trong cue, không phải alignment từng từ từ WAV.
+Phụ đề có **Trên/Giữa/Dưới** ở đầu tab; mở **Kéo vị trí & tọa độ** để kéo trên khung minh họa hoặc nhập ngang/dọc (%). Dùng mũi tên để dịch 1%, Shift + mũi tên dịch 5%. Đổi kiểu chữ/đặt lại nâng cao giữ vị trí đã chọn.
+
+Các nhóm thu gọn **Animation và thời gian**, **Bố cục và kiểu chữ**, **Viền, bóng và màu chuyển** chứa animation ra, thời gian vào/ra, trễ ký tự/từ, loop, căn lề, độ đậm/nghiêng, giãn dòng/chữ, nền trong suốt, gradient, glow, chữ cong. Thời gian vào/ra được giới hạn theo độ dài từng cue để không tràn sang câu tiếp theo. Tô sáng từng từ là animation trình bày trong cue, không phải alignment từng từ từ WAV.
 
 ## Đổi kích thước không gian
 

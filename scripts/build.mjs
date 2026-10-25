@@ -36,6 +36,8 @@ export async function buildApp(watch = false) {
       actors: "src/actors/import.ts",
       "actor-model": "src/actors/schema.ts",
       "actor-types": "src/actors/types.ts",
+      revision: "src/editor/revision.ts",
+      workspace: "src/editor/workspace.ts",
     },
     bundle: true,
     outdir: "dist",

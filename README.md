@@ -12,6 +12,8 @@ Voice hỗ trợ **WAV và MP3**, có thể nhập chung; giữ nguyên nguồn 
 
 **Xuất video** tự ghép số, căn voice/phụ đề và xuất MP4. Khi chưa căn, preview ghi rõ **Phụ đề ước tính**; có thể bấm Căn phụ đề trước khi xuất. Mẫu dùng lại lưu/mở bằng nút, không cần viết JSON.
 
+**Dự án**: tự lưu từng video trong `data/projects/`, có danh sách/tìm kiếm, tạo mới, mở lại và nhân bản. Lưu xong bản đang làm trước khi chuyển; ảnh/voice dùng chung để tránh tốn dung lượng. Bản nháp trình duyệt cũ được chuyển tự động. [Hướng dẫn và sao lưu](docs/QUAN-LY-DU-AN.md).
+
 **SRT**: xuất kèm MP4 hoặc tải riêng; nhập SRT có sẵn, dịch qua Google Translate miễn phí qua deep-translator và xuất bản dịch/song ngữ giữ thời gian. Tên file có mã + tên ngôn ngữ (`en_tienganh.srt`). Sidebar thu gọn, cấu hình giọng/lời đọc/nhân vật/SRT mở dialog. Không tải thêm model dịch local. [Hướng dẫn](docs/PHU-DE-SRT-VA-GIAO-DIEN.md), [dung lượng thực tế](docs/DUNG-LUONG-SRT.md).
 
 ```sh

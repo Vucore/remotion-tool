@@ -195,6 +195,7 @@ export async function processImages(
     onProgress = () => {},
     worker = runImageWorker,
     modelSignature,
+    onResource,
   } = {},
 ) {
   const config = parseImageProcessing(settings);
@@ -281,6 +282,10 @@ export async function processImages(
         )
           throw Error("cache");
         results.push(decorate(record.file, pngSize(bytes)));
+        await onResource?.([
+          `/media/${record.file}`,
+          `/.cache/images/${key}.json`,
+        ]);
         cached++;
       } catch {
         tasks.push({
@@ -335,6 +340,10 @@ export async function processImages(
           await atomicWrite(join(assetDirectory, file), bytes);
           await atomicWrite(task.recordPath, JSON.stringify({ file }));
           results.push(task.decorate(file, size));
+          await onResource?.([
+            `/media/${file}`,
+            `/.cache/images/${task.recordPath.split("/").at(-1)}`,
+          ]);
         } catch (error) {
           errors.push({
             id: task.asset.id,

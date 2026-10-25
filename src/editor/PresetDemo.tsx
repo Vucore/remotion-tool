@@ -41,6 +41,7 @@ export function PresetDemo({
   selected,
   options,
   onClick,
+  disabled = false,
 }: {
   id: string;
   label: string;
@@ -48,6 +49,7 @@ export function PresetDemo({
   selected: boolean;
   options: StoryOptions;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   const [hover, setHover] = useState(false),
     [focused, setFocused] = useState(false);
@@ -80,6 +82,7 @@ export function PresetDemo({
     <button
       className={"preset-tile demo-tile" + (selected ? " selected" : "")}
       aria-pressed={selected}
+      disabled={disabled}
       title={label + " · rê chuột để xem"}
       onClick={onClick}
       onPointerEnter={() => setHover(true)}

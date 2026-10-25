@@ -4,7 +4,10 @@
 
 Ba đầu vào độc lập (ảnh, WAV, TXT) → kiểm tra ghép số → mẫu dựng → căn phụ đề nếu có voice → Project → Remotion Player / xuất MP4. Chỉ 9:16 và 16:9. Không có editor cắt ghép thủ công hoặc GPT.
 
-- `src/App.tsx`: điều phối đầu vào, lưu trình duyệt, tiến độ dựng/xuất và huỷ tác vụ.
+- `src/App.tsx`: điều phối đầu vào, tự lưu/chuyển dự án, tiến độ dựng/xuất và huỷ tác vụ.
+- `src/editor/ProjectsPanel.tsx`: danh sách/tìm kiếm, tạo mới và nhân bản; mở dự án sau khi flush bản đang làm. `workspace-storage.ts` và `utility-worker.ts` gửi patch theo dự án, không serialize dự án lớn trên luồng UI.
+- `scripts/project-library.mjs`, `project-library-worker.mjs`: kho `data/projects/<id>/` trong worker Node riêng; snapshot JSON, nhật ký thay đổi fsync, gộp định kỳ, revision chống ghi đè giữa tab và index có thể tái tạo. `legacy-workspace.ts` chỉ đọc/dọn bản nháp IndexedDB cũ sau khi migration thành công.
+- `scripts/project-resources.mjs`: xác định file thuộc dự án trong các thư mục được phép; loại tài nguyên được dự án/snapshot khác tham chiếu trước khi dọn. Theo dõi lịch sử nguồn ảnh/voice/clone/font/cache qua resource manifest và journal; metadata-only update không làm sai revision nội dung. Dọn trong worker, đọc từng project/snapshot để tránh giữ toàn bộ lịch sử lớn trong RAM. Chặn mutation mới trong lúc xóa, chặn xóa khi job/upload còn chạy; ghi tombstone trước khi dọn để tab cũ không khôi phục nhầm dự án.
 - `src/editor/StoryInput.tsx`, `story-import.ts`: ba ô chọn/kéo thả riêng, xác thực loại tệp, nhập thành công mới cập nhật loại tương ứng.
 - `src/editor/Timeline.tsx`: thước/playhead/zoom và ba hàng ảnh, waveform voice, cue phụ đề; tất cả lấy từ cùng Project đang preview.
 - `src/editor/QuickSettings.tsx`: bốn tab, phạm vi toàn video/cảnh, gallery và các lớp đang chọn. Scope cảnh dùng tên ảnh, chuyển cảnh thuộc cảnh đi ra tại điểm nối.
@@ -41,7 +44,7 @@ WAV quyết định thời lượng cảnh. Khi có voice, audio/cue nối tiế
 
 `scripts/server.mjs` phục vụ web/API tại loopback. `scripts/render-project.mjs` dùng Remotion Bundler/Renderer xuất H.264 MP4, có tiến độ và huỷ. `scripts/auto-edit.mjs` dùng cùng engine cho AutoConfig/queue CLI. `scripts/build.mjs` dùng esbuild.
 
-Ảnh/WAV/font nhập và video xuất nằm trong `data/`. Project trong trình duyệt/JSON chỉ giữ đường dẫn tài nguyên; cần giữ `data/` để mở lại. `.cache/remotion-*` là bundle có thể tạo lại. `dist/` là bản build dùng bởi server/CLI.
+Ảnh/WAV/font, dự án và video xuất nằm trong `data/`. Dự án chứa đường dẫn media dùng chung, không chép media mỗi lần nhân bản. Giữ cả `data/` để sao lưu/chuyển máy, gồm snapshot và journal của dự án. JSON tải về chứa cả Workspace (Project + StoryOptions + dirty), vẫn mở được JSON Project cũ. Trình duyệt chỉ giữ bố cục UI; dự án mới không phụ thuộc IndexedDB. `.cache/render-bundles/` là bundle có thể tạo lại. `dist/` là bản build dùng bởi server/CLI.
 
 ## Dữ liệu minh hoạ
 

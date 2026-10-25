@@ -1,3 +1,4 @@
+import { projectHeaders } from "./workspace-storage";
 import { leanProject } from "./project-client";
 import { parseProject, type Project } from "../model";
 import { parseTtsSettings, type TtsSettings } from "../auto/tts";
@@ -20,7 +21,7 @@ export async function createTtsVoices(
     // Obtain the job ID even if cancellation happens while this POST is pending.
     const response = await fetch("/api/tts", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { ...projectHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({ project: leanProject(project), settings }),
     });
     let job = await response.json();

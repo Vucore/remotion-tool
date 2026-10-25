@@ -15,8 +15,7 @@
 ## Cách dùng
 
 1. Nhập bộ ảnh và một TXT UTF-8 đánh số `1.`, `2.`, `3.`… như hiện tại. Tên ảnh phải có số tương ứng.
-2. Tại **Voice**, chọn **Tạo từ TXT**. **Tải voice** vẫn nhận nhiều WAV/MP3 như cũ; hai nguồn dùng chung luồng dựng.
-   Bấm ô **Chatterbox TTS** để mở dialog cấu hình; sidebar chỉ hiện tóm tắt model/định dạng/trạng thái.
+2. Mở **Lời đọc & giọng**, chọn **Tạo giọng từ lời đọc**. Mục **Thiết lập TTS** nằm ngay phía trên danh sách người nói và lời đọc, dưới phần chọn nguồn giọng. Chế độ **Dùng WAV / MP3** vẫn nhận voice tải lên như cũ.
 3. Chọn **Turbo** cho tiếng Anh, hoặc **Multilingual** và ngôn ngữ lời đọc. Không có tiếng Việt trong API TTS được cung cấp.
 4. Chọn **Preset** rồi nhập tên giọng đã có trên server, hoặc **Giọng mẫu** và chọn một WAV/MP3 (tối đa 25 MB, khuyến nghị 5–15 giây rõ tiếng). Để trống preset sẽ để server chọn mặc định; server phải có giọng mặc định. Tài liệu không cung cấp endpoint liệt kê giọng nên công cụ không tự đoán danh sách preset.
 5. Chọn **WAV** hoặc **MP3**. Nút **Tạo voice / Cập nhật voice** tạo audio để nghe thử; không cần cài Whisper cho riêng bước này.

@@ -13,6 +13,7 @@ try {
       signal: controller.signal,
       onProgress: (progress, message) =>
         parentPort.postMessage({ progress, message }),
+      onResource: (resources) => parentPort.postMessage({ resources }),
     },
   );
   if (controller.signal.aborted) throw Error("Đã hủy căn phụ đề.");

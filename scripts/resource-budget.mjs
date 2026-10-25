@@ -1,4 +1,12 @@
 import { availableParallelism, totalmem, freemem } from "node:os";
+// @remotion/media rejects smaller caches (including when rendering audio).
+export const MIN_MEDIA_CACHE_BYTES = 240 * 1024 ** 2;
+export function normalizeMediaCacheSize(bytes) {
+  return Math.max(
+    MIN_MEDIA_CACHE_BYTES,
+    Math.floor(Number.isFinite(bytes) ? bytes : 256 * 1024 ** 2),
+  );
+}
 export function renderBudget(
   mode,
   memory = totalmem(),
@@ -21,14 +29,11 @@ export function renderBudget(
             ),
           )
         : 1,
-    mediaCacheSizeInBytes: Math.floor(
-      Math.max(
-        32 * 1024 ** 2,
-        Math.min(
-          mode === "fast" ? 768 * 1024 ** 2 : 256 * 1024 ** 2,
-          memory / 16,
-          available / 4,
-        ),
+    mediaCacheSizeInBytes: normalizeMediaCacheSize(
+      Math.min(
+        mode === "fast" ? 768 * 1024 ** 2 : 256 * 1024 ** 2,
+        memory / 16,
+        available / 4,
       ),
     ),
   };

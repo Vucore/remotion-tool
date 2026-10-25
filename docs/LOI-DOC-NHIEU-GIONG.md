@@ -17,8 +17,8 @@
 - Mỗi cảnh hiển thị lời và dropdown người nói. Đặt con trỏ trong lời và bấm **Tách tại con trỏ** để chia hai lượt; hoặc **Thêm lượt nói** để nhập lời mới. Thứ tự lượt là thứ tự phát, không tạo cảnh ảnh mới.
 - Có chọn từng lượt, chọn cả cảnh, chọn tất cả, bỏ chọn. Chọn giọng rồi **Gán giọng** trên thanh chọn (vẫn ở trên khi cuộn), hoặc dùng nút gán tại thư viện. Các lượt ngoài vùng chọn giữ nguyên.
 - Xóa người nói gán các lượt của họ về Người kể chuyện. Không xóa lời. Xóa lượt xóa nội dung lượt đó; mỗi cảnh giữ ít nhất một lượt.
-- Model/ngôn ngữ/định dạng/thông số chung trong **Thiết lập TTS**, thu gọn mặc định. Không có model/ngôn ngữ riêng cho từng người nói trong bản này. TTS theo tài liệu hiện không hỗ trợ tiếng Việt.
-- Bấm **Tạo / cập nhật voice**, nghe và tải theo cảnh; xuất video cũng tự tạo khi cần. Lượt không đổi dùng cache. Phân vai lưu với draft/dự án sau khi dựng; mẫu dựng giữ thư viện giọng và thông số, bỏ nội dung phân vai của dự án cũ.
+- Model/ngôn ngữ/định dạng/thông số chung trong **Thiết lập TTS** ngay dưới phần chọn nguồn giọng, trước danh sách người nói và lời đọc; thu gọn mặc định. Không có model/ngôn ngữ riêng cho từng người nói trong bản này. TTS theo tài liệu hiện không hỗ trợ tiếng Việt.
+- Bấm **Tạo / cập nhật voice** trên thanh đầu cửa sổ, cạnh **Nhập TXT** và phía trên **Thiết lập TTS**, rồi nghe và tải theo cảnh; xuất video cũng tự tạo khi cần. Lượt không đổi dùng cache. Phân vai lưu với draft/dự án sau khi dựng; mẫu dựng giữ thư viện giọng và thông số, bỏ nội dung phân vai của dự án cũ.
 
 ## Xử lý âm thanh và phụ đề
 
