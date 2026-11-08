@@ -3,6 +3,7 @@ import { Icon } from "../icons";
 import { TTS_LANGUAGES } from "../auto/languages";
 import { defaultTtsSettings, type TtsSettings } from "../auto/tts";
 import type { VoiceAsset } from "../model";
+import { TtsPresetVoice } from "./TtsPresetVoice";
 
 const parameterHelp: Record<string, { value: number; text: string }> = {
   temperature: {
@@ -101,46 +102,77 @@ export function TtsPanel({
 }) {
   const referenceInput = useRef<HTMLInputElement>(null);
   const [listenId, setListenId] = useState("");
+  const [connection, setConnection] = useState<{
+    baseUrl: string;
+    configured: boolean;
+  } | null>(null);
+  const [connectionError, setConnectionError] = useState("");
+  const [checking, setChecking] = useState(false);
   const voice = voices.find((v) => v.id === listenId) ?? voices[0];
   const s = settings;
+  const isVieNeu = s.provider === "vieneu";
   return (
     <div className="tts-panel">
       <div className="tts-heading">
         <Icon name="voice" />
-        <strong>Chatterbox TTS</strong>
+        <strong>{isVieNeu ? "VieNeu-TTS v3 Turbo" : "Chatterbox TTS"}</strong>
       </div>
       <label className="tts-field">
-        <span>Model</span>
+        <span>Dịch vụ TTS</span>
         <select
-          value={s.model}
-          onChange={(e) =>
-            onChange({ model: e.target.value as TtsSettings["model"] })
+          value={s.provider}
+          disabled={busy}
+          onChange={(event) =>
+            onChange({
+              provider: event.target.value as TtsSettings["provider"],
+            })
           }
         >
-          <option value="turbo">Turbo · Tiếng Anh</option>
-          <option value="multilingual">Multilingual · 23 ngôn ngữ</option>
+          <option value="chatterbox">Chatterbox · Anh / đa ngôn ngữ</option>
+          <option value="vieneu">VieNeu v3 Turbo · Tiếng Việt</option>
         </select>
       </label>
-      {s.model === "multilingual" && (
-        <label className="tts-field">
-          <span>Ngôn ngữ lời đọc</span>
-          <select
-            value={s.languageId}
-            onChange={(e) =>
-              onChange({
-                languageId: e.target.value as TtsSettings["languageId"],
-              })
-            }
-          >
-            {Object.entries(TTS_LANGUAGES).map(([code, label]) => (
-              <option key={code} value={code}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
+      {isVieNeu ? (
+        <p className="tts-note">
+          Tiếng Việt · GPU trên Modal. Chọn giọng VieNeu trong phần Người nói;
+          tên giọng của hai dịch vụ khác nhau.
+        </p>
+      ) : (
+        <>
+          <label className="tts-field">
+            <span>Model</span>
+            <select
+              value={s.model}
+              onChange={(e) =>
+                onChange({ model: e.target.value as TtsSettings["model"] })
+              }
+            >
+              <option value="turbo">Turbo · Tiếng Anh</option>
+              <option value="multilingual">Multilingual · 23 ngôn ngữ</option>
+            </select>
+          </label>
+          {s.model === "multilingual" && (
+            <label className="tts-field">
+              <span>Ngôn ngữ lời đọc</span>
+              <select
+                value={s.languageId}
+                onChange={(e) =>
+                  onChange({
+                    languageId: e.target.value as TtsSettings["languageId"],
+                  })
+                }
+              >
+                {Object.entries(TTS_LANGUAGES).map(([code, label]) => (
+                  <option key={code} value={code}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <p className="tts-note">API hiện chưa hỗ trợ tiếng Việt.</p>
+        </>
       )}
-      <p className="tts-note">API hiện chưa hỗ trợ tiếng Việt.</p>
       {!hideVoiceSource && (
         <>
           <div className="tts-field">
@@ -167,15 +199,12 @@ export function TtsPanel({
             </div>
           </div>
           {s.voiceMode === "preset" ? (
-            <label className="tts-field">
-              <span>Tên giọng trên server</span>
-              <input
-                value={s.voice}
-                maxLength={200}
-                placeholder="Để trống: giọng mặc định"
-                onChange={(e) => onChange({ voice: e.target.value })}
-              />
-            </label>
+            <TtsPresetVoice
+              settings={s}
+              value={s.voice}
+              disabled={busy}
+              onChange={(voice) => onChange({ voice })}
+            />
           ) : (
             <div className="tts-reference">
               <button
@@ -199,7 +228,11 @@ export function TtsPanel({
                   </button>
                 </div>
               )}
-              <p className="tts-note">WAV/MP3 · Nên dùng 5–15 giây rõ tiếng.</p>
+              <p className="tts-note">
+                {isVieNeu
+                  ? "WAV/MP3 · 3–8 giây · tối đa 10 MiB, rõ tiếng."
+                  : "WAV/MP3 · Nên dùng 5–15 giây rõ tiếng."}
+              </p>
             </div>
           )}
         </>
@@ -223,142 +256,237 @@ export function TtsPanel({
           ))}
         </div>
       </div>
-      <details className="compact-details tts-advanced">
-        <summary>Thông số giọng đọc</summary>
-        <p className="tts-note">
-          Bắt đầu bằng mặc định. Mỗi lần đổi một thông số rồi tạo và nghe lại
-          voice; kết quả còn tùy văn bản và giọng mẫu.
-        </p>
-        <button
-          type="button"
-          className="button"
-          disabled={busy}
-          onClick={() => {
-            const d = defaultTtsSettings();
-            onChange({
-              temperature: d.temperature,
-              repetitionPenalty: d.repetitionPenalty,
-              topP: d.topP,
-              seed: d.seed,
-              topK: d.topK,
-              normLoudness: d.normLoudness,
-              exaggeration: d.exaggeration,
-              cfgWeight: d.cfgWeight,
-              minP: d.minP,
-            });
-          }}
-        >
-          Khôi phục thông số mặc định
-        </button>
-        <NumberSetting
-          label="Độ ngẫu nhiên"
-          name="temperature"
-          value={s.temperature}
-          min={0.05}
-          max={2}
-          onChange={(temperature) => onChange({ temperature })}
-        />
-        <NumberSetting
-          label="Chống lặp"
-          name="repetition_penalty"
-          value={s.repetitionPenalty}
-          min={1}
-          max={3}
-          onChange={(repetitionPenalty) => onChange({ repetitionPenalty })}
-        />
-        <NumberSetting
-          label="Top P"
-          name="top_p"
-          value={s.topP}
-          min={0}
-          max={1}
-          onChange={(topP) => onChange({ topP })}
-        />
-        <label className="tts-number" title="seed">
-          <span>Seed · để trống = ngẫu nhiên</span>
-          <input
-            type="number"
-            min={0}
-            max={2147483647}
-            step={1}
-            aria-describedby="tts-seed-help"
-            value={s.seed ?? ""}
-            onChange={(e) =>
-              onChange({
-                seed: e.target.value === "" ? null : Number(e.target.value),
-              })
-            }
-          />
-        </label>
-        <p id="tts-seed-help" className="tts-note">
-          Số nguyên 0–2147483647. Cùng seed và thiết lập giúp giảm khác biệt
-          giữa các lần tạo; không đảm bảo âm thanh giống tuyệt đối. Seed lớn hơn
-          không làm giọng hay hơn.
-        </p>
-        {s.model === "turbo" ? (
-          <>
-            <NumberSetting
-              label="Top K"
-              name="top_k"
-              value={s.topK}
-              min={1}
-              max={1000000}
-              step={1}
-              onChange={(topK) => onChange({ topK })}
+      {isVieNeu ? (
+        <>
+          <label className="toggle-line">
+            <span>Lọc nhiễu giọng mẫu</span>
+            <input
+              type="checkbox"
+              checked={s.vieneu.denoise}
+              disabled={busy}
+              onChange={(event) =>
+                onChange({
+                  vieneu: { ...s.vieneu, denoise: event.target.checked },
+                })
+              }
             />
-            <label className="toggle-line">
-              <span>Cân bằng âm lượng</span>
+          </label>
+          <p className="tts-note">
+            Chỉ áp dụng khi clone. Mỗi lượt tối đa 2.000 ký tự. WAV giữ bản API;
+            MP3 mã hoá một lần ở 320 kbps.
+          </p>
+        </>
+      ) : (
+        <>
+          <details className="compact-details tts-advanced">
+            <summary>Thông số giọng đọc</summary>
+            <p className="tts-note">
+              Bắt đầu bằng mặc định. Mỗi lần đổi một thông số rồi tạo và nghe
+              lại voice; kết quả còn tùy văn bản và giọng mẫu.
+            </p>
+            <button
+              type="button"
+              className="button"
+              disabled={busy}
+              onClick={() => {
+                const d = defaultTtsSettings();
+                onChange({
+                  temperature: d.temperature,
+                  repetitionPenalty: d.repetitionPenalty,
+                  topP: d.topP,
+                  seed: d.seed,
+                  topK: d.topK,
+                  normLoudness: d.normLoudness,
+                  exaggeration: d.exaggeration,
+                  cfgWeight: d.cfgWeight,
+                  minP: d.minP,
+                });
+              }}
+            >
+              Khôi phục thông số mặc định
+            </button>
+            <NumberSetting
+              label="Độ ngẫu nhiên"
+              name="temperature"
+              value={s.temperature}
+              min={0.05}
+              max={2}
+              onChange={(temperature) => onChange({ temperature })}
+            />
+            <NumberSetting
+              label="Chống lặp"
+              name="repetition_penalty"
+              value={s.repetitionPenalty}
+              min={1}
+              max={3}
+              onChange={(repetitionPenalty) => onChange({ repetitionPenalty })}
+            />
+            <NumberSetting
+              label="Top P"
+              name="top_p"
+              value={s.topP}
+              min={0}
+              max={1}
+              onChange={(topP) => onChange({ topP })}
+            />
+            <label className="tts-number" title="seed">
+              <span>Seed · để trống = ngẫu nhiên</span>
               <input
-                type="checkbox"
-                checked={s.normLoudness}
-                onChange={(e) => onChange({ normLoudness: e.target.checked })}
+                type="number"
+                min={0}
+                max={2147483647}
+                step={1}
+                aria-describedby="tts-seed-help"
+                value={s.seed ?? ""}
+                onChange={(e) =>
+                  onChange({
+                    seed: e.target.value === "" ? null : Number(e.target.value),
+                  })
+                }
               />
             </label>
-            <p className="tts-note">
-              Mặc định bật: cân bằng mức âm lượng đầu ra; không phải nút tăng
-              tốc hay đổi ngữ điệu.
+            <p id="tts-seed-help" className="tts-note">
+              Số nguyên 0–2147483647. Cùng seed và thiết lập giúp giảm khác biệt
+              giữa các lần tạo; không đảm bảo âm thanh giống tuyệt đối. Seed lớn
+              hơn không làm giọng hay hơn.
             </p>
-          </>
-        ) : (
-          <>
-            <NumberSetting
-              label="Độ biểu cảm"
-              name="exaggeration"
-              value={s.exaggeration}
-              min={0}
-              max={2}
-              onChange={(exaggeration) => onChange({ exaggeration })}
-            />
-            <NumberSetting
-              label="Mức bám điều kiện giọng"
-              name="cfg_weight"
-              value={s.cfgWeight}
-              min={0}
-              max={1}
-              onChange={(cfgWeight) => onChange({ cfgWeight })}
-            />
-            <NumberSetting
-              label="Min P"
-              name="min_p"
-              value={s.minP}
-              min={0}
-              max={1}
-              onChange={(minP) => onChange({ minP })}
-            />
-          </>
-        )}
-      </details>
+            {s.model === "turbo" ? (
+              <>
+                <NumberSetting
+                  label="Top K"
+                  name="top_k"
+                  value={s.topK}
+                  min={1}
+                  max={1000000}
+                  step={1}
+                  onChange={(topK) => onChange({ topK })}
+                />
+                <label className="toggle-line">
+                  <span>Cân bằng âm lượng</span>
+                  <input
+                    type="checkbox"
+                    checked={s.normLoudness}
+                    onChange={(e) =>
+                      onChange({ normLoudness: e.target.checked })
+                    }
+                  />
+                </label>
+                <p className="tts-note">
+                  Mặc định bật: cân bằng mức âm lượng đầu ra; không phải nút
+                  tăng tốc hay đổi ngữ điệu.
+                </p>
+              </>
+            ) : (
+              <>
+                <NumberSetting
+                  label="Độ biểu cảm"
+                  name="exaggeration"
+                  value={s.exaggeration}
+                  min={0}
+                  max={2}
+                  onChange={(exaggeration) => onChange({ exaggeration })}
+                />
+                <NumberSetting
+                  label="Mức bám điều kiện giọng"
+                  name="cfg_weight"
+                  value={s.cfgWeight}
+                  min={0}
+                  max={1}
+                  onChange={(cfgWeight) => onChange({ cfgWeight })}
+                />
+                <NumberSetting
+                  label="Min P"
+                  name="min_p"
+                  value={s.minP}
+                  min={0}
+                  max={1}
+                  onChange={(minP) => onChange({ minP })}
+                />
+              </>
+            )}
+          </details>
+        </>
+      )}
       <details className="compact-details tts-connection">
         <summary>Kết nối API</summary>
         <label className="tts-field">
           <span>URL ứng dụng Modal</span>
           <input
             type="url"
-            value={s.baseUrl}
+            value={isVieNeu ? s.vieneu.baseUrl : s.baseUrl}
             spellCheck={false}
-            onChange={(e) => onChange({ baseUrl: e.target.value })}
+            onChange={(e) =>
+              onChange(
+                isVieNeu
+                  ? { vieneu: { ...s.vieneu, baseUrl: e.target.value } }
+                  : { baseUrl: e.target.value },
+              )
+            }
           />
         </label>
+        {isVieNeu && (
+          <>
+            <p className="tts-note">
+              Đặt VIENEU_API_KEY và VIENEU_BASE_URL trong .env ở backend rồi
+              khởi động lại. Key không được lưu trong dự án.
+            </p>
+            <button
+              type="button"
+              className="button"
+              disabled={busy || checking}
+              onClick={async () => {
+                setChecking(true);
+                setConnectionError("");
+                try {
+                  const response = await fetch("/api/tts/vieneu/config");
+                  const result = await response.json();
+                  if (!response.ok)
+                    throw Error(
+                      result.error || "Chưa đọc được cấu hình backend.",
+                    );
+                  setConnection(result);
+                } catch (error) {
+                  setConnectionError(
+                    error instanceof Error
+                      ? error.message
+                      : "Chưa đọc được cấu hình backend.",
+                  );
+                } finally {
+                  setChecking(false);
+                }
+              }}
+            >
+              {checking ? "Đang kiểm tra…" : "Kiểm tra cấu hình backend"}
+            </button>
+            {connection && (
+              <p className="tts-note" role="status">
+                {connection.configured
+                  ? "Backend đã có API key."
+                  : "Backend chưa có VIENEU_API_KEY."}{" "}
+                Kiểm tra này không gọi GPU.
+              </p>
+            )}
+            {connection && connection.baseUrl !== s.vieneu.baseUrl && (
+              <button
+                type="button"
+                className="button"
+                disabled={busy}
+                onClick={() =>
+                  onChange({
+                    vieneu: { ...s.vieneu, baseUrl: connection.baseUrl },
+                  })
+                }
+              >
+                Dùng URL server
+              </button>
+            )}
+            {connectionError && (
+              <p className="dialog-error" role="alert">
+                {connectionError}
+              </p>
+            )}
+          </>
+        )}
       </details>
       {!hideResults && (
         <>

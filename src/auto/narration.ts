@@ -84,7 +84,9 @@ export function pairNarration(
         `Cảnh ${s.order}: thiếu ${!image ? "ảnh" : "voice WAV/MP3"} có số thứ tự ${s.order}.`,
       );
     const text =
-      input.ttsKey && input.tts?.model === "turbo"
+      input.ttsKey &&
+      input.tts?.provider !== "vieneu" &&
+      input.tts?.model === "turbo"
         ? s.text
             .replace(/\[(?:laugh|chuckle|sigh|gasp|cough)\]/gi, " ")
             .replace(/[ \t]+/g, " ")

@@ -111,8 +111,8 @@ test("free Google translation preserves timestamps and reuses cache without keys
       assert.equal(payload.target, "en");
       assert.ok(!("apiKey" in payload));
       return {
-        translations: payload.texts.map((_, i) =>
-          i ? "A cheerful morning." : "Hello & welcome.",
+        translations: payload.texts.map((text) =>
+          text.startsWith("Một") ? "A cheerful morning." : "Hello & welcome.",
         ),
       };
     };

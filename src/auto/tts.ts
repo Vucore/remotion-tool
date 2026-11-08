@@ -11,6 +11,8 @@ export type TtsSpeaker = {
 export type SpeechTurn = { text: string; speakerId: string };
 export type SceneDialogue = { order: number; turns: SpeechTurn[] };
 export type TtsSettings = {
+  provider: "chatterbox" | "vieneu";
+  vieneu: { baseUrl: string; denoise: boolean };
   speakers: TtsSpeaker[];
   dialogue: SceneDialogue[];
   enabled: boolean;
@@ -33,6 +35,11 @@ export type TtsSettings = {
 };
 
 export const defaultTtsSettings = (): TtsSettings => ({
+  provider: "chatterbox",
+  vieneu: {
+    baseUrl: "https://emsimv10--vieneu-tts-v3-turbo-api-api.us-east.modal.run",
+    denoise: true,
+  },
   speakers: [],
   dialogue: [],
   enabled: false,
@@ -79,6 +86,20 @@ export function parseTtsSettings(input: unknown): TtsSettings {
       throw Error(`TTS: ${label} cần từ ${min} đến ${max}.`);
     return item;
   };
+  const provider = choice(value.provider, ["chatterbox", "vieneu"], "dịch vụ");
+  if (
+    !value.vieneu ||
+    typeof value.vieneu !== "object" ||
+    Array.isArray(value.vieneu)
+  )
+    throw Error("VieNeu: thiết lập kết nối không hợp lệ.");
+  const rawVieNeu = { ...defaultTtsSettings().vieneu, ...value.vieneu };
+  const vieneu = {
+    baseUrl: parseVieNeuBaseUrl(rawVieNeu.baseUrl),
+    denoise: rawVieNeu.denoise,
+  };
+  if (typeof vieneu.denoise !== "boolean")
+    throw Error("VieNeu: lọc nhiễu cần là bật hoặc tắt.");
   if (
     typeof value.enabled !== "boolean" ||
     typeof value.normLoudness !== "boolean"
@@ -207,6 +228,8 @@ export function parseTtsSettings(input: unknown): TtsSettings {
   if (totalTurns > 3000)
     throw Error("TTS: tối đa 3.000 lượt nói trong một dự án.");
   return {
+    provider,
+    vieneu,
     speakers,
     dialogue,
     enabled: value.enabled,
@@ -241,6 +264,14 @@ export function parseTtsSettings(input: unknown): TtsSettings {
 // Only parameters actually sent to this model participate in the cache/freshness key.
 export function ttsParameters(settings: TtsSettings) {
   const s = parseTtsSettings(settings);
+  if (s.provider === "vieneu")
+    return {
+      model: "vieneu-v3-turbo",
+      response_format: s.outputFormat,
+      ...(s.voiceMode === "preset"
+        ? { voice: s.voice || "Hải Đăng" }
+        : { denoise: s.vieneu.denoise }),
+    };
   return {
     model: s.model,
     mode: "single",
@@ -262,8 +293,12 @@ export function ttsParameters(settings: TtsSettings) {
 }
 
 // Presentation tags direct speech synthesis, but are not spoken subtitle words.
-export function spokenTtsText(text: string, model: TtsSettings["model"]) {
-  return model === "turbo"
+export function spokenTtsText(
+  text: string,
+  model: TtsSettings["model"],
+  provider: TtsSettings["provider"] = "chatterbox",
+) {
+  return provider === "chatterbox" && model === "turbo"
     ? text
         .replace(/\[(?:laugh|chuckle|sigh|gasp|cough)\]/gi, " ")
         .replace(/[ \t]+/g, " ")
@@ -333,9 +368,13 @@ export function speechPlan(script: string, settings: TtsSettings) {
     ...section,
     turns: sceneTurns(section, settings).map((turn) => {
       const options = speakerSettings(settings, turn.speakerId);
-      if (!spokenTtsText(turn.text, settings.model).trim())
+      if (!spokenTtsText(turn.text, settings.model, settings.provider).trim())
         throw Error(
           `Cảnh ${section.order}: lượt nói đang trống. Nhập lời hoặc xóa lượt.`,
+        );
+      if (settings.provider === "vieneu" && turn.text.length > 2000)
+        throw Error(
+          `Cảnh ${section.order}: VieNeu tối đa 2.000 ký tự mỗi lượt nói. Dùng Tách lượt để chia đoạn.`,
         );
       if (options.voiceMode === "reference" && !options.reference)
         throw Error(
@@ -355,7 +394,7 @@ export function ttsInputKey(script: string, settings: TtsSettings) {
       turns: section.turns.map((turn) => ({
         text: turn.text,
         parameters: ttsParameters(turn.options),
-        baseUrl: s.baseUrl,
+        baseUrl: ttsBaseUrl(s),
         reference:
           turn.options.voiceMode === "reference"
             ? (turn.options.reference?.src ?? "")
@@ -369,5 +408,40 @@ export function ttsInputKey(script: string, settings: TtsSettings) {
       64,
       (hash ^ BigInt(data.charCodeAt(i))) * 0x100000001b3n,
     );
-  return "chatterbox-v1-" + hash.toString(16).padStart(16, "0");
+  return (
+    `${s.provider === "vieneu" ? "vieneu" : "chatterbox"}-v1-` +
+    hash.toString(16).padStart(16, "0")
+  );
 }
+
+export function parseVieNeuBaseUrl(input: unknown) {
+  let url: URL;
+  try {
+    url = new URL(String(input));
+  } catch {
+    throw Error("VieNeu: nhập URL HTTPS gốc của ứng dụng Modal.");
+  }
+  if (
+    url.protocol !== "https:" ||
+    !/^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.modal\.run$/i.test(url.hostname) ||
+    url.port ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    url.pathname !== "/"
+  )
+    throw Error(
+      "VieNeu: URL cần là HTTPS trên miền *.modal.run, không kèm đường dẫn hoặc API key.",
+    );
+  return url.origin;
+}
+
+export const ttsBaseUrl = (settings: TtsSettings) =>
+  settings.provider === "vieneu" ? settings.vieneu.baseUrl : settings.baseUrl;
+export const ttsLanguage = (settings: TtsSettings) =>
+  settings.provider === "vieneu"
+    ? "vi"
+    : settings.model === "turbo"
+      ? "en"
+      : settings.languageId;

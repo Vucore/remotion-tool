@@ -37,6 +37,7 @@ export async function renderProject(
         mapActorImages(a, (i) => ({ ...i, src: origin + i.src })),
       ),
       fonts: project.fonts.map((f) => ({ ...f, src: origin + f.src })),
+      videoOverlays: (project.videoOverlays ?? []).map((layer) => ({ ...layer, src: origin + layer.src })),
       ...(project.voiceover
         ? {
             voiceover: {

@@ -23,6 +23,7 @@ import {
 } from "../auto/tts";
 import type { Asset, VoiceAsset } from "../model";
 import { TtsPanel } from "./TtsPanel";
+import { TtsPresetVoice } from "./TtsPresetVoice";
 import { Icon } from "../icons";
 
 type Row = NarrationRow;
@@ -311,9 +312,11 @@ export function NarrationPanel({
           <details className="compact-details narration-settings">
             <summary>
               Thiết lập TTS ·{" "}
-              {settings.model === "turbo"
-                ? "Turbo · en"
-                : `Multilingual · ${settings.languageId}`}{" "}
+              {settings.provider === "vieneu"
+                ? "VieNeu v3 Turbo · vi"
+                : settings.model === "turbo"
+                  ? "Turbo · en"
+                  : `Multilingual · ${settings.languageId}`}{" "}
               · {settings.outputFormat.toUpperCase()}
             </summary>
             <TtsPanel
@@ -350,8 +353,10 @@ export function NarrationPanel({
         {settings.enabled && (
           <p className="dialog-help">
             Một cảnh có thể có nhiều lượt nói. Chọn lượt nói rồi gán người nói,
-            hoặc đổi giọng ngay trên từng lượt. Model hiện chưa hỗ trợ tiếng
-            Việt.
+            hoặc đổi giọng ngay trên từng lượt.{" "}
+            {settings.provider === "vieneu"
+              ? "VieNeu đọc tiếng Việt; mỗi lượt tối đa 2.000 ký tự."
+              : "Chatterbox hiện chưa hỗ trợ tiếng Việt."}
           </p>
         )}
         <div
@@ -447,17 +452,12 @@ export function NarrationPanel({
                     </select>
                   </label>
                   {speaker.voiceMode === "preset" ? (
-                    <label>
-                      Tên giọng trên server
-                      <input
-                        value={speaker.voice}
-                        maxLength={200}
-                        placeholder="Để trống: giọng mặc định server"
-                        onChange={(e) =>
-                          patchSpeaker({ voice: e.target.value })
-                        }
-                      />
-                    </label>
+                    <TtsPresetVoice
+                      settings={settings}
+                      value={speaker.voice}
+                      disabled={busy}
+                      onChange={(voice) => patchSpeaker({ voice })}
+                    />
                   ) : (
                     <>
                       <button
@@ -470,7 +470,9 @@ export function NarrationPanel({
                       </button>
                       <p className="dialog-help">
                         {speaker.reference?.name ??
-                          "WAV/MP3, tối đa 25 MB. Nên chọn 5–15 giây rõ tiếng."}
+                          (settings.provider === "vieneu"
+                            ? "WAV/MP3, tối đa 10 MiB, dài 3–8 giây rõ tiếng."
+                            : "WAV/MP3, tối đa 25 MB. Nên chọn 5–15 giây rõ tiếng.")}
                       </p>
                       {speaker.reference && (
                         <audio

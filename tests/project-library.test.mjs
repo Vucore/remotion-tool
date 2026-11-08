@@ -78,6 +78,7 @@ test("projects stay separate, preserve drafts/options/voices, and survive restar
       },
       a.entry.id,
     );
+    assert.equal(changed.nameChanged, true);
     assert.equal(
       await readFile(file, "utf8"),
       original,
@@ -95,6 +96,7 @@ test("projects stay separate, preserve drafts/options/voices, and survive restar
       a.entry.id,
     );
     assert.equal(repeated.revision, changed.revision);
+    assert.equal(!!repeated.nameChanged, false);
     await library.close();
     library = new ProjectLibrary(root);
     const reopened = await call(library, "open", null, a.entry.id);

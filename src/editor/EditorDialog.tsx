@@ -8,6 +8,7 @@ export function EditorDialog({
   children,
   wide = false,
   className = "",
+  dismissible = true,
 }: {
   open: boolean;
   title: string;
@@ -15,6 +16,7 @@ export function EditorDialog({
   children: ReactNode;
   wide?: boolean;
   className?: string;
+  dismissible?: boolean;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -29,7 +31,7 @@ export function EditorDialog({
       aria-label={title}
       onCancel={(e) => {
         e.preventDefault();
-        onClose();
+        if (dismissible) onClose();
       }}
       onClose={onClose}
     >
@@ -39,6 +41,7 @@ export function EditorDialog({
           type="button"
           className="icon-button"
           aria-label="Đóng cửa sổ"
+          disabled={!dismissible}
           onClick={onClose}
         >
           <Icon name="close" />
@@ -46,7 +49,12 @@ export function EditorDialog({
       </header>
       {open && <div className="editor-dialog-body">{children}</div>}
       <footer>
-        <button type="button" className="button" onClick={onClose}>
+        <button
+          type="button"
+          className="button"
+          disabled={!dismissible}
+          onClick={onClose}
+        >
           Xong
         </button>
       </footer>

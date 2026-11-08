@@ -25,6 +25,7 @@ import { Audio } from "@remotion/media";
 import { lastAt } from "./editor/performance";
 import { PreviewImage } from "./editor/PreviewImage";
 import { SceneActors } from "./actors/ActorView";
+import { VideoOverlays } from "./VideoOverlays";
 const filterStyles = {
   none: "",
   warm: "sepia(.22) saturate(1.12)",
@@ -263,6 +264,7 @@ export const Video = ({
           </Sequence>
         );
       })}
+      <VideoOverlays layers={project.videoOverlays} />
     </AbsoluteFill>
     </PreviewQuality.Provider>
   );

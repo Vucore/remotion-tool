@@ -3,6 +3,7 @@ import type { Workspace, SavedProject } from "./workspace";
 import type { StoryOptions } from "../auto/story";
 import { leanProject } from "./project-client";
 import { revisionDiff } from "./revision";
+import type { ExportJob } from "./ExportPanel";
 export const LEGACY_STORAGE = "khung-story-workspace-v1";
 let worker: Worker | null = null,
   sequence = 0;
@@ -118,7 +119,11 @@ export function writeWorkspace(workspace: Workspace, projectId = activeId) {
             voice.envelope && knownWaves.get(voice.id) !== voice.envelope,
         )
         .map((voice) => ({ id: voice.id, envelope: voice.envelope }));
-      const result = await request<{ entry: SavedProject }>("save", {
+      const result = await request<{
+        entry: SavedProject;
+        exports?: ExportJob[];
+        warning?: string;
+      }>("save", {
         projectId,
         patch: revisionDiff(sent, lean),
         waves,
@@ -128,7 +133,11 @@ export function writeWorkspace(workspace: Workspace, projectId = activeId) {
       const ids = new Set(value.project.voiceover?.assets.map((v) => v.id));
       for (const id of knownWaves.keys())
         if (!ids.has(id)) knownWaves.delete(id);
-      return result.entry;
+      return {
+        ...result.entry,
+        exports: result.exports,
+        warning: result.warning,
+      };
     });
   writes = next;
   return next;

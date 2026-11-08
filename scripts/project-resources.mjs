@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 
 const uuid = "[a-f0-9-]{36}";
 export function resourcePath(root, ref) {
-  if (/^\/media\/[a-zA-Z0-9_-]+\.(png|jpg|webp|wav|mp3)$/.test(ref))
+  if (/^\/media\/[a-zA-Z0-9_-]+\.(png|jpg|webp|wav|mp3|mp4)$/.test(ref))
     return join(root, "data/uploads", ref.slice(7));
   if (new RegExp(`^/fonts/${uuid}\\.(woff2?|ttf|otf)$`).test(ref))
     return join(root, "data/fonts", ref.slice(7));

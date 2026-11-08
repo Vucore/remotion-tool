@@ -24,6 +24,7 @@ import { parseTtsSettings, type TtsSettings } from "./auto/tts";
 import { NARRATION_LANGUAGES, type NarrationLanguage } from "./auto/languages";
 import type { ActorDefinition, ActorInstance } from "./actors/types";
 import { parseActorLibrary, parseActorInstances } from "./actors/schema";
+import { parseVideoOverlays, type VideoOverlay } from "./video-overlays";
 import {
   parseImageProcessing,
   type ImageProcessingSettings,
@@ -174,6 +175,7 @@ export type Scene = {
   motionDuration: number | null;
 };
 export type Project = {
+  videoOverlays?: VideoOverlay[];
   imageProcessing?: ImageProcessingSettings;
   actors?: ActorDefinition[];
   voiceover?: Voiceover;
@@ -559,7 +561,8 @@ export function parseProject(value: unknown): Project {
     };
     if (
       voiceover.ttsKey &&
-      (!/^chatterbox-v1-[a-f0-9]{16}$/.test(voiceover.ttsKey) || !voiceover.tts)
+      (!/^(?:chatterbox|vieneu)-v1-[a-f0-9]{16}$/.test(voiceover.ttsKey) ||
+        !voiceover.tts)
     )
       throw Error("Thông tin voice TTS không hợp lệ.");
     if (
@@ -803,6 +806,7 @@ export function parseProject(value: unknown): Project {
     assets,
     scenes,
     fonts,
+    ...(p.videoOverlays !== undefined ? { videoOverlays: parseVideoOverlays(p.videoOverlays) } : {}),
     ...(p.actors !== undefined ? { actors: actorLibrary } : {}),
     ...(p.imageProcessing
       ? { imageProcessing: parseImageProcessing(p.imageProcessing) }

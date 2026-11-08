@@ -1,6 +1,7 @@
 # Tài liệu Khung
 
 - [Hướng dẫn sử dụng](HUONG-DAN.md)
+- [Dung lượng, cache và đồng bộ khi xóa](QUAN-LY-DUNG-LUONG.md)
 - [Lưu, tạo mới và chuyển dự án trong data](QUAN-LY-DU-AN.md)
 - [Bộ minh hoạ: 3 ảnh + 3 WAV + TXT](../test/README.md)
 - [Kế hoạch và phạm vi hiện tại](TRIEN-KHAI-KE-CHUYEN-TU-DONG.md)
@@ -16,7 +17,9 @@
 - [Xử lý ảnh hàng loạt: xóa logo và upscale](XU-LY-ANH-HANG-LOAT.md)
 - [Lời đọc và phân vai nhiều giọng](LOI-DOC-NHIEU-GIONG.md)
 - [Tạo voice từ TXT bằng Chatterbox TTS](TICH-HOP-TTS.md)
+- [VieNeu-TTS v3 Turbo: tiếng Việt, preset và clone](TICH-HOP-VIENEU-TTS.md)
 - [Xuất/dịch SRT và sidebar với dialog](PHU-DE-SRT-VA-GIAO-DIEN.md)
+- [Ghép MP4 nền xanh, kéo vị trí và đổi kích thước](GHEP-MP4-NEN-XANH.md)
 - [Dung lượng và file sinh ra ở lượt SRT](DUNG-LUONG-SRT.md)
 - [Chuẩn bị nhân vật/vật thể](NHAN-VAT-VA-VAT-THE.md)
 - [CLI AutoConfig và hàng đợi](TU-DONG-HOA.md)

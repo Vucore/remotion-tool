@@ -8,6 +8,7 @@ import { resolve, extname, join } from "node:path";
 import { randomUUID, createHash } from "node:crypto";
 import { ExportJobs } from "./export-jobs.mjs";
 import { ProjectLibrary } from "./project-library.mjs";
+import { StorageWorker } from "./storage-client.mjs";
 import { heavyTasks } from "./resource-queue.mjs";
 import {
   imageProxy,
@@ -21,11 +22,13 @@ import { parseAutoConfig } from "../dist/auto-config.mjs";
 import { pairNarration } from "../dist/narration.mjs";
 import { narrationTask } from "./narration-task.mjs";
 import { MAX_VOICE_BYTES } from "./voice-input.mjs";
+import { MAX_VIDEO_BYTES, inspectVideo } from "./video-input.mjs";
 import { actorImages } from "../dist/actor-types.mjs";
 import { parseTtsSettings, ttsPlan, speechPlan } from "../dist/tts.mjs";
 import { processImages, imageRuntimeStatus } from "./image-processing.mjs";
 import { parseImageProcessing } from "../dist/image-processing.mjs";
 import { generateTts } from "./tts.mjs";
+import { vieneuConfig, vieneuVoices } from "./vieneu.mjs";
 import { validateCues, languageCode } from "../dist/subtitles.mjs";
 import {
   translateSubtitles,
@@ -46,6 +49,7 @@ await Promise.all([
 ]);
 const exportQueue = new ExportJobs(root, origin);
 const projectLibrary = new ProjectLibrary(root);
+const storageWorker = new StorageWorker(root);
 await exportQueue.initialize();
 void pruneProxies().catch(() => {});
 const jobs = exportQueue.jobs;
@@ -55,7 +59,18 @@ const translationJobs = new Map();
 const imageJobs = new Map();
 const voiceControllers = new Set();
 let deletingProject = false,
+  cleaningStorage = false,
   activeMutations = 0;
+const activeWork = () => voiceControllers.size || [
+  ...jobs.values(), ...imageJobs.values(), ...ttsJobs.values(),
+  ...narrationJobs.values(), ...translationJobs.values(),
+].some((job) => job.running || job.editing);
+async function forgetResources(exports = [], cachePrefixes = []) {
+  if (!exports.length && !cachePrefixes.length) return { updated: 0 };
+  return projectLibrary.request("forget-resources", {
+    raw: JSON.stringify({ exports, cachePrefixes }),
+  });
+}
 async function trackResources(projectId, resources) {
   if (projectId)
     await projectLibrary.request("track", {
@@ -77,26 +92,27 @@ const resourcesFor = (job) => (refs) => {
   for (const ref of refs) job.resources.add(ref);
 };
 async function buildTranslation(job, input) {
+  let terminal = "done";
   try {
     job.result = await translateSubtitles(input, {
       onResource: resourcesFor(job),
       signal: job.controller.signal,
-      onProgress: (progress, message) => {
+      onProgress: (progress, message, retryAt) => {
         job.progress = progress;
         job.message = message;
+        job.retryAt = retryAt;
       },
     });
-    if (!job.controller.signal.aborted) {
-      job.status = "done";
-      job.progress = 1;
-    }
+    if (!job.controller.signal.aborted) job.progress = 1;
   } catch (error) {
     if (job.status !== "cancelled") {
-      job.status = "error";
+      terminal = "error";
       job.error = error.message;
+      job.errorCode = error.code;
     }
   } finally {
     await finishResources(job);
+    if (job.status === "translating") job.status = terminal;
   }
 }
 async function buildTts(job, input) {
@@ -132,6 +148,9 @@ const publicNarration = (job) => ({
   progress: job.progress,
   message: job.message,
   error: job.error,
+  errorCode: job.errorCode,
+  running: job.running,
+  retryAt: job.retryAt,
   ...(job.status === "done" ? { result: job.result } : {}),
 });
 async function buildNarration(job, config, project, keep) {
@@ -170,14 +189,14 @@ const json = (res, code, body) => {
   res.end(JSON.stringify(body));
 };
 const publicJob = (job) => exportQueue.public(job);
-async function streamUpload(req, destination, limit, signal) {
+async function streamUpload(req, destination, limit, signal, label = "Voice") {
   let size = 0;
   const limiter = new Transform({
     transform(chunk, encoding, callback) {
       size += chunk.length;
       callback(
         size > limit
-          ? Object.assign(Error("Voice tối đa 100 MB mỗi file."), {
+          ? Object.assign(Error(`${label} tối đa ${Math.round(limit / 1024 ** 2)} MB mỗi file.`), {
               status: 413,
             })
           : null,
@@ -317,9 +336,9 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (["POST", "PATCH", "DELETE"].includes(req.method)) {
-      if (deletingProject)
+      if (deletingProject || cleaningStorage)
         throw Object.assign(
-          Error("Đang dọn dự án. Hãy thử lại sau giây lát."),
+          Error("Đang dọn dữ liệu. Hãy thử lại sau giây lát."),
           { status: 409 },
         );
       activeMutations++;
@@ -335,6 +354,46 @@ const server = createServer(async (req, res) => {
     const projectRoute = url.pathname.match(
       /^\/api\/projects(?:\/([a-f0-9-]{36})(\/delete-preview)?)?$/,
     );
+    if (url.pathname === "/api/storage" && req.method === "GET") {
+      if (!cleaningStorage) await exportQueue.reconcile();
+      const result = await storageWorker.request("scan");
+      json(res, 200, { ...result, busy: !!activeWork() || cleaningStorage });
+      return;
+    }
+    if (url.pathname === "/api/storage" && req.method === "DELETE") {
+      if (activeWork() || activeMutations > 1)
+        throw Object.assign(Error("Có tác vụ đang chạy. Chờ hoàn tất hoặc dừng trước khi dọn dung lượng."), { status: 409 });
+      const payload = JSON.parse((await body(req, 4096)).toString());
+      if (payload.confirm !== true) throw Error("Cần xác nhận nhóm dữ liệu trước khi xóa.");
+      if (activeWork() || activeMutations > 1)
+        throw Object.assign(Error("Có tác vụ vừa bắt đầu. Chờ dừng hẳn trước khi dọn dung lượng."), { status: 409 });
+      cleaningStorage = true;
+      const removedExports = [];
+      try {
+        await Promise.all([...exportQueue.writes.values()]);
+        const plan = await storageWorker.request("prepare", { group: payload.group, revision: payload.revision });
+        // Commit reference cleanup before removing files; failures leave a retryable history entry.
+        await forgetResources(plan.exportIds, plan.cachePrefixes);
+        if (payload.group === "exports") {
+          for (const id of plan.exportIds) {
+            if (jobs.has(id)) await exportQueue.remove(id);
+            removedExports.push(id);
+          }
+        }
+        const result = await storageWorker.request("clear", { token: plan.token });
+        if (removedExports.length) await forgetResources(removedExports);
+        if (payload.group === "exports" && !result.failures.length) {
+          result.removed = plan.fileCount;
+          result.bytes = plan.bytes;
+        }
+        json(res, 200, { ...result, removedExports, cacheCleared: payload.group.startsWith("cache:"), group: payload.group });
+      } catch (error) {
+        json(res, error.status || 400, { error: error.message, removedExports, cacheCleared: false });
+      } finally {
+        cleaningStorage = false;
+      }
+      return;
+    }
     if (projectRoute) {
       const id = projectRoute[1];
       const action =
@@ -384,8 +443,23 @@ const server = createServer(async (req, res) => {
           raw: ["POST", "PATCH", "DELETE"].includes(req.method)
             ? (await body(req, 64 * 1024 * 1024)).toString()
             : undefined,
-          serialize: action === "delete" ? "deletion" : true,
+          serialize: action === "delete" ? "deletion" : action !== "save",
         });
+        if (action === "save") {
+          try {
+            if (result.nameChanged)
+              result.exports = await exportQueue.renameProject(
+                id,
+                result.entry.name,
+              );
+          } catch (error) {
+            // The committed revision must reach the client even if export metadata could not be updated.
+            result.warning =
+              "Đã lưu dự án nhưng chưa đồng bộ được tên bản xuất: " +
+              error.message;
+          }
+          result = JSON.stringify(result);
+        }
         if (action === "delete") {
           for (const jobId of result.removedJobs) {
             jobs.delete(jobId);
@@ -409,11 +483,14 @@ const server = createServer(async (req, res) => {
       if (![384, 960, 1440].includes(size))
         throw Error("Kích thước preview không hợp lệ.");
       const controller = new AbortController();
-      const closed = () => { if (!res.writableEnded) controller.abort(); };
+      const closed = () => {
+        if (!res.writableEnded) controller.abort();
+      };
       res.once("close", closed);
       const original = join(uploads,
         src.match(/^\/media\/([a-zA-Z0-9_-]+\.(?:png|jpg|webp))$/)?.[1] || "missing");
       try {
+        if (cleaningStorage) throw Error("Đang dọn cache. Tạm dùng ảnh gốc.");
         const proxy = await imageProxy(src, size, controller.signal);
         if (!res.destroyed) await serveFile(req, res, proxy, false, original);
       } catch {
@@ -523,14 +600,21 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (url.pathname === "/api/subtitles/translate" && req.method === "POST") {
+      const payload = JSON.parse((await body(req)).toString());
+      if (payload.requestId !== undefined && (typeof payload.requestId !== "string" || !/^[a-f0-9-]{36}$/.test(payload.requestId)))
+        throw Error("ID yêu cầu dịch không hợp lệ.");
+      const existing = payload.requestId && translationJobs.get(payload.requestId);
+      if (existing) {
+        json(res, 200, publicNarration(existing));
+        return;
+      }
       if ([...translationJobs.values()].some((j) => j.running)) {
         json(res, 409, { error: "Một tác vụ dịch đang chạy hoặc đang dừng." });
         return;
       }
-      const payload = JSON.parse((await body(req)).toString());
       const input = {
         cues: validateCues(payload.cues),
-        source: languageCode(payload.source),
+        source: payload.source === "auto" ? "auto" : languageCode(payload.source),
         target: languageCode(payload.target),
       };
       if (input.source === input.target)
@@ -538,7 +622,7 @@ const server = createServer(async (req, res) => {
       for (const [id, old] of translationJobs)
         if (!old.running) translationJobs.delete(id);
       const job = {
-        id: randomUUID(),
+        id: payload.requestId || randomUUID(),
         status: "translating",
         projectId: owner,
         resources: new Set(),
@@ -573,6 +657,24 @@ const server = createServer(async (req, res) => {
         job.controller.abort();
       }
       json(res, 200, publicNarration(job));
+      return;
+    }
+    if (url.pathname === "/api/tts/vieneu/config" && req.method === "GET") {
+      json(res, 200, vieneuConfig());
+      return;
+    }
+    if (url.pathname === "/api/tts/vieneu/voices" && req.method === "POST") {
+      const payload = JSON.parse((await body(req, 4096)).toString());
+      const controller = new AbortController();
+      const closed = () => { if (!res.writableEnded) controller.abort(); };
+      res.once("close", closed);
+      try {
+        json(res, 200, {
+          voices: await vieneuVoices(payload.baseUrl, { signal: controller.signal }),
+        });
+      } finally {
+        res.removeListener("close", closed);
+      }
       return;
     }
     if (url.pathname === "/api/tts" && req.method === "POST") {
@@ -727,6 +829,25 @@ const server = createServer(async (req, res) => {
       json(res, 200, publicNarration(job));
       return;
     }
+    if (url.pathname === "/api/videos" && req.method === "POST") {
+      const filename = `${randomUUID()}.mp4`, destination = join(uploads, filename);
+      const controller = new AbortController();
+      const closed = () => { if (!res.writableEnded) controller.abort(); };
+      res.once("close", closed);
+      let saved = false;
+      try {
+        await streamUpload(req, destination, MAX_VIDEO_BYTES, controller.signal, "MP4");
+        const metadata = await inspectVideo(destination);
+        await trackResources(owner, [`/media/${filename}`]);
+        controller.signal.throwIfAborted();
+        saved = true;
+        json(res, 201, { src: `/media/${filename}`, ...metadata });
+      } finally {
+        res.removeListener("close", closed);
+        if (!saved) await rm(destination, { force: true });
+      }
+      return;
+    }
     if (url.pathname === "/api/uploads" && req.method === "POST") {
       const buffer = await body(req, 25 * 1024 * 1024);
       let ext;
@@ -808,6 +929,10 @@ const server = createServer(async (req, res) => {
       const project = parseProject(payload.project);
       if (!project.scenes.length)
         throw new Error("Thêm ít nhất một cảnh trước khi xuất.");
+      for (const layer of project.videoOverlays ?? []) {
+        try { await access(join(uploads, layer.src.slice(7))); }
+        catch { throw Error(`Thiếu MP4 “${layer.name}”. Hãy nhập lại lớp video.`); }
+      }
       for (const actor of project.actors ?? []) {
         if (
           !project.scenes.some((s) =>
@@ -901,7 +1026,24 @@ const server = createServer(async (req, res) => {
         ["queued", "preparing", "rendering"].includes(job.status)
       ) {
         await exportQueue.cancel(job);
+      } else if (req.method === "DELETE") {
+        if (job.running || job.editing)
+          throw Object.assign(Error("Bản xuất đang được xử lý. Chờ dừng hẳn trước khi xóa."), { status: 409 });
+        await forgetResources([jobId]);
+        await exportQueue.remove(jobId);
+        let warning;
+        try { await forgetResources([jobId]); }
+        catch { warning = "Đã xóa bản xuất; chưa cập nhật được toàn bộ liên kết dự án. Mở lại dự án để đồng bộ."; }
+        json(res, 200, { id: jobId, deleted: true, warning });
+        return;
+      } else if (req.method === "PATCH") {
+        const payload = JSON.parse((await body(req, 4096)).toString());
+        await exportQueue.rename(jobId, payload.filename);
+      } else if (req.method !== "GET" && req.method !== "HEAD") {
+        json(res, 405, { error: "Thao tác không hỗ trợ." });
+        return;
       }
+      if (req.method === "GET" && !cleaningStorage) await exportQueue.reconcile(jobId);
       json(res, 200, publicJob(job));
       return;
     }
@@ -910,7 +1052,7 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (
-      /^\/media\/[a-zA-Z0-9_-]+\.(png|jpg|webp|wav|mp3)$/.test(url.pathname)
+      /^\/media\/[a-zA-Z0-9_-]+\.(png|jpg|webp|wav|mp3|mp4)$/.test(url.pathname)
     ) {
       await serveFile(req, res, join(uploads, url.pathname.slice(7)));
       return;
@@ -988,6 +1130,7 @@ for (const signal of ["SIGINT", "SIGTERM"])
     stopMediaHelpers();
     await exportQueue.close();
     await projectLibrary.close();
+    await storageWorker.close();
     server.close();
     // Export workers finish graceful cancellation or their 5s process-group deadline.
     const timer = setInterval(() => {

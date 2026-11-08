@@ -14,6 +14,8 @@ Nút thùng rác ở từng dự án mở xác nhận có số tệp/dung lượ
 
 ## Không gian làm việc
 
+Nút **Dung lượng** trên thanh đầu mở thống kê MB của cache, model, bản xuất và các thư mục ẩn. Chỉ quét khi mở, bấm **Kiểm tra lại**, hoặc sau khi dọn trong cửa sổ này. Xem đường dẫn kho và tổng `.cache` ở đầu; tổng này gồm cả model. Chọn **Xóa** ở từng nhóm để xem ảnh hưởng trước khi xác nhận. `.git`, `.venv` và thư mục lạ chỉ xem; xóa model cần tải/đặt lại trước khi dùng. Xóa bản xuất đồng bộ lịch sử và liên kết trong dự án, giữ ảnh/voice nguồn. [Chi tiết cách tính](QUAN-LY-DUNG-LUONG.md).
+
 Tài nguyên bên trái, preview ở giữa, thiết lập nhanh bên phải và timeline phía dưới. Không cần cuộn một form dài. Trên màn hình nhỏ dùng ba nút **Tệp · Video · Sửa** để đổi vùng; timeline luôn nằm dưới.
 
 1. **Ảnh bối cảnh**: chọn nhiều PNG/JPG/WebP.
@@ -27,6 +29,8 @@ Phần **Voice** có hai nguồn: **Tải voice** để dùng WAV/MP3 sẵn, ho�
 Voice 01 có thể là `01.wav` hoặc `01.mp3`; tên/số ghép không đổi. Giữ nguyên file nguồn ở cả hai định dạng cho preview/xuất. Mỗi file 0,5–300 giây, tối đa 100 MB; không dùng đồng thời WAV và MP3 có cùng số cảnh. [Chi tiết voice và chất lượng](HO-TRO-MP3.md).
 
 ## Chạy thử và timeline
+
+Để tạo giọng tiếng Việt, chọn **VieNeu v3 Turbo** trong **Lời đọc & giọng → Thiết lập TTS**. Cần `VIENEU_API_KEY` ở `.env` backend; có tải danh sách giọng, clone WAV/MP3 3–8 giây (tối đa 10 MiB), WAV/MP3 đầu ra và phân vai hiện có. Tối đa 2.000 ký tự/lượt. Chatterbox và voice tải lên vẫn dùng như trước. [Cấu hình và hướng dẫn VieNeu](TICH-HOP-VIENEU-TTS.md).
 
 Ảnh vừa nhập sẽ tạo bản xem thử ngay. Có WAV thì phát cả voice và lấy đúng độ dài WAV; có TXT thì chia câu phụ đề. Khi chưa căn câu, nhãn **Phụ đề ước tính** luôn được hiển thị. Không cần cài Python để chỉ chạy bản xem thử.
 
@@ -81,6 +85,8 @@ Nếu timing đã căn và text/WAV còn khớp, preview dùng lại cue cũ khi
 
 - **Căn phụ đề**: chạy model với WAV/TXT để có mốc từng câu chính xác hơn, chưa xuất MP4.
 - **Xuất video**: kiểm tra ghép số, căn câu nếu cần, dựng và xuất MP4 tự động. Có tiến độ và nút Dừng; khi xong có nút Tải video.
+- **Các video đã xuất**: bấm **Đổi tên** ở từng bản, nhập tên rồi **Lưu tên**; tên mới áp dụng khi tải MP4 và SRT, giữ hậu tố ngôn ngữ của SRT. Bấm **Xóa** → **Xóa bản xuất** để xóa vĩnh viễn MP4, SRT kèm theo, snapshot và lịch sử của bản đó. Ảnh, voice và dự án nguồn được giữ. Bản đang chạy chỉ có **Hủy**; chờ dừng hẳn mới đổi tên hoặc xóa. Các bản đã tải vào thư mục Downloads của máy không bị tác động.
+- Đổi **Tên video** ở góc trái sẽ tự lưu và đồng bộ tên MP4/SRT của các bản xuất thuộc dự án đó, kể cả bản đang chạy; các dự án khác giữ tên riêng. Đổi tên không yêu cầu dựng/xuất lại. Vẫn có thể đặt tên riêng từng bản trong lịch sử; các lần tự lưu khác không ghi đè tên riêng đó, cho đến khi bạn đổi tên dự án lần nữa.
 - Căn câu thực tế cần môi trường uv/model cài một lần bằng `npm run setup:voice`. Cấu hình model/ngôn ngữ/chất lượng nằm trong menu **Tệp**.
 - Không có WAV vẫn xuất ảnh + chữ; thời lượng/phụ đề là ước lượng theo độ dài lời đọc.
 

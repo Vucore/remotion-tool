@@ -17,7 +17,9 @@ export async function createTtsVoices(
   };
   try {
     if (signal.aborted) throw Error("Đã dừng tạo voice.");
-    onProgress("Đang gửi TXT đến Chatterbox…");
+    onProgress(
+      `Đang gửi TXT đến ${settings.provider === "vieneu" ? "VieNeu" : "Chatterbox"}…`,
+    );
     // Obtain the job ID even if cancellation happens while this POST is pending.
     const response = await fetch("/api/tts", {
       method: "POST",

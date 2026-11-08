@@ -18,7 +18,12 @@ import {
 } from "./narration";
 import { planActors } from "../actors/plan";
 import { NARRATION_LANGUAGES, type NarrationLanguage } from "./languages";
-import { defaultTtsSettings, parseTtsSettings, type TtsSettings } from "./tts";
+import {
+  defaultTtsSettings,
+  parseTtsSettings,
+  ttsLanguage,
+  type TtsSettings,
+} from "./tts";
 import { parseRandomSelection, type RandomSelection } from "./random-selection";
 import {
   makeText,
@@ -473,11 +478,7 @@ export function storyConfig(project: Project, input: StoryOptions): AutoConfig {
     },
     narration: {
       enabled: voice,
-      language: o.tts.enabled
-        ? o.tts.model === "turbo"
-          ? "en"
-          : o.tts.languageId
-        : o.language,
+      language: o.tts.enabled ? ttsLanguage(o.tts) : o.language,
       model: o.model,
       maxChars: o.caption.maxChars,
     },

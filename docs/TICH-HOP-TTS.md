@@ -2,6 +2,8 @@
 
 # Tạo voice từ TXT bằng Chatterbox
 
+Có thêm dịch vụ [VieNeu-TTS v3 Turbo cho tiếng Việt](TICH-HOP-VIENEU-TTS.md), chọn trong Thiết lập TTS. Tài liệu bên dưới mô tả riêng Chatterbox, vẫn là dịch vụ mặc định cho dự án cũ.
+
 ## Kế hoạch triển khai
 
 - Giữ hai nguồn voice: tải WAV/MP3 hoặc tạo từ TXT. Ảnh/TXT vẫn nhập riêng và ghép theo số.

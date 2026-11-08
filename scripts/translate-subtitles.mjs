@@ -4,7 +4,9 @@ import { resolve, join } from "node:path";
 import { languageCode, validateCues } from "../dist/subtitles.mjs";
 
 import { spawn } from "node:child_process";
+import { setTimeout as delay } from "node:timers/promises";
 const root = resolve(import.meta.dirname, "..");
+let nextGoogleRequestAt = 0;
 function keyFor(value) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
@@ -27,10 +29,20 @@ export function runTranslator(payload, { signal } = {}) {
       force.unref();
     };
     let force;
-    const timer = setTimeout(() => {
-      failure = Error("Dịch quá thời gian chờ. Hãy thử lại.");
-      stop();
-    }, 120000);
+    const timer = setTimeout(
+      () => {
+        failure = Object.assign(Error("Google phản hồi quá lâu."), {
+          code: "NETWORK",
+        });
+        stop();
+      },
+      120000 +
+        (payload.texts ?? []).reduce(
+          (sum, text) => sum + Math.ceil(Array.from(text).length / 3000),
+          0,
+        ) *
+          90000,
+    );
     const cancel = () => {
       failure = Error("Đã dừng dịch phụ đề.");
       stop();
@@ -46,8 +58,9 @@ export function runTranslator(payload, { signal } = {}) {
     child.stderr.resume();
     child.stdin.on("error", () => {});
     child.on("error", () => {
-      failure = Error(
-        "Chưa cài môi trường dịch. Chạy npm run setup:python bằng uv.",
+      failure = Object.assign(
+        Error("Chưa cài môi trường dịch. Chạy npm run setup:python bằng uv."),
+        { code: "SETUP" },
       );
     });
     child.on("close", (code) => {
@@ -58,7 +71,10 @@ export function runTranslator(payload, { signal } = {}) {
       try {
         const result = JSON.parse(output);
         if (code !== 0 || result.error)
-          throw Error(result.error || "Không dịch được phụ đề.");
+          throw Object.assign(
+            Error(result.error || "Không dịch được phụ đề."),
+            { code: result.code },
+          );
         resolveResult(result);
       } catch (error) {
         reject(
@@ -95,10 +111,15 @@ export async function translateSubtitles(
     translator = runTranslator,
     onProgress = () => {},
     onResource,
+    wait = (ms, signal) => delay(ms, undefined, { signal }),
+    requestIntervalMs = translator === runTranslator ? 500 : 0,
+    maxBatchChars = 3000,
+    rateLimitDelaysMs = [],
+    networkDelaysMs = [],
   } = {},
 ) {
   const cues = validateCues(input.cues),
-    source = languageCode(input.source),
+    source = input.source === "auto" ? "auto" : languageCode(input.source),
     target = languageCode(input.target);
   if (source === target) throw Error("Chọn ngôn ngữ dịch khác ngôn ngữ gốc.");
   const abort = () => {
@@ -134,58 +155,132 @@ export async function translateSubtitles(
     }
   }
   const items = [...pending.entries()];
-  let done = 0;
-  while (done < items.length) {
-    abort();
-    const batch = [];
-    let chars = 0;
-    while (done + batch.length < items.length && batch.length < 10) {
-      const item = items[done + batch.length];
-      if (batch.length && chars + item[1].text.length > 4500) break;
-      batch.push(item);
-      chars += item[1].text.length;
+  const batches = [];
+  let batch = [],
+    size = 0;
+  for (const entry of items) {
+    const length = Array.from(entry[1].text).length;
+    if (batch.length && size + 7 + length > maxBatchChars) {
+      batches.push(batch);
+      batch = [];
+      size = 0;
     }
-    onProgress(
-      done / Math.max(1, items.length),
-      `Đang dịch ${done}/${items.length} câu mới…`,
-    );
-    const result = await translator(
-      {
-        action: "translate",
-        texts: batch.map(([, item]) => item.text),
-        source,
-        target,
-      },
-      { signal },
-    );
-    const translations = result.translations;
-    if (
-      !Array.isArray(translations) ||
-      translations.length !== batch.length ||
-      translations.some(
-        (t) => typeof t !== "string" || !t.trim() || t.length > 12000,
-      )
-    )
-      throw Error("Số câu/nội dung dịch không khớp. Giữ bản gốc và thử lại.");
+    size += length + (batch.length ? 7 : 0);
+    batch.push(entry);
+  }
+  if (batch.length) batches.push(batch);
+  const failedOriginals = new Set();
+  let done = 0;
+  for (const batch of batches) {
+    let limited = 0,
+      network = 0,
+      text,
+      failedIndices;
+    while (text === undefined) {
+      abort();
+      if (requestIntervalMs && nextGoogleRequestAt > Date.now())
+        await wait(nextGoogleRequestAt - Date.now(), signal);
+      abort();
+      onProgress(
+        done / Math.max(1, items.length),
+        `Đang dịch ${done}/${items.length} câu mới; ${cues.length - items.length} câu có thể dùng cache…`,
+        null,
+      );
+      try {
+        if (requestIntervalMs)
+          nextGoogleRequestAt = Date.now() + requestIntervalMs;
+        const result = await translator(
+          {
+            action: "translate",
+            texts: batch.map(([, item]) => item.text),
+            source,
+            target,
+          },
+          { signal },
+        );
+        const translations = result.translations;
+        if (
+          !Array.isArray(translations) ||
+          translations.length !== batch.length ||
+          translations.some(
+            (value) =>
+              typeof value !== "string" ||
+              !value.trim() ||
+              value.length > 12000,
+          )
+        )
+          throw Error(
+            "Số câu/nội dung dịch không khớp. Giữ bản gốc và thử lại.",
+          );
+        failedIndices = result.failedIndices ?? [];
+        if (
+          !Array.isArray(failedIndices) ||
+          failedIndices.some(
+            (i) => !Number.isInteger(i) || i < 0 || i >= batch.length,
+          )
+        )
+          throw Error("Danh sách câu chưa dịch không khớp.");
+        text = translations.map((value) => value.trim());
+      } catch (error) {
+        abort();
+        const pauses =
+          error.code === "RATE_LIMIT"
+            ? rateLimitDelaysMs
+            : ["NETWORK", "PROVIDER_RESPONSE"].includes(error.code)
+              ? networkDelaysMs
+              : [];
+        const attempt = error.code === "RATE_LIMIT" ? limited++ : network++;
+        if (attempt >= pauses.length) {
+          if (error.code === "RATE_LIMIT")
+            error.message =
+              "Google vẫn đang chặn sau nhiều lần chờ. Các câu thành công đã lưu; bấm Dịch tiếp sau để tiếp tục từ cache.";
+          throw error;
+        }
+        const retryAt = Date.now() + pauses[attempt];
+        if (requestIntervalMs)
+          nextGoogleRequestAt = Math.max(nextGoogleRequestAt, retryAt);
+        onProgress(
+          done / Math.max(1, items.length),
+          `${error.code === "RATE_LIMIT" ? "Google đang giới hạn lượt dịch" : "Google tạm thời không phản hồi"}. Tự thử lại sau ${Math.ceil(pauses[attempt] / 1000)} giây (${attempt + 1}/${pauses.length}). Đã lưu ${done}/${items.length} câu mới.`,
+          retryAt,
+        );
+        await wait(pauses[attempt], signal);
+      }
+    }
     abort();
     for (const [index, [original, item]] of batch.entries()) {
-      const text = translations[index].trim();
+      abort();
+      if (failedIndices.includes(index)) {
+        failedOriginals.add(original);
+        resolved.set(original, original);
+        continue;
+      }
       const temporary = join(cacheDirectory, `${item.key}.${randomUUID()}.tmp`);
       try {
-        await writeFile(temporary, JSON.stringify({ text }));
+        await writeFile(temporary, JSON.stringify({ text: text[index] }));
         await rename(temporary, join(cacheDirectory, item.key + ".json"));
       } finally {
         await rm(temporary, { force: true });
       }
-      resolved.set(original, text);
+      resolved.set(original, text[index]);
     }
     done += batch.length;
   }
   abort();
-  onProgress(1, "Đã dịch phụ đề. Mốc thời gian được giữ nguyên.");
+  const untranslatedIndices = cues.flatMap((cue, i) =>
+    failedOriginals.has(cue.text) ? [i] : [],
+  );
+  onProgress(
+    1,
+    untranslatedIndices.length
+      ? `Có ${untranslatedIndices.length} câu chưa dịch, được giữ nguyên bản gốc. Mốc thời gian được giữ nguyên.`
+      : "Đã dịch đủ phụ đề. Mốc thời gian được giữ nguyên.",
+    null,
+  );
   return {
     cues: cues.map((cue) => ({ ...cue, text: resolved.get(cue.text) })),
     source,
     target,
+    untranslatedIndices,
   };
 }

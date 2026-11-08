@@ -1,39 +1,107 @@
-# JavaScript dependencies and generated builds
+# JavaScript / TypeScript / Remotion dependencies and builds
 node_modules/
 /dist/
 /out/
+/build/
+.remotion/
 coverage/
+.nyc_output/
+.eslintcache
+.stylelintcache
 *.tsbuildinfo
+*.tgz
 
 # Local configuration and secrets (keep distributable examples)
 .env
 .env.*
 !.env.example
 !.env.*.example
+*.pem
+*.key
 
-# Python environments and bytecode; commit pyproject.toml and uv.lock
+# Python environments, packaging and bytecode (commit pyproject.toml and uv.lock)
 .venv/
 .venv-voice/
 venv/
+env/
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+.Python
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.hypothesis/
 *.egg-info/
+.eggs/
+*.egg
+pip-log.txt
+pip-delete-this-directory.txt
 
-# User uploads, exported media, downloaded models and runtime caches
+# User uploads, exported media, generated outputs and runtime caches
 /data/
+/output/
+/exports/
+/uploads/
 /.cache/
+/tmp/
+/temp/
+*.tmp
+*.temp
+*.bak
+*.partial
+*.partial.*
 /test-results/
 /playwright-report/
+/blob-report/
+/playwright/.cache/
 
-# Local logs and OS files
-*.log
-.DS_Store
-Thumbs.db
-
-# Image AI weights (existing tracked files remain tracked)
+# AI / Image / Voice model weights and checkpoints
 /weights/
+/models/
+/checkpoints/
 *.onnx
 *.pth
+*.pt
+*.safetensors
+*.ckpt
+*.bin
+*.gguf
+
+# IDE, editors and local agent/design tool state
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.swo
+*~
+.impeccable/
+.cursor/
+.claude/
+.aider*
+
+# Logs and OS-generated files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini

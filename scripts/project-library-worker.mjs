@@ -274,10 +274,70 @@ function unpack(record) {
     revision: record.revision,
   };
 }
+async function withoutMissingExport(workspace) {
+  const id = workspace.job?.id;
+  if (!idPattern.test(id ?? ""))
+    return workspace.job ? { ...workspace, job: null } : workspace;
+  try {
+    await stat(join(workerData.root, "data/jobs", id + ".json"));
+    return workspace;
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    return { ...workspace, job: null };
+  }
+}
 async function handle({ action, projectId, raw }) {
   await initialize();
   const payload = raw ? JSON.parse(raw) : {};
   if (action === "barrier") return true;
+  if (action === "forget-resources") {
+    const ids = new Set(payload.exports ?? []),
+      prefixes = payload.cachePrefixes ?? [];
+    if (
+      [...ids].some((id) => !idPattern.test(id)) ||
+      prefixes.some(
+        (prefix) =>
+          !/^\/\.cache\/(proxies|render-bundles|tts|images|alignment|translations|whisper|models)\/$/.test(
+            prefix,
+          ),
+      )
+    )
+      fail("Nhóm tài nguyên cần đồng bộ không hợp lệ.");
+    const projectIds = (await readdir(directory, { withFileTypes: true }))
+      .filter(
+        (entry) =>
+          entry.isDirectory() &&
+          idPattern.test(entry.name) &&
+          !deleted.has(entry.name),
+      )
+      .map((entry) => entry.name);
+    // Validate all records before changing any, then process one project at a time.
+    for (const id of projectIds) await read(id);
+    let updated = 0;
+    for (const id of projectIds) {
+      const current = await read(id);
+      const workspace = ids.has(current.workspace.job?.id)
+        ? { ...current.workspace, job: null }
+        : current.workspace;
+      const refs = [...recordRefs(current)];
+      const resources = refs.filter((ref) => {
+        const exportId = ref.match(
+          /^(?:job:|\/exports\/)([a-f0-9-]{36})(?:\.(?:mp4|srt))?$/,
+        )?.[1];
+        return (
+          !ids.has(exportId) &&
+          !prefixes.some((prefix) => ref.startsWith(prefix))
+        );
+      });
+      if (workspace !== current.workspace || resources.length !== refs.length) {
+        // Resource cleanup preserves the editing revision so other tabs can save unrelated edits.
+        await commit({ ...current, workspace, resources }, false);
+        if (cached?.id === current.id) cached = undefined;
+        updated++;
+      }
+    }
+    return { updated };
+  }
   if (action === "list")
     return {
       activeId: index.activeId,
@@ -404,7 +464,10 @@ async function handle({ action, projectId, raw }) {
   if (action === "open") {
     index.activeId = record.id;
     await atomic(indexFile, index).catch(() => {});
-    return unpack(record);
+    return unpack({
+      ...record,
+      workspace: await withoutMissingExport(record.workspace),
+    });
   }
   if (action === "save") {
     if (payload.revision !== record.revision)
@@ -412,24 +475,29 @@ async function handle({ action, projectId, raw }) {
         "Dự án đã được chỉnh sửa ở tab khác. Hãy tải bản sao JSON để giữ thay đổi, rồi tải lại trang.",
         409,
       );
-    const workspace = validate(applyRevision(record.workspace, payload.patch));
+    const workspace = await withoutMissingExport(
+      validate(applyRevision(record.workspace, payload.patch)),
+    );
     const waves = mergeWaves(record.waves, workspace, payload.waves);
     // Repeated flushes with no content change need not serialize or rewrite a large snapshot.
     if (workspace === record.workspace && !payload.waves?.length)
       return { entry: summary(record), revision: record.revision };
-    return append(
-      record,
-      {
-        ...record,
-        workspace,
-        waves,
-        sequence: (record.sequence ?? 0) + 1,
-        revision: randomUUID(),
-        updatedAt: new Date().toISOString(),
-        resources: [...resourceRefs(workspace, recordRefs(record))],
-      },
-      payload,
-    );
+    return {
+      ...(await append(
+        record,
+        {
+          ...record,
+          workspace,
+          waves,
+          sequence: (record.sequence ?? 0) + 1,
+          revision: randomUUID(),
+          updatedAt: new Date().toISOString(),
+          resources: [...resourceRefs(workspace, recordRefs(record))],
+        },
+        payload,
+      )),
+      nameChanged: workspace.options.name !== record.workspace.options.name,
+    };
   }
   fail("Thao tác dự án không hợp lệ.");
 }

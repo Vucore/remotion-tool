@@ -17,7 +17,9 @@ import {
   ttsPlan,
   spokenTtsText,
   speechPlan,
+  ttsBaseUrl,
 } from "../dist/tts.mjs";
+import { generateVieNeuSpeech, validateVieNeuReference } from "./vieneu.mjs";
 import {
   inspectVoice,
   MAX_VOICE_BYTES,
@@ -73,7 +75,7 @@ async function generateSingleTts(
     signal,
     onProgress = () => {},
     fetchImpl = fetch,
-    timeoutMs = 600_000,
+    timeoutMs,
     minimumDuration = 0.5,
     onResource,
   } = {},
@@ -82,7 +84,7 @@ async function generateSingleTts(
     sections = ttsPlan(script, images);
   const parameters = ttsParameters(options);
   for (const section of sections)
-    if (!spokenTtsText(section.text, options.model).trim())
+    if (!spokenTtsText(section.text, options.model, options.provider).trim())
       throw Error(
         `TXT mục ${section.order}: cần nội dung lời đọc ngoài thẻ cảm xúc.`,
       );
@@ -95,10 +97,23 @@ async function generateSingleTts(
     const info = await stat(path).catch(() => {
       throw Error("Không tìm thấy file giọng mẫu. Hãy chọn lại.");
     });
-    if (!info.isFile() || info.size > 25 * 1024 * 1024)
-      throw Error("File giọng mẫu tối đa 25 MB.");
+    if (
+      !info.isFile() ||
+      info.size > (options.provider === "vieneu" ? 10 : 25) * 1024 * 1024
+    )
+      throw Error(
+        options.provider === "vieneu"
+          ? "VieNeu: file giọng mẫu tối đa 10 MiB."
+          : "File giọng mẫu tối đa 25 MB.",
+      );
     const bytes = await readFile(path);
-    await inspectVoice(bytes, { name: options.reference.src, signal });
+    if (options.provider === "vieneu")
+      await validateVieNeuReference(
+        bytes,
+        options.reference.src.endsWith(".mp3") ? "mp3" : "wav",
+        signal,
+      );
+    else await inspectVoice(bytes, { name: options.reference.src, signal });
     reference = {
       bytes,
       extension: options.reference.src.endsWith(".mp3") ? "mp3" : "wav",
@@ -119,7 +134,7 @@ async function generateSingleTts(
     const key = hash(
       JSON.stringify({
         version: 1,
-        endpoint: options.baseUrl,
+        endpoint: ttsBaseUrl(options),
         parameters,
         text: section.text,
         reference: reference?.hash ?? null,
@@ -154,73 +169,87 @@ async function generateSingleTts(
       checkAbort(signal);
     }
     if (!audio) {
-      const form = new FormData();
-      for (const [name, value] of Object.entries(parameters))
-        form.append(name, String(value));
-      form.append("text", section.text);
-      if (reference)
-        form.append(
-          "voice_file",
-          new Blob([reference.bytes], {
-            type: reference.extension === "mp3" ? "audio/mpeg" : "audio/wav",
-          }),
-          `reference.${reference.extension}`,
-        );
-      const timeout = AbortSignal.timeout(timeoutMs);
-      const requestSignal = signal
-        ? AbortSignal.any([signal, timeout])
-        : timeout;
       let bytes;
-      try {
-        const response = await fetchImpl(`${options.baseUrl}/api/cli`, {
-          method: "POST",
-          body: form,
-          signal: requestSignal,
-          redirect: "error",
-        });
-        if (!response.ok) {
-          let detail = "";
-          try {
-            const raw = (await readLimited(response, 8192)).toString("utf8");
-            try {
-              const parsed = JSON.parse(raw);
-              detail =
-                typeof parsed.detail === "string"
-                  ? parsed.detail
-                  : typeof parsed.error === "string"
-                    ? parsed.error
-                    : raw;
-            } catch {
-              detail = raw;
-            }
-          } catch {
-            /* HTTP status still explains the failure. */
-          }
+      if (options.provider === "vieneu") {
+        try {
+          bytes = await generateVieNeuSpeech(
+            { text: section.text, settings: options, reference },
+            { fetchImpl, signal, timeoutMs },
+          );
+        } catch (error) {
+          checkAbort(signal);
           throw Error(
-            `API TTS HTTP ${response.status}${
-              detail
-                ? `: ${detail
-                    .replace(/<[^>]*>/g, " ")
-                    .replace(/\s+/g, " ")
-                    .slice(0, 600)}`
-                : ". Kiểm tra cấu hình và thử lại."
-            }`,
+            `Voice ${section.order}: ${error.name === "TimeoutError" ? "VieNeu hết thời gian chờ. Thử lại để dùng các mục đã cache." : error.message}`,
           );
         }
-        const type = response.headers.get("content-type") || "";
-        if (/json|text|zip|html/i.test(type))
-          throw Error(
-            "API TTS cần trả audio trực tiếp ở mode=single, nhưng nhận được dữ liệu khác.",
+      } else {
+        const form = new FormData();
+        for (const [name, value] of Object.entries(parameters))
+          form.append(name, String(value));
+        form.append("text", section.text);
+        if (reference)
+          form.append(
+            "voice_file",
+            new Blob([reference.bytes], {
+              type: reference.extension === "mp3" ? "audio/mpeg" : "audio/wav",
+            }),
+            `reference.${reference.extension}`,
           );
-        bytes = await readLimited(response, MAX_VOICE_BYTES);
-        checkAbort(signal);
-      } catch (error) {
-        checkAbort(signal);
-        if (timeout.aborted)
-          throw Error(
-            `Voice ${section.order}: API TTS hết thời gian chờ. Thử lại để tiếp tục các mục chưa có.`,
-          );
-        throw Error(`Voice ${section.order}: ${error.message}`);
+        const timeout = AbortSignal.timeout(timeoutMs ?? 600_000);
+        const requestSignal = signal
+          ? AbortSignal.any([signal, timeout])
+          : timeout;
+        try {
+          const response = await fetchImpl(`${options.baseUrl}/api/cli`, {
+            method: "POST",
+            body: form,
+            signal: requestSignal,
+            redirect: "error",
+          });
+          if (!response.ok) {
+            let detail = "";
+            try {
+              const raw = (await readLimited(response, 8192)).toString("utf8");
+              try {
+                const parsed = JSON.parse(raw);
+                detail =
+                  typeof parsed.detail === "string"
+                    ? parsed.detail
+                    : typeof parsed.error === "string"
+                      ? parsed.error
+                      : raw;
+              } catch {
+                detail = raw;
+              }
+            } catch {
+              /* HTTP status still explains the failure. */
+            }
+            throw Error(
+              `API TTS HTTP ${response.status}${
+                detail
+                  ? `: ${detail
+                      .replace(/<[^>]*>/g, " ")
+                      .replace(/\s+/g, " ")
+                      .slice(0, 600)}`
+                  : ". Kiểm tra cấu hình và thử lại."
+              }`,
+            );
+          }
+          const type = response.headers.get("content-type") || "";
+          if (/json|text|zip|html/i.test(type))
+            throw Error(
+              "API TTS cần trả audio trực tiếp ở mode=single, nhưng nhận được dữ liệu khác.",
+            );
+          bytes = await readLimited(response, MAX_VOICE_BYTES);
+          checkAbort(signal);
+        } catch (error) {
+          checkAbort(signal);
+          if (timeout.aborted)
+            throw Error(
+              `Voice ${section.order}: API TTS hết thời gian chờ. Thử lại để tiếp tục các mục chưa có.`,
+            );
+          throw Error(`Voice ${section.order}: ${error.message}`);
+        }
       }
       const inspected = await inspectVoice(bytes, {
         name: `voice.${options.outputFormat}`,
@@ -265,6 +294,7 @@ export async function generateTts(input, context = {}) {
   await mkdir(cacheDirectory, { recursive: true });
   await mkdir(assetDirectory, { recursive: true });
   // Reject missing reference files before generating any paid/remote turn.
+  const checkedReferences = new Set();
   for (const scene of plan)
     for (const turn of scene.turns) {
       if (turn.options.voiceMode !== "reference") continue;
@@ -272,8 +302,23 @@ export async function generateTts(input, context = {}) {
       const info = await stat(path).catch(() => {
         throw Error("Không tìm thấy file clone. Hãy chọn lại giọng mẫu.");
       });
-      if (!info.isFile() || info.size > 25 * 1024 * 1024)
-        throw Error("File clone tối đa 25 MB.");
+      if (
+        !info.isFile() ||
+        info.size > (options.provider === "vieneu" ? 10 : 25) * 1024 * 1024
+      )
+        throw Error(
+          options.provider === "vieneu"
+            ? "VieNeu: file clone tối đa 10 MiB."
+            : "File clone tối đa 25 MB.",
+        );
+      if (options.provider === "vieneu" && !checkedReferences.has(path)) {
+        await validateVieNeuReference(
+          await readFile(path),
+          path.endsWith(".mp3") ? "mp3" : "wav",
+          context.signal,
+        );
+        checkedReferences.add(path);
+      }
     }
   const assets = [];
   const total = plan.reduce((count, scene) => count + scene.turns.length, 0);

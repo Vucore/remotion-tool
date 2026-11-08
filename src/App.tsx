@@ -30,6 +30,7 @@ import {
   parseTtsSettings,
   ttsPlan,
   ttsInputKey,
+  ttsLanguage,
   type TtsSettings,
   type SceneDialogue,
 } from "./auto/tts";
@@ -43,6 +44,7 @@ import {
   type ImageProcessingSettings,
 } from "./auto/image-processing";
 import { SubtitlePanel } from "./editor/SubtitlePanel";
+import { VideoOverlayPanel } from "./editor/VideoOverlayPanel";
 import { PlaybackClock, lastAt } from "./editor/performance";
 import { ProxyThumbnail } from "./editor/ProxyThumbnail";
 import { useStoryPreview } from "./editor/useStoryPreview";
@@ -60,6 +62,12 @@ import {
   type ProjectDeletion,
 } from "./editor/workspace-storage";
 import { ExportPanel } from "./editor/ExportPanel";
+import { StoragePanel } from "./editor/StoragePanel";
+import {
+  notifyStorageChange,
+  watchStorageChanges,
+} from "./editor/storage-client";
+import { imageResources } from "./editor/image-resources";
 import { leanProject } from "./editor/project-client";
 import { ProjectsPanel } from "./editor/ProjectsPanel";
 import {
@@ -134,9 +142,11 @@ export function App() {
     | "tts"
     | "actors"
     | "subtitles"
+    | "video-overlays"
     | "help"
     | "images"
     | "exports"
+    | "storage"
     | "projects"
     | null
   >(null);
@@ -235,14 +245,25 @@ export function App() {
     };
   }, []);
   useEffect(() => {
-    if (!hydrated || !storageReady || switching.current) return;
+    if (!hydrated || !storageReady || switching.current || phase === "deleting")
+      return;
     setSaved(false);
     let disposed = false;
     const save = () => {
       if (switching.current) return;
       void writeWorkspace(workspace, projectId ?? undefined).then(
-        () => {
-          if (!disposed) setSaved(true);
+        (entry) => {
+          if (!disposed) {
+            setSaved(true);
+            if (entry.warning) setNotice(entry.warning);
+            if (entry.exports?.length)
+              setWorkspace((w) => {
+                const updated = entry.exports?.find(
+                  (item) => item.id === w.job?.id,
+                );
+                return updated ? { ...w, job: updated } : w;
+              });
+          }
         },
         (error) => {
           if (!disposed)
@@ -264,7 +285,19 @@ export function App() {
       clearTimeout(timeout);
       document.removeEventListener("visibilitychange", flush);
     };
-  }, [workspace, hydrated, storageReady, projectId, phase]);
+  }, [workspace, hydrated, storageReady, projectId, phase, setWorkspace]);
+  useEffect(
+    () =>
+      watchStorageChanges((change) => {
+        if (change.cacheCleared) imageResources.clearCache();
+        setWorkspace((w) =>
+          change.removedExports.includes(w.job?.id ?? "")
+            ? { ...w, job: null }
+            : w,
+        );
+      }),
+    [setWorkspace],
+  );
   useEffect(() => {
     if (saved || !storageReady) return;
     const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -303,7 +336,7 @@ export function App() {
     };
   }, [previewProject, previewItems, clock]);
   useEffect(() => {
-    if (!exportId || !exportActive) return;
+    if (!exportId) return;
     let disposed = false,
       timer: ReturnType<typeof setTimeout>;
     const abort = new AbortController();
@@ -317,17 +350,7 @@ export function App() {
         if (!response.ok) {
           if (response.status === 404) {
             setWorkspace((w) =>
-              w.job?.id === exportId
-                ? {
-                    ...w,
-                    job: {
-                      ...w.job,
-                      status: "error",
-                      error:
-                        "Server đã khởi động lại, không còn trạng thái tác vụ. Hãy xuất lại bản dựng.",
-                    },
-                  }
-                : w,
+              w.job?.id === exportId ? { ...w, job: null } : w,
             );
             return;
           }
@@ -386,8 +409,9 @@ export function App() {
     setProgress("Đang nhập giọng mẫu…");
     setError("");
     try {
-      if (!/\.(wav|mp3)$/i.test(file.name) || file.size > 25 * 1024 * 1024)
-        throw Error("Giọng mẫu cần là WAV/MP3, tối đa 25 MB.");
+      const isVieNeu = options.tts.provider === "vieneu";
+      if (!/\.(wav|mp3)$/i.test(file.name) || file.size > (isVieNeu ? 10 : 25) * 1024 * 1024)
+        throw Error(isVieNeu ? "VieNeu: giọng mẫu cần là WAV/MP3, tối đa 10 MiB, dài 3–8 giây." : "Giọng mẫu cần là WAV/MP3, tối đa 25 MB.");
       const response = await fetch(
         "/api/voices?name=" + encodeURIComponent(file.name),
         {
@@ -404,6 +428,8 @@ export function App() {
       const result = await response.json();
       if (!response.ok)
         throw Error(result.error || "Không nhập được giọng mẫu.");
+      if (isVieNeu && (result.duration < 3 || result.duration > 8))
+        throw Error("VieNeu: clip clone cần dài 3–8 giây. Chọn lại file mẫu ngắn hơn; voice tải lên cho cảnh vẫn nhận độ dài như cũ.");
       setWorkspace((w) => {
         const reference = { src: result.src, name: file.name };
         const tts =
@@ -1076,7 +1102,10 @@ export function App() {
           value={options.name}
           maxLength={100}
           disabled={busy}
-          onChange={(e) => changeOptions({ name: e.target.value })}
+          onChange={(e) => {
+            const name = e.target.value;
+            setWorkspace((w) => ({ ...w, options: { ...w.options, name } }));
+          }}
         />
         <span
           className="workspace-saved"
@@ -1221,9 +1250,7 @@ export function App() {
                 disabled={busy || options.tts.enabled}
                 value={
                   options.tts.enabled
-                    ? options.tts.model === "turbo"
-                      ? "en"
-                      : options.tts.languageId
+                    ? ttsLanguage(options.tts)
                     : options.language
                 }
                 onChange={(e) =>
@@ -1258,6 +1285,19 @@ export function App() {
           onClick={() => setResourceDialog("exports")}
         >
           <Icon name="clock" />
+        </button>
+        <button
+          className="button storage-open"
+          aria-label="Dung lượng ứng dụng"
+          title="Dung lượng ứng dụng"
+          disabled={!hydrated || phase === "deleting" || phase === "switching"}
+          onClick={() => {
+            player.current?.pause();
+            setResourceDialog("storage");
+          }}
+        >
+          <Icon name="storage" />
+          <span>Dung lượng</span>
         </button>
         {busy ? (
           <button
@@ -1502,6 +1542,14 @@ export function App() {
               <span>
                 Phụ đề & SRT<small>Xuất · dịch · song ngữ</small>
               </span>
+              <Icon name="next" />
+            </button>
+            <button disabled={busy || preview.pending || !previewHasScenes} onClick={() => {
+              player.current?.pause();
+              setResourceDialog("video-overlays");
+            }}>
+              <Icon name="film" />
+              <span>Ghép MP4 nền xanh<small>{project.videoOverlays?.length ?? 0} clip · Kéo vị trí · Đổi kích thước</small></span>
               <Icon name="next" />
             </button>
             <button disabled={busy} onClick={() => setResourceDialog("actors")}>
@@ -1794,6 +1842,34 @@ export function App() {
       >
         <ExportPanel
           onTrack={(next) => setWorkspace((w) => ({ ...w, job: next }))}
+          onUpdate={(next) =>
+            setWorkspace((w) =>
+              w.job?.id === next.id ? { ...w, job: next } : w,
+            )
+          }
+          onDelete={(id) =>
+            notifyStorageChange({ removedExports: [id], cacheCleared: false })
+          }
+        />
+      </EditorDialog>
+      <EditorDialog
+        open={resourceDialog === "storage"}
+        title="Dung lượng ứng dụng"
+        wide
+        className="storage-dialog"
+        dismissible={phase !== "deleting"}
+        onClose={() => {
+          if (phase !== "deleting") setResourceDialog(null);
+        }}
+      >
+        <StoragePanel
+          beforeDelete={() =>
+            writeWorkspace(latestWorkspace.current, projectId ?? undefined)
+          }
+          onDeleting={(value) => {
+            setPhase(value ? "deleting" : "idle");
+            setProgress(value ? "Đang dọn dung lượng…" : "");
+          }}
         />
       </EditorDialog>
       <EditorDialog
@@ -1888,6 +1964,14 @@ export function App() {
           </p>
         )}
       </EditorDialog>
+      <EditorDialog open={resourceDialog === "video-overlays"} title="Ghép MP4 nền xanh" wide
+        dismissible={phase !== "importing"} onClose={() => setResourceDialog(null)}>
+        <VideoOverlayPanel project={{ ...previewProject, videoOverlays: project.videoOverlays }} initialFrame={frame} busy={busy}
+          onSeek={(next) => { player.current?.pause(); seek(next); }}
+          onUploading={(value) => { operation.current = value; setPhase(value ? "importing" : "idle"); }}
+          onChange={(videoOverlays) => setWorkspace((w) => ({ ...w,
+            project: { ...w.project, videoOverlays }, job: null }))} />
+      </EditorDialog>
       <EditorDialog
         open={resourceDialog === "subtitles"}
         title="Phụ đề & SRT"
@@ -1899,9 +1983,7 @@ export function App() {
           estimated={preview.estimated}
           defaultLanguage={
             options.tts.enabled
-              ? options.tts.model === "turbo"
-                ? "en"
-                : options.tts.languageId
+              ? ttsLanguage(options.tts)
               : options.language
           }
           busy={busy}
@@ -1959,8 +2041,8 @@ export function App() {
         <pre>{"1. Lời đọc cảnh một.\n2. Lời đọc cảnh hai."}</pre>
         <p className="dialog-help">
           Căn thời gian từ voice cần bộ Whisper:{" "}
-          <code>npm run setup:voice</code> (uv). Dịch SRT dùng Google API, không
-          cần thêm model local.
+          <code>npm run setup:voice</code> (uv). Dịch SRT dùng Google Translate
+          miễn phí qua Internet, không cần thêm model local.
         </p>
       </EditorDialog>
       <input

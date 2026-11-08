@@ -368,6 +368,7 @@ export function compileAuto(
       : {}),
     scenes,
     fonts: previous?.fonts ?? [],
+    ...(previous?.videoOverlays ? { videoOverlays: structuredClone(previous.videoOverlays) } : {}),
     actors: parseActorLibrary(actorLibrary),
     ...(pairs && narration
       ? { voiceover: structuredClone(narration.input) }

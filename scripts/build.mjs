@@ -32,6 +32,8 @@ export async function buildApp(watch = false) {
       narration: "src/auto/narration.ts",
       tts: "src/auto/tts.ts",
       subtitles: "src/auto/subtitles.ts",
+      "video-overlays": "src/video-overlays.ts",
+      "subtitle-client": "src/editor/subtitle-client.ts",
       "image-processing": "src/auto/image-processing.ts",
       actors: "src/actors/import.ts",
       "actor-model": "src/actors/schema.ts",

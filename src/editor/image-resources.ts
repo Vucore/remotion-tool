@@ -41,6 +41,10 @@ export class ImageResources {
   peek(src: string, size: number) {
     return this.ready.get(this.key(src, size));
   }
+  clearCache() {
+    this.ready.clear();
+    this.originalUntil.clear();
+  }
 
   invalidate(src: string, size: number, useOriginal = false) {
     const key = this.key(src, size);

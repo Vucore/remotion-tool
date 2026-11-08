@@ -13,6 +13,16 @@ import type { Project } from "../model";
 import { Icon } from "../icons";
 import { subtitleZip } from "../auto/subtitle-zip";
 import { projectHeaders } from "./workspace-storage";
+import { translateSubtitleDocument } from "./subtitle-client";
+
+type SubtitleFile = {
+  id: string;
+  name: string;
+  cues: SubtitleCue[];
+  size?: number;
+};
+const taskId = (document: SubtitleFile, target: string) =>
+  `${document.id}:${target}`;
 
 function download(name: string, cues: SubtitleCue[]) {
   const url = URL.createObjectURL(
@@ -40,10 +50,9 @@ export function SubtitlePanel({
   busy: boolean;
 }) {
   const [input, setInput] = useState<"project" | "file">("project");
-  const [file, setFile] = useState<{
-    name: string;
-    cues: SubtitleCue[];
-  } | null>(null);
+  const [files, setFiles] = useState<SubtitleFile[]>([]);
+  const [activeFile, setActiveFile] = useState("");
+  const file = files.find((item) => item.id === activeFile) ?? files[0];
   const [source, setSource] = useState(defaultLanguage),
     [targets, setTargets] = useState<string[]>([
       defaultLanguage === "en" ? "vi" : "en",
@@ -58,7 +67,10 @@ export function SubtitlePanel({
     })),
   );
   const [translations, setTranslations] = useState<
-    Record<string, { key: string; cues: SubtitleCue[] }>
+    Record<
+      string,
+      { key: string; cues: SubtitleCue[]; untranslatedCount?: number }
+    >
   >({});
   const [failures, setFailures] = useState<Record<string, string>>({});
   const [status, setStatus] = useState(""),
@@ -67,20 +79,53 @@ export function SubtitlePanel({
     [loadingLanguages, setLoadingLanguages] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null),
     controller = useRef<AbortController | null>(null);
-  const cues = useMemo(
+  const documents = useMemo(
     () =>
-      input === "project" ? projectSubtitles(project) : (file?.cues ?? []),
-    [input, project, file],
+      input === "project"
+        ? [
+            {
+              id: "project",
+              name: project.name,
+              cues: projectSubtitles(project),
+            },
+          ]
+        : files,
+    [input, project, files],
   );
+  const activeDocument = input === "project" ? documents[0] : file;
+  const cues = activeDocument?.cues ?? [];
   const fingerprint = JSON.stringify({ cues, source });
   const selected = targets.filter((code) => code !== source);
   const readyLanguages = selected.filter(
-    (code) => translations[code]?.key === fingerprint,
+    (code) =>
+      activeDocument &&
+      translations[taskId(activeDocument, code)]?.key === fingerprint,
+  );
+  const tasks = useMemo(
+    () =>
+      documents.flatMap((document) => {
+        const key = JSON.stringify({ cues: document.cues, source });
+        return targets
+          .filter((target) => target !== source)
+          .map((target) => ({
+            document,
+            target,
+            id: taskId(document, target),
+            key,
+          }));
+      }),
+    [documents, source, targets],
+  );
+  const readyTasks = tasks.filter(
+    (task) => translations[task.id]?.key === task.key,
   );
   const previewTarget = readyLanguages.includes(previewLanguage)
     ? previewLanguage
     : readyLanguages[0];
-  const translated = previewTarget ? translations[previewTarget].cues : null;
+  const translated =
+    previewTarget && activeDocument
+      ? translations[taskId(activeDocument, previewTarget)].cues
+      : null;
   const filteredLanguages = languages.filter(
     (l) =>
       l.code !== source &&
@@ -89,7 +134,7 @@ export function SubtitlePanel({
         .includes(search.toLocaleLowerCase()),
   );
   const names = Object.fromEntries(languages.map((l) => [l.code, l.name]));
-  const name = input === "file" ? (file?.name ?? "phu-de") : project.name;
+  const name = activeDocument?.name ?? "phu-de";
   const busy = editorBusy || translating || loadingLanguages;
   useEffect(() => () => controller.current?.abort(), []);
   async function loadLanguages() {
@@ -114,7 +159,9 @@ export function SubtitlePanel({
               ?.name ?? l.name,
         })),
       );
-      setStatus(`Đã tải ${result.languages.length} ngôn ngữ từ Google.`);
+      setStatus(
+        `Đã tải ${result.languages.length} ngôn ngữ hỗ trợ từ thư viện dịch.`,
+      );
     } catch (e) {
       if (!abort.signal.aborted)
         setError(e instanceof Error ? e.message : "Không tải được ngôn ngữ.");
@@ -124,80 +171,78 @@ export function SubtitlePanel({
     }
   }
   async function translate() {
+    if (tasks.length > 1000) {
+      setError(
+        "Tối đa 1.000 bản dịch mỗi lượt. Giảm số file hoặc ngôn ngữ đã chọn.",
+      );
+      return;
+    }
     setTranslating(true);
     setError("");
     setFailures({});
     const abort = new AbortController();
     controller.current = abort;
-    let completed = 0;
+    let completed = 0,
+      untranslated = 0,
+      stoppedByProvider = false;
     try {
-      for (const [index, target] of selected.entries()) {
+      for (const [index, task] of tasks.entries()) {
+        const { document, target, id, key } = task;
         if (abort.signal.aborted) break;
-        if (translations[target]?.key === fingerprint) {
+        if (
+          translations[id]?.key === key &&
+          !translations[id]?.untranslatedCount
+        ) {
           completed++;
           continue;
         }
-        let jobId = "",
-          complete = false;
-        const cancel = async () => {
-          if (jobId)
-            await fetch(`/api/subtitles/translate/${jobId}`, {
-              method: "DELETE",
-            }).catch(() => {});
-        };
         try {
-          setStatus(
-            `${index + 1}/${selected.length} · ${names[target] ?? target}: đang chuẩn bị…`,
-          );
-          // Receive the job ID before honoring cancellation so no orphan job is left running.
-          const response = await fetch("/api/subtitles/translate", {
-            method: "POST",
-            headers: {
-              ...projectHeaders(),
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ cues, source, target }),
-          });
-          let job = await response.json();
-          if (!response.ok) throw Error(job.error);
-          jobId = job.id;
-          abort.signal.addEventListener("abort", cancel, { once: true });
-          while (true) {
-            if (abort.signal.aborted) throw Error("Đã dừng dịch.");
-            setStatus(
-              `${index + 1}/${selected.length} · ${names[target] ?? target}: ${job.message || "Đang dịch…"}`,
-            );
-            if (job.status === "done") {
-              setTranslations((previous) => ({
-                ...previous,
-                [target]: { key: fingerprint, cues: job.result.cues },
-              }));
-              completed++;
-              complete = true;
-              break;
-            }
-            if (["error", "cancelled"].includes(job.status))
-              throw Error(job.error || "Đã dừng dịch.");
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            const poll = await fetch(`/api/subtitles/translate/${jobId}`, {
+          let retained = 0;
+          const result = await translateSubtitleDocument(
+            { cues: document.cues, source, target },
+            {
               signal: abort.signal,
-            });
-            job = await poll.json();
-            if (!poll.ok) throw Error(job.error || "Mất kết nối tác vụ dịch.");
-          }
+              headers: projectHeaders(),
+              onUntranslated: (indices) => {
+                untranslated += indices.length;
+                retained = indices.length;
+              },
+              onUpdate: (job) =>
+                setStatus(
+                  `${index + 1}/${tasks.length} · ${document.name} → ${names[target] ?? target}: ${job.message || "Đang chuẩn bị…"}${job.retryAt ? ` · Thử lại lúc ${new Date(job.retryAt).toLocaleTimeString()}` : ""}`,
+                ),
+            },
+          );
+          setTranslations((previous) => ({
+            ...previous,
+            [id]: { key, cues: result, untranslatedCount: retained },
+          }));
+          completed++;
         } catch (e) {
           if (!abort.signal.aborted)
             setFailures((previous) => ({
               ...previous,
-              [target]: e instanceof Error ? e.message : "Không dịch được.",
+              [id]: e instanceof Error ? e.message : "Không dịch được.",
             }));
-        } finally {
-          abort.signal.removeEventListener("abort", cancel);
-          if (!complete) await cancel();
+          if (
+            [
+              "RATE_LIMIT",
+              "BUSY",
+              "SETUP",
+              "NETWORK",
+              "PROVIDER_RESPONSE",
+            ].includes((e as { code?: string }).code ?? "")
+          ) {
+            stoppedByProvider = true;
+            setError(
+              "Đã tạm dừng hàng đợi. Các câu thành công được giữ trong cache; bấm Dịch tiếp sau để tiếp tục.",
+            );
+            break;
+          }
         }
       }
       setStatus(
-        `${abort.signal.aborted ? "Đã dừng" : "Hoàn tất"} · ${completed}/${selected.length} ngôn ngữ sẵn sàng. Các bản đã dịch được giữ lại.`,
+        `${abort.signal.aborted || stoppedByProvider ? "Đã tạm dừng" : completed === tasks.length ? "Hoàn tất" : "Còn bản chưa dịch thành công"} · ${completed}/${tasks.length} bản dịch sẵn sàng.${untranslated ? ` Có ${untranslated} câu chưa dịch, được giữ nguyên bản gốc trong file xuất.` : " Các bản đã dịch được giữ lại."}`,
       );
     } finally {
       setTranslating(false);
@@ -205,19 +250,25 @@ export function SubtitlePanel({
     }
   }
   function downloadSelected() {
-    const files = readyLanguages.map((code) => ({
-      name: subtitleFilename(
-        name,
+    const used = new Set<string>();
+    const files = readyTasks.map(({ document, target: code, id }, index) => {
+      let filename = subtitleFilename(
+        document.name,
         bilingual ? source : code,
         bilingual ? code : undefined,
         names,
-      ),
-      text: toSrt(
-        bilingual
-          ? bilingualCues(cues, translations[code].cues)
-          : translations[code].cues,
-      ),
-    }));
+      );
+      while (used.has(filename)) filename = `${index + 1}_${filename}`;
+      used.add(filename);
+      return {
+        name: filename,
+        text: toSrt(
+          bilingual
+            ? bilingualCues(document.cues, translations[id].cues)
+            : translations[id].cues,
+        ),
+      };
+    });
     const url = URL.createObjectURL(
       new Blob([subtitleZip(files)], { type: "application/zip" }),
     );
@@ -258,9 +309,40 @@ export function SubtitlePanel({
               onClick={() => fileInput.current?.click()}
             >
               <Icon name="folder" />
-              {file ? "Thay file SRT" : "Chọn file SRT"}
+              {files.length ? "Thêm SRT" : "Chọn nhiều file SRT"}
             </button>
-            <span>{file?.name ?? "UTF-8 · tối đa 2 MB"}</span>
+            <span>
+              {files.length
+                ? `${files.length} file · dịch cùng ngôn ngữ gốc đã chọn`
+                : "UTF-8 · tối đa 2 MB/file · tối đa 50 file"}
+            </span>
+            {!!files.length && (
+              <>
+                <label>
+                  File xem trước
+                  <select
+                    value={file?.id}
+                    onChange={(e) => setActiveFile(e.target.value)}
+                  >
+                    {files.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} · {item.cues.length} câu
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  className="button"
+                  onClick={() => {
+                    setFiles([]);
+                    setTranslations({});
+                    setFailures({});
+                  }}
+                >
+                  Bỏ các file
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <div className="subtitle-source-state">
@@ -286,6 +368,7 @@ export function SubtitlePanel({
           <label>
             Ngôn ngữ gốc
             <select value={source} onChange={(e) => setSource(e.target.value)}>
+              <option value="auto">Tự nhận diện</option>
               {languages.map((l) => (
                 <option key={l.code} value={l.code}>
                   {l.name} ({l.code})
@@ -329,9 +412,14 @@ export function SubtitlePanel({
                 {l.name} <small>({l.code})</small>
               </span>
               <small>
-                {translations[l.code]?.key === fingerprint
-                  ? "Sẵn sàng"
-                  : failures[l.code]
+                {activeDocument &&
+                translations[taskId(activeDocument, l.code)]?.key ===
+                  fingerprint
+                  ? translations[taskId(activeDocument, l.code)]
+                      .untranslatedCount
+                    ? `Còn ${translations[taskId(activeDocument, l.code)].untranslatedCount} câu gốc`
+                    : "Sẵn sàng"
+                  : activeDocument && failures[taskId(activeDocument, l.code)]
                     ? "Lỗi"
                     : ""}
               </small>
@@ -343,8 +431,11 @@ export function SubtitlePanel({
         </div>
         <p className="dialog-help">
           Google Translate miễn phí qua deep-translator · không cần API key. Cần
-          Internet; nội dung phụ đề được gửi tới Google. Có thể bị giới hạn lượt
-          dịch.
+          Internet; nội dung phụ đề được gửi tới Google theo từng batch tối đa
+          3.000 ký tự, nghỉ 0,5 giây giữa các batch, tự thử lại 3 lần (2s, 4s,
+          6s) và fallback dịch từng câu nếu lệch dòng; các câu dịch thành công
+          được lưu vào cache. Giữ nguyên số câu và timestamp; nên rà lại nghĩa,
+          tên riêng và thuật ngữ.
         </p>
         <button className="button" onClick={() => void loadLanguages()}>
           Tải đầy đủ ngôn ngữ
@@ -371,19 +462,23 @@ export function SubtitlePanel({
         ) : (
           <button
             className="button primary"
-            disabled={!cues.length || busy || !selected.length}
+            disabled={
+              !documents.length ||
+              documents.some((item) => !item.cues.length) ||
+              busy ||
+              !selected.length
+            }
             onClick={() => void translate()}
           >
-            {`Dịch ${selected.length} ngôn ngữ`}
+            {`${readyTasks.length || Object.keys(failures).length ? "Dịch tiếp" : "Dịch"} ${documents.length} ${input === "file" ? "file" : "bản"} × ${selected.length} ngôn ngữ`}
           </button>
         )}
         <button
           className="button"
-          disabled={busy || !readyLanguages.length}
+          disabled={busy || !readyTasks.length}
           onClick={downloadSelected}
         >
-          <Icon name="download" /> Tải {readyLanguages.length} bản đã chọn
-          (.zip)
+          <Icon name="download" /> Tải {readyTasks.length} bản đã chọn (.zip)
         </button>
       </div>
       <label className="subtitle-bilingual">
@@ -395,17 +490,17 @@ export function SubtitlePanel({
         />{" "}
         Song ngữ: lời gốc + bản dịch trong mỗi file
       </label>
-      {selected.length > readyLanguages.length && readyLanguages.length > 0 && (
+      {tasks.length > readyTasks.length && readyTasks.length > 0 && (
         <p className="dialog-help">
-          ZIP chỉ chứa {readyLanguages.length}/{selected.length} bản đã chọn có
-          bản dịch sẵn sàng.
+          ZIP chứa {readyTasks.length}/{tasks.length} bản đã dịch đầy đủ. Các
+          bản còn thiếu câu hoặc chưa dịch không được đưa vào ZIP.
         </p>
       )}
-      {Object.entries(failures)
-        .filter(([code]) => selected.includes(code))
-        .map(([code, message]) => (
-          <p className="dialog-error" role="alert" key={code}>
-            {names[code] ?? code}: {message}
+      {tasks
+        .filter((task) => failures[task.id])
+        .map(({ id, document, target }) => (
+          <p className="dialog-error" role="alert" key={id}>
+            {document.name} → {names[target] ?? target}: {failures[id]}
           </p>
         ))}
       {readyLanguages.length > 0 && (
@@ -463,18 +558,39 @@ export function SubtitlePanel({
         hidden
         ref={fileInput}
         accept=".srt"
+        multiple
         onChange={(e) => {
-          const next = e.target.files?.[0];
+          const incoming = Array.from(e.target.files ?? []);
           e.target.value = "";
-          if (!next) return;
+          if (!incoming.length) return;
           setError("");
           void (async () => {
             try {
-              if (!/\.srt$/i.test(next.name) || next.size > 2_000_000)
-                throw Error("Chọn SRT UTF-8, tối đa 2 MB.");
-              const parsed = parseSrt(await next.text());
-              setFile({ name: next.name, cues: parsed });
-              setTranslations({});
+              if (files.length + incoming.length > 50)
+                throw Error("Tối đa 50 file SRT mỗi lượt.");
+              if (
+                incoming.reduce((sum, next) => sum + next.size, 0) +
+                  files.reduce((sum, next) => sum + (next.size ?? 0), 0) >
+                10_000_000
+              )
+                throw Error(
+                  "Tổng các SRT tối đa 10 MB mỗi lượt. Hãy chia thành các nhóm nhỏ hơn.",
+                );
+              const added: SubtitleFile[] = [];
+              for (const next of incoming) {
+                if (!/\.srt$/i.test(next.name) || next.size > 2_000_000)
+                  throw Error(
+                    `${next.name}: chọn SRT UTF-8, tối đa 2 MB/file.`,
+                  );
+                added.push({
+                  id: crypto.randomUUID(),
+                  name: next.name,
+                  size: next.size,
+                  cues: parseSrt(await next.text()),
+                });
+              }
+              setFiles((previous) => [...previous, ...added]);
+              setActiveFile(added[0].id);
               setFailures({});
             } catch (err) {
               setError(
